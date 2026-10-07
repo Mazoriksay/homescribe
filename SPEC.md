@@ -126,7 +126,7 @@ CREATE TABLE recordings (
   original_filename TEXT NOT NULL,           -- as sent by the client, display only
   media_type        TEXT NOT NULL,           -- MIME type sent by the client
   size_bytes        INTEGER NOT NULL,
-  stored_name       TEXT NOT NULL,           -- 'original' + sanitized extension, e.g. 'original.m4a'
+  stored_name       TEXT NOT NULL,           -- 'original' + sanitized extension, e.g. 'original.m4a'; '' until a link is downloaded
   duration_seconds  REAL,                    -- from ffprobe; NULL until known
   created_at        TEXT NOT NULL,           -- ISO 8601 UTC
   updated_at        TEXT NOT NULL
@@ -175,6 +175,10 @@ CREATE TABLE summaries (
   model         TEXT NOT NULL,
   created_at    TEXT NOT NULL
 );
+-- Stage 3b:
+ALTER TABLE recordings ADD COLUMN source_url TEXT;           -- link the media came from
+ALTER TABLE recordings ADD COLUMN title_from_source INTEGER NOT NULL DEFAULT 0;
+                                                             -- 1: replace title with the page's title
 CREATE TABLE ai_settings (                   -- one row per kind once chosen in the UI
   kind        TEXT PRIMARY KEY,                -- 'stt' | 'llm'
   mode        TEXT NOT NULL,                   -- 'local' | 'api' | 'off' (llm only)
@@ -226,26 +230,28 @@ Every non-2xx response has exactly this shape:
 `details` is optional. `message` is for humans and may change; clients branch
 on `code` only.
 
-| HTTP | `code`                   | When                                                                       |
-| ---- | ------------------------ | -------------------------------------------------------------------------- |
-| 400  | `VALIDATION_ERROR`       | Bad path/query/body (including a malformed id); `details` holds the issues |
-| 400  | `FILE_REQUIRED`          | Upload without a `file` part                                               |
-| 403  | `NETWORK_NOT_ALLOWED`    | Client address outside `ALLOWED_NETWORKS`                                  |
-| 404  | `NOT_FOUND`              | Unknown recording/job id or unknown route                                  |
-| 409  | `JOB_ACTIVE`             | Action needs the recording's job to be finished                            |
-| 409  | `TRANSCRIPT_NOT_READY`   | No transcript stored yet (first job not `done`)                            |
-| 409  | `SUMMARY_NOT_READY`      | No summary stored yet                                                      |
-| 409  | `SUMMARIES_OFF`          | A `summarize` job was requested while the LLM is set to `off`              |
-| 502  | `AI_UNREACHABLE`         | Listing models: the given AI server did not answer as expected             |
-| 413  | `FILE_TOO_LARGE`         | Upload larger than `MAX_UPLOAD_MB`                                         |
-| 415  | `UNSUPPORTED_MEDIA_TYPE` | Upload MIME type is not `audio/*`, `video/*` or `application/octet-stream` |
-| 500  | `INTERNAL_ERROR`         | Anything unexpected; never includes stack traces                           |
+| HTTP | `code`                   | When                                                                          |
+| ---- | ------------------------ | ----------------------------------------------------------------------------- |
+| 400  | `VALIDATION_ERROR`       | Bad path/query/body (including a malformed id); `details` holds the issues    |
+| 400  | `FILE_REQUIRED`          | Upload without a `file` part                                                  |
+| 403  | `NETWORK_NOT_ALLOWED`    | Client address outside `ALLOWED_NETWORKS`                                     |
+| 404  | `NOT_FOUND`              | Unknown recording/job id or unknown route                                     |
+| 409  | `JOB_ACTIVE`             | Action needs the recording's job to be finished                               |
+| 409  | `TRANSCRIPT_NOT_READY`   | No transcript stored yet (first job not `done`)                               |
+| 400  | `URL_NOT_ALLOWED`        | Link is not http(s), has credentials, or points at an internal address (§7.7) |
+| 409  | `SUMMARY_NOT_READY`      | No summary stored yet                                                         |
+| 409  | `SUMMARIES_OFF`          | A `summarize` job was requested while the LLM is set to `off`                 |
+| 502  | `AI_UNREACHABLE`         | Listing models: the given AI server did not answer as expected                |
+| 413  | `FILE_TOO_LARGE`         | Upload larger than `MAX_UPLOAD_MB`                                            |
+| 415  | `UNSUPPORTED_MEDIA_TYPE` | Upload MIME type is not `audio/*`, `video/*` or `application/octet-stream`    |
+| 500  | `INTERNAL_ERROR`         | Anything unexpected; never includes stack traces                              |
 
 Job failures are not HTTP errors; they live on the job (`error.code`):
 
 | `code`                                           | Meaning                                                     |
 | ------------------------------------------------ | ----------------------------------------------------------- |
 | `INTERRUPTED`                                    | Server stopped while the job was running                    |
+| `DOWNLOAD_FAILED`                                | yt-dlp could not fetch the link; the message has its reason |
 | `MEDIA_UNREADABLE`                               | ffprobe/ffmpeg could not read or convert the upload         |
 | `STT_UNAVAILABLE`                                | Speech-to-text server unreachable                           |
 | `STT_TIMEOUT`                                    | No answer within `STT_TIMEOUT_MS`                           |
@@ -256,7 +262,8 @@ Job failures are not HTTP errors; they live on the job (`error.code`):
 ### 7.2 Types
 
 ```ts
-type JobStatus = 'queued' | 'converting' | 'transcribing' | 'summarizing' | 'done' | 'failed';
+type JobStatus =
+  'queued' | 'downloading' | 'converting' | 'transcribing' | 'summarizing' | 'done' | 'failed';
 type JobKind = 'process' | 'summarize';
 
 interface Job {
@@ -276,8 +283,9 @@ interface Recording {
   title: string;
   originalFilename: string;
   mediaType: string;
-  sizeBytes: number;
+  sizeBytes: number; // 0 until a link has been downloaded
   durationSeconds: number | null;
+  sourceUrl: string | null; // the link a recording was made from (§7.7)
   createdAt: string;
   updatedAt: string;
   job: Job; // the latest job of this recording
@@ -307,26 +315,27 @@ interface Page<T> {
 
 ### 7.3 Endpoints
 
-| Method & path                           | Stage | Request                                                                                                      | Success                                                                 | Errors                                                              |
-| --------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `GET /api/v1/health`                    | 1     | —                                                                                                            | `200 Health` (§7.6)                                                     |                                                                     |
-| `POST /api/v1/recordings`               | 1     | `multipart/form-data`: `file` (required), `title` (optional text field, sent **before** `file`, 1–200 chars) | `201 Recording`, `Location` header                                      | 400, 413, 415                                                       |
-| `GET /api/v1/recordings`                | 1     | query `page` (≥1, default 1), `pageSize` (1–100, default 20)                                                 | `200 Page<Recording>`, newest first                                     | 400                                                                 |
-| `GET /api/v1/recordings/:id`            | 1     | —                                                                                                            | `200 Recording`                                                         | 404                                                                 |
-| `DELETE /api/v1/recordings/:id`         | 1     | —                                                                                                            | `204`; a queued job is dropped                                          | 404, 409 `JOB_ACTIVE` if running                                    |
-| `GET /api/v1/recordings/:id/transcript` | 1     | —                                                                                                            | `200 Transcript`                                                        | 404, 409 `TRANSCRIPT_NOT_READY`                                     |
-| `POST /api/v1/recordings/:id/jobs`      | 1     | `{ kind: 'process' \| 'summarize' }`                                                                         | `202 Job`                                                               | 400, 404, 409 `JOB_ACTIVE`, `TRANSCRIPT_NOT_READY`, `SUMMARIES_OFF` |
-| `GET /api/v1/jobs/:id`                  | 1     | —                                                                                                            | `200 Job`                                                               | 404                                                                 |
-| `GET /api/v1/events`                    | 1     | `Accept: text/event-stream`                                                                                  | SSE stream, see §7.4                                                    |                                                                     |
-| `PATCH /api/v1/recordings/:id`          | 2     | `{ title }`                                                                                                  | `200 Recording`                                                         | 400, 404                                                            |
-| `GET /api/v1/recordings/:id/summary`    | 2     | —                                                                                                            | `200 { recordingId, summary, actionItems: string[], model, createdAt }` | 404, 409 `SUMMARY_NOT_READY`                                        |
-| `GET /api/v1/recordings/:id/media`      | 2     | `Range` supported                                                                                            | `200/206` original media, type from our extension map, `CSP: sandbox`   | 404                                                                 |
-| `GET /api/v1/search?q=&page=&pageSize=` | 2     | `q` 1–200 chars, `pageSize` ≤ 50                                                                             | `200 Page<SearchHit>`                                                   | 400                                                                 |
-| `GET /api/v1/settings/ai`               | 2     | —                                                                                                            | `200 { stt: AiSettings, llm: AiSettings }`                              |                                                                     |
-| `PUT /api/v1/settings/ai/:kind`         | 2     | `UpdateAiSettings` (§7.5)                                                                                    | `200 AiSettings`                                                        | 400                                                                 |
-| `DELETE /api/v1/settings/ai/:kind`      | 2     | —                                                                                                            | `200 AiSettings` (back to the environment defaults)                     | 400                                                                 |
-| `GET /api/v1/ai/discovery`              | 2     | —                                                                                                            | `200 { servers: DiscoveredServer[], probed: string[] }`                 |                                                                     |
-| `POST /api/v1/ai/models`                | 2     | `{ baseUrl, apiKey?, useSavedKeyFor?: 'stt' \| 'llm' }`                                                      | `200 { models: { id, kind: 'stt' \| 'llm' \| null }[] }`                | 400, 502 `AI_UNREACHABLE`                                           |
+| Method & path                           | Stage | Request                                                                                                                | Success                                                                 | Errors                                                              |
+| --------------------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `GET /api/v1/health`                    | 1     | —                                                                                                                      | `200 Health` (§7.6)                                                     |                                                                     |
+| `POST /api/v1/recordings`               | 1     | `multipart/form-data`: `file` (required), `title` (optional text field, sent **before** `file`, 1–200 chars)           | `201 Recording`, `Location` header                                      | 400, 413, 415                                                       |
+| `POST /api/v1/recordings/from-url`      | 3     | `{ url, title? }`: http(s) link to a video or audio page (YouTube and other sites supported by yt-dlp) or a media file | `201 Recording` with `sourceUrl`; the job starts with `downloading`     | 400 `VALIDATION_ERROR`, `URL_NOT_ALLOWED`                           |
+| `GET /api/v1/recordings`                | 1     | query `page` (≥1, default 1), `pageSize` (1–100, default 20)                                                           | `200 Page<Recording>`, newest first                                     | 400                                                                 |
+| `GET /api/v1/recordings/:id`            | 1     | —                                                                                                                      | `200 Recording`                                                         | 404                                                                 |
+| `DELETE /api/v1/recordings/:id`         | 1     | —                                                                                                                      | `204`; a queued job is dropped                                          | 404, 409 `JOB_ACTIVE` if running                                    |
+| `GET /api/v1/recordings/:id/transcript` | 1     | —                                                                                                                      | `200 Transcript`                                                        | 404, 409 `TRANSCRIPT_NOT_READY`                                     |
+| `POST /api/v1/recordings/:id/jobs`      | 1     | `{ kind: 'process' \| 'summarize' }`                                                                                   | `202 Job`                                                               | 400, 404, 409 `JOB_ACTIVE`, `TRANSCRIPT_NOT_READY`, `SUMMARIES_OFF` |
+| `GET /api/v1/jobs/:id`                  | 1     | —                                                                                                                      | `200 Job`                                                               | 404                                                                 |
+| `GET /api/v1/events`                    | 1     | `Accept: text/event-stream`                                                                                            | SSE stream, see §7.4                                                    |                                                                     |
+| `PATCH /api/v1/recordings/:id`          | 2     | `{ title }`                                                                                                            | `200 Recording`                                                         | 400, 404                                                            |
+| `GET /api/v1/recordings/:id/summary`    | 2     | —                                                                                                                      | `200 { recordingId, summary, actionItems: string[], model, createdAt }` | 404, 409 `SUMMARY_NOT_READY`                                        |
+| `GET /api/v1/recordings/:id/media`      | 2     | `Range` supported                                                                                                      | `200/206` original media, type from our extension map, `CSP: sandbox`   | 404                                                                 |
+| `GET /api/v1/search?q=&page=&pageSize=` | 2     | `q` 1–200 chars, `pageSize` ≤ 50                                                                                       | `200 Page<SearchHit>`                                                   | 400                                                                 |
+| `GET /api/v1/settings/ai`               | 2     | —                                                                                                                      | `200 { stt: AiSettings, llm: AiSettings }`                              |                                                                     |
+| `PUT /api/v1/settings/ai/:kind`         | 2     | `UpdateAiSettings` (§7.5)                                                                                              | `200 AiSettings`                                                        | 400                                                                 |
+| `DELETE /api/v1/settings/ai/:kind`      | 2     | —                                                                                                                      | `200 AiSettings` (back to the environment defaults)                     | 400                                                                 |
+| `GET /api/v1/ai/discovery`              | 2     | —                                                                                                                      | `200 { servers: DiscoveredServer[], probed: string[] }`                 |                                                                     |
+| `POST /api/v1/ai/models`                | 2     | `{ baseUrl, apiKey?, useSavedKeyFor?: 'stt' \| 'llm' }`                                                                | `200 { models: { id, kind: 'stt' \| 'llm' \| null }[] }`                | 400, 502 `AI_UNREACHABLE`                                           |
 
 `SearchHit` is `{ recording, snippet: { text, match }[], segment: { index, start } | null }`:
 a fragment around the first match split into highlighted parts, and the first
@@ -416,6 +425,7 @@ interface Health {
   search: 'fts5' | 'like';
   checks: {
     ffmpeg: 'ok' | 'missing'; // ffmpeg and ffprobe run
+    ytdlp: 'ok' | 'missing'; // yt-dlp runs (links, §7.7)
     stt: 'ok' | 'model_missing' | 'unreachable'; // GET /v1/models; model listed?
     llm: 'ok' | 'model_missing' | 'unreachable' | 'off';
     embedding: 'same_origin' | 'origins'; // FRAME_ANCESTORS empty or set
@@ -429,6 +439,37 @@ downloads models only on request; `PRELOAD_MODELS` in the compose file does
 it at startup). The UI shows a notice with a link to Settings when `ffmpeg`,
 `stt` or `llm` is not `ok`/`off`.
 
+### 7.7 Transcribing a link
+
+`POST /recordings/from-url` creates a recording with `sourceUrl` set and no
+media yet; its `process` job begins with `downloading`. The download uses
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) (YouTube and ~1800 other sites,
+plus direct links to media files):
+
+- best audio only (`-f bestaudio/best`), single video (`--no-playlist`),
+  capped at `MAX_UPLOAD_MB` (`--max-filesize`), no config files
+  (`--ignore-config`), the URL after `--`, arguments as an array (no shell);
+- progress from `--progress-template`, the final file and its title, duration
+  and codecs from `--print after_move:…`;
+- the file becomes `original.<ext>` like an upload; without a user-given
+  title, the page's title replaces the placeholder;
+- failures end the job as `DOWNLOAD_FAILED` with yt-dlp's error line
+  (e.g. "Video unavailable"); retrying downloads again.
+
+YouTube needs a JavaScript runtime for yt-dlp; the Docker image ships deno,
+which yt-dlp recommends because it sandboxes that code. yt-dlp updates itself
+(`YTDLP_AUTO_UPDATE`) because sites change often. The self-check reports
+`ytdlp: 'ok' | 'missing'`.
+
+**Guard:** the link's host must not resolve to a loopback, private,
+link-local or otherwise internal address unless `URL_IMPORT_ALLOW_PRIVATE`
+is set (`400 URL_NOT_ALLOWED`). This is a best-effort check before handing
+the URL to yt-dlp, which follows redirects and site-specific requests on its
+own; every allowed LAN client is trusted anyway (§10).
+
+Downloading content is subject to each site's terms; Homescribe is meant for
+material the user may keep a personal copy of.
+
 ## 8. Job lifecycle
 
 ```
@@ -438,7 +479,9 @@ queued ──► converting ──► transcribing ──► summarizing ──�
    └────────────┴───────────────┴──────────────┴──► failed (error.code)
 ```
 
-- `process` job: `queued → converting → transcribing → summarizing → done`.
+- `process` job: `queued → [downloading] → converting → transcribing →
+summarizing → done`; `downloading` only for a recording made from a link
+  whose media is not stored yet (§7.7).
   `summarizing` is skipped when the LLM is `off` or no speech was recognised.
   The transcript is stored before `summarizing`, so an LLM failure leaves it
   readable; the UI then offers to retry only the summary.
@@ -469,32 +512,36 @@ All settings come from environment variables; `.env.example` lists them.
 exists (Node's `--env-file-if-exists`). Invalid values stop the server at
 startup with a message naming the variable.
 
-| Variable             | Default                                                                          | Stage | Meaning                                                                             |
-| -------------------- | -------------------------------------------------------------------------------- | ----- | ----------------------------------------------------------------------------------- |
-| `HOST`               | `0.0.0.0`                                                                        | 1     | Listen address                                                                      |
-| `PORT`               | `8080`                                                                           | 1     | Listen port                                                                         |
-| `DATA_DIR`           | `./data`                                                                         | 1     | SQLite file and media; created if missing                                           |
-| `ALLOWED_NETWORKS`   | `127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,fe80::/10` | 1     | Comma-separated CIDR list of allowed client addresses                               |
-| `MAX_UPLOAD_MB`      | `2048`                                                                           | 1     | Largest accepted upload                                                             |
-| `FFMPEG_PATH`        | `ffmpeg`                                                                         | 1     | ffmpeg binary                                                                       |
-| `FFPROBE_PATH`       | `ffprobe`                                                                        | 1     | ffprobe binary                                                                      |
-| `STT_MODE`           | `local`                                                                          | 2     | `local` or `api` (cloud: audio sent as Opus)                                        |
-| `STT_BASE_URL`       | `http://localhost:8000`                                                          | 1     | Base URL; the server calls `${STT_BASE_URL}/v1/audio/transcriptions`                |
-| `STT_MODEL`          | `Systran/faster-whisper-large-v3`                                                | 1     | `model` form field                                                                  |
-| `STT_LANGUAGE`       | _(empty = auto-detect)_                                                          | 1     | ISO 639-1 code sent as `language`                                                   |
-| `STT_API_KEY`        | _(empty)_                                                                        | 1     | Sent as `Authorization: Bearer …` when set                                          |
-| `STT_TIMEOUT_MS`     | `3600000`                                                                        | 1     | Per-request timeout                                                                 |
-| `LLM_MODE`           | `local`                                                                          | 2     | `local`, `api` or `off` (no summaries)                                              |
-| `LLM_BASE_URL`       | `http://localhost:11434`                                                         | 2     | Base URL; calls `${LLM_BASE_URL}/v1/chat/completions`                               |
-| `LLM_MODEL`          | `llama3.1:8b`                                                                    | 2     | `model` field                                                                       |
-| `LLM_API_KEY`        | _(empty)_                                                                        | 2     | Bearer token when set                                                               |
-| `LLM_TIMEOUT_MS`     | `600000`                                                                         | 2     | Per-request timeout                                                                 |
-| `LLM_CHUNK_CHARS`    | `12000`                                                                          | 2     | Longer transcripts are summarized in parts, then merged                             |
-| `AI_DISCOVERY_HOSTS` | `localhost,host.docker.internal`                                                 | 2     | Hosts probed for local AI servers (names or IPs, no ports)                          |
-| `BASE_PATH`          | _(empty = root)_                                                                 | 3     | Serve UI and API under this path, e.g. `/homescribe` (§11.2)                        |
-| `WEB_DIST_DIR`       | `apps/web/dist` (resolved from the repo root)                                    | 1     | Built UI to serve; skipped if missing                                               |
-| `FRAME_ANCESTORS`    | _(empty = only the app itself)_                                                  | 1     | Space-separated origins (`http://hub.lan:3000`) allowed to show the UI in an iframe |
-| `LOG_LEVEL`          | `info`                                                                           | 1     | Fastify/pino log level                                                              |
+| Variable                   | Default                                                                          | Stage | Meaning                                                                             |
+| -------------------------- | -------------------------------------------------------------------------------- | ----- | ----------------------------------------------------------------------------------- |
+| `HOST`                     | `0.0.0.0`                                                                        | 1     | Listen address                                                                      |
+| `PORT`                     | `8080`                                                                           | 1     | Listen port                                                                         |
+| `DATA_DIR`                 | `./data`                                                                         | 1     | SQLite file and media; created if missing                                           |
+| `ALLOWED_NETWORKS`         | `127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,fe80::/10` | 1     | Comma-separated CIDR list of allowed client addresses                               |
+| `MAX_UPLOAD_MB`            | `2048`                                                                           | 1     | Largest accepted upload                                                             |
+| `FFMPEG_PATH`              | `ffmpeg`                                                                         | 1     | ffmpeg binary                                                                       |
+| `FFPROBE_PATH`             | `ffprobe`                                                                        | 1     | ffprobe binary                                                                      |
+| `STT_MODE`                 | `local`                                                                          | 2     | `local` or `api` (cloud: audio sent as Opus)                                        |
+| `STT_BASE_URL`             | `http://localhost:8000`                                                          | 1     | Base URL; the server calls `${STT_BASE_URL}/v1/audio/transcriptions`                |
+| `STT_MODEL`                | `Systran/faster-whisper-large-v3`                                                | 1     | `model` form field                                                                  |
+| `STT_LANGUAGE`             | _(empty = auto-detect)_                                                          | 1     | ISO 639-1 code sent as `language`                                                   |
+| `STT_API_KEY`              | _(empty)_                                                                        | 1     | Sent as `Authorization: Bearer …` when set                                          |
+| `STT_TIMEOUT_MS`           | `3600000`                                                                        | 1     | Per-request timeout                                                                 |
+| `LLM_MODE`                 | `local`                                                                          | 2     | `local`, `api` or `off` (no summaries)                                              |
+| `LLM_BASE_URL`             | `http://localhost:11434`                                                         | 2     | Base URL; calls `${LLM_BASE_URL}/v1/chat/completions`                               |
+| `LLM_MODEL`                | `llama3.1:8b`                                                                    | 2     | `model` field                                                                       |
+| `LLM_API_KEY`              | _(empty)_                                                                        | 2     | Bearer token when set                                                               |
+| `LLM_TIMEOUT_MS`           | `600000`                                                                         | 2     | Per-request timeout                                                                 |
+| `LLM_CHUNK_CHARS`          | `12000`                                                                          | 2     | Longer transcripts are summarized in parts, then merged                             |
+| `AI_DISCOVERY_HOSTS`       | `localhost,host.docker.internal`                                                 | 2     | Hosts probed for local AI servers (names or IPs, no ports)                          |
+| `BASE_PATH`                | _(empty = root)_                                                                 | 3     | Serve UI and API under this path, e.g. `/homescribe` (§11.2)                        |
+| `WEB_DIST_DIR`             | `apps/web/dist` (resolved from the repo root)                                    | 1     | Built UI to serve; skipped if missing                                               |
+| `FRAME_ANCESTORS`          | _(empty = only the app itself)_                                                  | 1     | Space-separated origins (`http://hub.lan:3000`) allowed to show the UI in an iframe |
+| `YTDLP_PATH`               | `yt-dlp`                                                                         | 3     | yt-dlp binary for links (§7.7)                                                      |
+| `YTDLP_AUTO_UPDATE`        | `true`                                                                           | 3     | Run `yt-dlp -U` at startup and daily (sites change often)                           |
+| `DOWNLOAD_TIMEOUT_MS`      | `7200000`                                                                        | 3     | Longest a link download may take                                                    |
+| `URL_IMPORT_ALLOW_PRIVATE` | `false`                                                                          | 3     | Allow links to private/loopback addresses (e.g. a NAS on the LAN)                   |
+| `LOG_LEVEL`                | `info`                                                                           | 1     | Fastify/pino log level                                                              |
 
 The `STT_*` and `LLM_*` values are defaults: once a backend is chosen in the
 UI (§7.5), the saved choice wins until it is reset.
@@ -536,6 +583,8 @@ and treats the response as untrusted input (validated with Zod).
 - **Model output:** treated as untrusted. The prompt marks the transcript as
   data; the reply is validated against a schema with length limits and the
   summary Markdown is rendered without raw HTML.
+- **Links:** see the guard in §7.7; yt-dlp runs with an argument array,
+  `--ignore-config` and the URL after `--`.
 - **Media:** served with a type from our own extension map (never the client's
   claim), `Content-Disposition: inline` and `CSP: sandbox`.
 - **Errors:** 500s return a generic message; details go to the log only. Job
@@ -683,6 +732,13 @@ export class AppError extends Error {
 - [x] `Dockerfile` (Node 24 + ffmpeg, non-root, `DATA_DIR` volume, health check) and `compose.yaml` as the main way to run: `homescribe` with `restart: unless-stopped`, speaches under the `gpu` or `cpu` profile with the default model preloaded, Ollama under the `llm` profile.
 - [x] README: run with Docker Compose; HTTPS without a private CA (Tailscale `serve`, or an own domain with Let's Encrypt via the DNS challenge) with ready-made examples, including serving under the hub's origin.
 
+### Stage 3b — transcribe a link
+
+- [ ] `POST /recordings/from-url`, `sourceUrl` on recordings, `downloading` step with progress, `DOWNLOAD_FAILED`.
+- [ ] yt-dlp behind a `MediaDownloader` interface; tests with a fake yt-dlp executable; the real one only when installed.
+- [ ] Private-address guard; `yt-dlp -U` at startup and daily; `ytdlp` in the self-check.
+- [ ] Docker image with yt-dlp and deno; UI: paste a link next to the upload, source link on the recording page.
+
 ### Stage 4 — record in the browser, PWA, offline
 
 - [ ] Record screen using `MediaRecorder`; pick the first supported of `audio/webm;codecs=opus`, `audio/mp4`, `audio/webm` via `MediaRecorder.isTypeSupported`, upload with the matching extension (Chrome → webm, Safari → mp4).
@@ -718,6 +774,9 @@ Resolved with the maintainer:
    way to run (stage 3), and the preferred embedding is the same origin via
    `BASE_PATH` behind one proxy. HTTPS is documented, not built in: Tailscale
    `serve` or Let's Encrypt with the DNS challenge, never a private CA.
+
+8. Links are imported with yt-dlp (self-updating, deno as its JS runtime),
+   not limited to direct file links.
 
 ## 17. Open questions
 
