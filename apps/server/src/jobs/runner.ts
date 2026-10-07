@@ -61,9 +61,11 @@ export class JobRunner {
   /** Starts processing if idle. Safe to call any number of times. */
   kick(): void {
     if (this.loop || this.abort.signal.aborted) return;
-    this.loop = this.drain().finally(() => {
-      this.loop = null;
-    });
+    this.loop = this.drain()
+      .catch((error: unknown) => this.deps.logger.error({ err: error }, 'job queue crashed'))
+      .finally(() => {
+        this.loop = null;
+      });
   }
 
   /** Resolves once the queue is empty (used by tests and shutdown). */
@@ -101,11 +103,11 @@ export class JobRunner {
     const storedName = repo.getStoredName(recordingId);
     if (!storedName) return; // recording deleted meanwhile; its job went with it
 
-    const input = store.originalPath(recordingId, storedName);
     const workDir = store.workDir(recordingId);
     const wav = path.join(workDir, 'audio.wav');
 
     try {
+      const input = store.originalPath(recordingId, storedName);
       this.update(job.id, { status: 'converting', progress: 0, error: null, started: true });
       await mkdir(workDir, { recursive: true });
       const duration = await media.probeDuration(input, signal);

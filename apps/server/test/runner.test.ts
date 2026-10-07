@@ -162,6 +162,16 @@ describe('JobRunner', () => {
     expect(repo.getJob(queued.job.id)?.status).toBe('done');
   });
 
+  it('fails a job with INTERNAL_ERROR instead of crashing the queue', async () => {
+    const broken = await upload();
+    media.probeDuration = () => Promise.reject(new Error('disk on fire'));
+    const next = await upload();
+    runner.start();
+    await runner.idle();
+    expect(repo.getJob(broken.job.id)?.error?.code).toBe('INTERNAL_ERROR');
+    expect(repo.getJob(next.job.id)?.error?.code).toBe('INTERNAL_ERROR');
+  });
+
   it('ends the running job as INTERRUPTED on stop', async () => {
     transcriber.gate = deferred().promise; // never released
     const { job } = await upload();

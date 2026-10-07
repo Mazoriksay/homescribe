@@ -32,6 +32,8 @@ describe('HTTP API', () => {
     const res = await t.app.inject('/api/v1/health');
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ status: 'ok' });
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['content-security-policy']).toContain("default-src 'self'");
   });
 
   describe('network allow-list', () => {
