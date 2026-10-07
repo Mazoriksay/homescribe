@@ -38,7 +38,7 @@ services:
   # speaches (faster-whisper) on an NVIDIA GPU; needs the NVIDIA Container Toolkit.
   stt-gpu:
     profiles: [gpu]
-    image: ghcr.io/speaches-ai/speaches:latest-cuda-12.6.3
+    image: ghcr.io/speaches-ai/speaches:latest-cuda
     restart: unless-stopped
     environment:
       # Downloaded on first start so the first recording does not fail.

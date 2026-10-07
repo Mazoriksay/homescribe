@@ -24,6 +24,12 @@ source of truth for the version.
 
 ### Fixed
 
+- The speech model is now actually downloaded: the installer asks the speech
+  server for it (`POST /v1/models/{id}`) instead of relying on
+  `PRELOAD_MODELS`, which the image ignored, so it no longer waits forever.
+- GPU speech recognition uses speaches' current `latest-cuda` image (CUDA
+  12.9) instead of the older CUDA 12.6 build, for newer GPUs such as the
+  RTX 50 series.
 - The Windows installer no longer stops right after installing Docker
   Desktop; it starts Docker Desktop and waits for it.
 
