@@ -47,7 +47,7 @@ export function LinkImport() {
           value={url}
           placeholder={t('library.link.placeholder')}
           status={error ? 'error' : undefined}
-          aria-describedby={`${id}-hint`}
+          aria-describedby={error ? `${id}-error` : undefined}
           onChange={(event) => {
             reset();
             setUrl(event.target.value);
@@ -63,13 +63,9 @@ export function LinkImport() {
           {t('library.link.submit')}
         </Button>
       </div>
-      {error ? (
-        <p className={styles.error} role="alert" id={`${id}-hint`}>
+      {error && (
+        <p className={styles.error} role="alert" id={`${id}-error`}>
           {t(errorMessageKey(errorCode(error)))}
-        </p>
-      ) : (
-        <p className={styles.hint} id={`${id}-hint`}>
-          {t('library.link.hint')}
         </p>
       )}
     </form>

@@ -1,5 +1,4 @@
 import { formatTimestamp, type Recording, type Segment } from '@homescribe/shared';
-import { Button } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useGetTranscriptQuery } from '../../api/api';
 import { useT } from '../../i18n/useT';
@@ -67,9 +66,9 @@ export function TranscriptView({ recording, currentTime, focusTime, onSeek }: Pr
           {t('recording.transcript')}
         </h2>
         {transcript && transcript.text && typeof navigator.clipboard !== 'undefined' && (
-          <Button onClick={() => void copy()}>
+          <button type="button" className="link-action" onClick={() => void copy()}>
             {copied ? t('recording.copied') : t('recording.copy')}
-          </Button>
+          </button>
         )}
       </div>
 

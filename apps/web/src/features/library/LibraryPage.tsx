@@ -37,7 +37,7 @@ export function LibraryPage() {
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>{t('library.title')}</h1>
+      <h1 className="page-title">{t('library.title')}</h1>
       <Input
         type="search"
         size="large"
@@ -69,7 +69,6 @@ export function LibraryPage() {
       {!q && data && data.pagination.totalItems === 0 && (
         <div className={styles.state}>
           <h2 className={styles.stateTitle}>{t('library.empty.title')}</h2>
-          <p className={styles.muted}>{t('library.empty.body')}</p>
         </div>
       )}
 

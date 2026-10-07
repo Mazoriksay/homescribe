@@ -125,8 +125,6 @@ export function AiBackendForm({ settings }: { settings: AiSettings }) {
         }
       />
 
-      {form.mode === 'off' && <p className={styles.muted}>{t('settings.offBody')}</p>}
-
       {form.mode === 'local' && (
         <>
           <Button onClick={() => void discover()} loading={discovery.isFetching}>
@@ -173,7 +171,6 @@ export function AiBackendForm({ settings }: { settings: AiSettings }) {
               placeholder={keyIsSaved ? t('settings.apiKeySaved') : undefined}
               onChange={(event) => update({ apiKey: event.target.value })}
             />
-            <small className={styles.muted}>{t('settings.keyNote')}</small>
           </label>
         </>
       )}
@@ -245,9 +242,14 @@ export function AiBackendForm({ settings }: { settings: AiSettings }) {
           {t('settings.save')}
         </Button>
         {settings.source === 'saved' && (
-          <Button loading={resetting.isLoading} onClick={() => void onReset()}>
+          <button
+            type="button"
+            className="link-action"
+            disabled={resetting.isLoading}
+            onClick={() => void onReset()}
+          >
             {t('settings.reset')}
-          </Button>
+          </button>
         )}
       </div>
     </div>

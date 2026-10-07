@@ -1,9 +1,9 @@
-import { ConfigProvider, theme as antdTheme } from 'antd';
+import { ConfigProvider } from 'antd';
 import enUS from 'antd/locale/en_US';
 import ruRU from 'antd/locale/ru_RU';
 import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { useAppSelector } from '../app/hooks';
-import { palette, resolveTheme, systemFontStack } from './theme';
+import { antdTheme, palette, resolveTheme } from './theme';
 
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
@@ -37,33 +37,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [resolved, locale, colors.bg]);
 
   return (
-    <ConfigProvider
-      locale={locale === 'ru' ? ruRU : enUS}
-      theme={{
-        algorithm: resolved === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
-        token: {
-          colorPrimary: colors.accent,
-          colorError: colors.danger,
-          colorBgContainer: colors.surface,
-          colorBgLayout: colors.bg,
-          colorText: colors.text,
-          colorTextSecondary: colors.textMuted,
-          colorBorder: colors.border,
-          borderRadius: 8,
-          fontFamily: systemFontStack,
-          fontSize: 15,
-          controlHeight: 40,
-          controlHeightLG: 44,
-          boxShadow: 'none',
-          boxShadowSecondary: 'none',
-          motionDurationMid: '0.16s',
-        },
-        components: {
-          Button: { primaryShadow: 'none', defaultShadow: 'none', dangerShadow: 'none' },
-          Segmented: { trackBg: colors.bg },
-        },
-      }}
-    >
+    <ConfigProvider locale={locale === 'ru' ? ruRU : enUS} theme={antdTheme(resolved)}>
       {children}
     </ConfigProvider>
   );

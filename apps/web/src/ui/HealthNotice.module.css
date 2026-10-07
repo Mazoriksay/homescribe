@@ -1,11 +1,11 @@
+/* A ruled row with the accent marker on the left, like the active nav item. */
 .notice {
   display: grid;
   gap: var(--space-2);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-5);
   padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-panel);
-  border: 1px solid var(--danger);
-  background: var(--danger-soft);
+  border-bottom: 1px solid var(--border);
+  box-shadow: inset 2px 0 0 var(--accent);
   font-size: 15px;
 }
 
@@ -21,6 +21,4 @@
   display: inline-flex;
   align-items: center;
   min-height: var(--tap);
-  color: var(--text);
-  font-weight: 600;
 }

@@ -1,10 +1,21 @@
-/* Tokens: one neutral family + one accent. Values mirror theme/theme.ts. */
+/*
+ * Home Hub design system (SPEC.md §11). The colours are mirrored for Ant
+ * Design in theme/theme.ts; change both together.
+ */
 :root {
-  --font:
-    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
-  --radius-control: 8px;
-  --radius-panel: 12px;
+  --font-body: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  --font-display:
+    'Sitka Heading', 'Sitka Text', Charter, 'Iowan Old Style', Georgia, 'Noto Serif', serif;
+  --font-mono:
+    'Cascadia Mono', 'Cascadia Code', ui-monospace, 'SF Mono', Consolas, 'Roboto Mono', monospace;
+
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --rail-width: 248px;
+  --tabbar-height: 58px;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Spacing scale and the minimum tap target (phone first). */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -13,39 +24,36 @@
   --space-6: 32px;
   --space-8: 48px;
   --tap: 44px;
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --content-width: 760px;
+  --reading-width: 72ch;
 }
 
 :root,
 :root[data-theme='light'] {
   color-scheme: light;
-  --accent: #0f766e;
-  --accent-soft: #e3f2f0;
-  --on-accent: #ffffff;
-  --bg: #f7f8f8;
-  --surface: #ffffff;
-  --surface-sunken: #eef1f1;
-  --text: #161a1a;
-  --text-muted: #5b6464;
-  --border: #dfe3e3;
-  --danger: #b42318;
-  --danger-soft: #fdecea;
+  --bg: #f4f2ed;
+  --bg-raised: #fbfaf7;
+  --bg-hover: #ebe8e0;
+  --text: #1d1b18;
+  --text-muted: #5f594f;
+  --text-faint: #7c756a;
+  --border: #dfdad0;
+  --accent: #a8481f;
+  --accent-soft: #f1e0d5;
+  --ok: #3f7d4e;
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --accent: #2bb3a3;
-  --accent-soft: #15302d;
-  --on-accent: #062522;
-  --bg: #111313;
-  --surface: #1a1d1d;
-  --surface-sunken: #151818;
-  --text: #e9eded;
-  --text-muted: #9aa5a5;
-  --border: #2c3232;
-  --danger: #f97066;
-  --danger-soft: #3a1d1a;
+  --bg: #151412;
+  --bg-raised: #1d1c19;
+  --bg-hover: #262420;
+  --text: #ece8e0;
+  --text-muted: #a8a196;
+  --text-faint: #8a8378;
+  --border: #2e2c27;
+  --accent: #e38c5c;
+  --accent-soft: #3a251a;
+  --ok: #7fbf8c;
 }
 
 *,
@@ -55,7 +63,6 @@
 }
 
 html {
-  -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
   overscroll-behavior: none;
   background: var(--bg);
@@ -64,12 +71,13 @@ html {
 body {
   margin: 0;
   min-height: 100dvh;
-  font-family: var(--font);
-  font-size: 16px;
-  line-height: 1.5;
-  color: var(--text);
   background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 h1,
@@ -79,8 +87,22 @@ p {
   margin: 0;
 }
 
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
 a {
-  color: inherit;
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+code,
+kbd,
+samp {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
 }
 
 input,
@@ -103,6 +125,43 @@ button {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+  border-radius: var(--radius-s);
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+/* Press feedback for every button, ours and Ant Design's. */
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Page title, in the display face. */
+.page-title {
+  font-size: clamp(30px, 4.2vw, 42px);
+  line-height: 1.08;
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+/* A secondary action next to a primary one: an underlined accent link. */
+.link-action {
+  min-height: var(--tap);
+  padding: 0 var(--space-1);
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.link-action:disabled {
+  color: var(--text-faint);
+  cursor: default;
 }
 
 .visually-hidden {
@@ -117,11 +176,19 @@ button {
   border: 0;
 }
 
+/* Small entrance for page content. */
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    transition-duration: 0ms !important;
-    animation-duration: 0ms !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }

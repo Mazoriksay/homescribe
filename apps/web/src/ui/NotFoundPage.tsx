@@ -5,7 +5,7 @@ export function NotFoundPage() {
   const t = useT();
   return (
     <div style={{ display: 'grid', gap: 'var(--space-3)' }}>
-      <h1>{t('notFound.title')}</h1>
+      <h1 className="page-title">{t('notFound.title')}</h1>
       <Link to="/">{t('recording.back')}</Link>
     </div>
   );

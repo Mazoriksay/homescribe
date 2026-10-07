@@ -5,13 +5,6 @@
   gap: var(--space-4);
 }
 
-.title {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-}
-
 .count {
   margin-top: var(--space-2);
   font-size: 14px;
@@ -36,17 +29,18 @@
   gap: var(--space-2) var(--space-3);
   min-height: 64px;
   padding: var(--space-3) var(--space-1);
+  color: var(--text);
   text-decoration: none;
-  transition: background-color 120ms var(--ease-out);
+  transition: background-color 0.15s var(--ease);
 }
 
 .row:active {
-  background: var(--surface-sunken);
+  background: var(--bg-hover);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .row:hover {
-    background: var(--surface);
+    background: var(--bg-raised);
   }
 }
 
@@ -78,8 +72,18 @@
 .skeleton {
   height: 64px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(var(--surface-sunken), var(--surface-sunken)) no-repeat var(--space-1)
-    18px / 55% 14px;
+  position: relative;
+}
+
+.skeleton::before {
+  content: '';
+  position: absolute;
+  top: 18px;
+  left: var(--space-1);
+  width: 55%;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--bg-hover);
 }
 
 .state {
@@ -91,8 +95,8 @@
 }
 
 .stateTitle {
-  font-size: 18px;
-  font-weight: 650;
+  font-size: 22px;
+  color: var(--text-muted);
 }
 
 .muted {

@@ -2,28 +2,25 @@
   display: grid;
   /* minmax(0, 1fr): wide content (segmented controls, long URLs) must not widen the page. */
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-5);
+  max-width: 760px;
 }
 
 .title {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  padding-bottom: var(--space-5);
 }
 
+/* Sections are rows of a reference book: separated by hairlines, no cards. */
 .section {
   display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
-  background: var(--surface);
+  gap: var(--space-4);
+  padding: var(--space-5) 0 var(--space-6);
+  border-top: 1px solid var(--border);
 }
 
 .heading {
-  font-size: 18px;
-  font-weight: 650;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
 }
 
 .muted {
@@ -39,12 +36,14 @@
 .current {
   display: grid;
   gap: 2px;
-  font-size: 14px;
+  font-family: var(--font-mono);
+  font-size: 13px;
   overflow-wrap: anywhere;
 }
 
 .source {
-  color: var(--text-muted);
+  color: var(--text-faint);
+  font-family: var(--font-body);
   font-size: 13px;
 }
 
@@ -87,9 +86,8 @@
 .server {
   display: grid;
   gap: var(--space-2);
-  padding: var(--space-3);
-  border-radius: var(--radius-control);
-  background: var(--surface-sunken);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border);
 }
 
 .serverHead {
@@ -149,7 +147,7 @@
 .error {
   display: grid;
   gap: var(--space-1);
-  color: var(--danger);
+  color: var(--accent);
   font-size: 14px;
 }
 
@@ -161,12 +159,13 @@
 }
 
 .ok {
-  color: var(--accent);
+  color: var(--ok);
   font-size: 14px;
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
 }

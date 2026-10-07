@@ -23,10 +23,10 @@ export function RecordingHeader({ recording }: { recording: Recording }) {
     <header className={styles.header}>
       {draft === null ? (
         <div className={styles.titleRow}>
-          <h1 className={styles.title}>{recording.title}</h1>
-          <Button type="text" onClick={() => setDraft(recording.title)}>
+          <h1 className="page-title">{recording.title}</h1>
+          <button type="button" className="link-action" onClick={() => setDraft(recording.title)}>
             {t('recording.rename')}
-          </Button>
+          </button>
         </div>
       ) : (
         <form
@@ -48,7 +48,9 @@ export function RecordingHeader({ recording }: { recording: Recording }) {
             <Button type="primary" htmlType="submit" loading={isLoading}>
               {t('recording.save')}
             </Button>
-            <Button onClick={() => setDraft(null)}>{t('recording.cancel')}</Button>
+            <button type="button" className="link-action" onClick={() => setDraft(null)}>
+              {t('recording.cancel')}
+            </button>
           </div>
         </form>
       )}

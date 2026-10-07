@@ -35,7 +35,6 @@ export function UploadZone() {
         <Button type="primary" size="large" onClick={() => input.current?.click()}>
           {t('library.upload.choose')}
         </Button>
-        <p className={styles.hint}>{t('library.upload.hint')}</p>
         <input
           ref={input}
           type="file"
@@ -60,9 +59,9 @@ export function UploadZone() {
                   {item.name}
                 </span>
                 {item.error ? (
-                  <Button size="small" type="text" onClick={() => dismiss(item.key)}>
+                  <button type="button" className="link-action" onClick={() => dismiss(item.key)}>
                     {t('library.upload.dismiss')}
-                  </Button>
+                  </button>
                 ) : (
                   <span className={styles.percent}>
                     {t('library.upload.uploading', { percent: Math.round(item.progress * 100) })}

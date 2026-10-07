@@ -17,14 +17,13 @@ export function SettingsPage() {
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>{t('settings.title')}</h1>
+      <h1 className={`page-title ${styles.title ?? ''}`}>{t('settings.title')}</h1>
 
       {(['stt', 'llm'] as AiKind[]).map((kind) => (
         <section key={kind} className={styles.section} aria-labelledby={`settings-${kind}`}>
           <h2 id={`settings-${kind}`} className={styles.heading}>
             {t(`settings.${kind}.title`)}
           </h2>
-          <p className={styles.muted}>{t(`settings.${kind}.body`)}</p>
           {data && <AiBackendForm settings={data[kind]} />}
           {isError && <Button onClick={() => void refetch()}>{t('library.retry')}</Button>}
         </section>

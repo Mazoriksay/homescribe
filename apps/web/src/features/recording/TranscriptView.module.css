@@ -1,6 +1,8 @@
 .section {
   display: grid;
   gap: var(--space-3);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
 }
 
 .head {
@@ -11,8 +13,9 @@
 }
 
 .heading {
-  font-size: 18px;
-  font-weight: 650;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
 }
 
 .placeholder {
@@ -35,8 +38,8 @@
   grid-template-columns: 5em minmax(0, 1fr);
   gap: var(--space-2);
   padding: var(--space-1) var(--space-1);
-  border-radius: var(--radius-control);
-  transition: background-color 160ms var(--ease-out);
+  border-radius: var(--radius-s);
+  transition: background-color 0.15s var(--ease);
   /* Long transcripts: let the browser skip layout for off-screen rows. */
   content-visibility: auto;
   contain-intrinsic-size: auto 48px;
@@ -51,7 +54,7 @@
   min-height: var(--tap);
   padding: 0 var(--space-1);
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-s);
   background: none;
   color: var(--text-muted);
   font: 13px var(--font-mono);
@@ -62,7 +65,7 @@
 
 .time:active {
   color: var(--accent);
-  background: var(--surface-sunken);
+  background: var(--bg-hover);
 }
 
 @media (hover: hover) and (pointer: fine) {

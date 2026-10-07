@@ -18,7 +18,6 @@ export function DiscoveryList({ kind, discovery, selected, onPick }: Props) {
     return (
       <div className={styles.notice} role="status">
         <p>{t('settings.foundNone', { list: discovery.probed.join(', ') })}</p>
-        <p className={styles.muted}>{t('settings.foundNoneHint')}</p>
       </div>
     );
   }

@@ -32,17 +32,7 @@ export function StatusPanel({ recording }: { recording: Recording }) {
         <ProgressBar value={job.progress} label={t(`status.${job.status}`)} />
       )}
       {job.status === 'transcribing' && (
-        <>
-          <ProgressBar value={null} label={t('status.transcribing')} />
-          <p className={styles.hint}>{t('recording.transcribingHint')}</p>
-        </>
-      )}
-      {job.status === 'summarizing' && (
-        <p className={styles.hint}>{t('recording.summarizingHint')}</p>
-      )}
-      {job.status === 'queued' && <p className={styles.hint}>{t('recording.queuedHint')}</p>}
-      {job.status === 'downloading' && (
-        <p className={styles.hint}>{t('recording.downloadingHint')}</p>
+        <ProgressBar value={null} label={t('status.transcribing')} />
       )}
       {job.status === 'failed' && job.error && (
         <p className={styles.error} role="alert">
@@ -82,12 +72,12 @@ function DeleteButton({ recordingId, disabled }: { recordingId: string; disabled
   }, [armed]);
 
   return (
-    <Button
-      danger
-      type={armed ? 'primary' : 'default'}
-      disabled={disabled}
+    <button
+      type="button"
+      className="link-action"
+      data-armed={armed || undefined}
+      disabled={disabled || isLoading}
       title={disabled ? t('recording.deleteBlocked') : undefined}
-      loading={isLoading}
       onClick={async () => {
         if (!armed) return setArmed(true);
         const result = await deleteRecording(recordingId);
@@ -95,6 +85,6 @@ function DeleteButton({ recordingId, disabled }: { recordingId: string; disabled
       }}
     >
       {armed ? t('recording.deleteConfirm') : t('recording.delete')}
-    </Button>
+    </button>
   );
 }

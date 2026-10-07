@@ -3,14 +3,14 @@
   height: 4px;
   border-radius: 2px;
   overflow: hidden;
-  background: var(--surface-sunken);
+  background: var(--bg-hover);
 }
 
 .fill {
   height: 100%;
   background: var(--accent);
   transform-origin: left;
-  transition: transform 300ms var(--ease-out);
+  transition: transform 300ms var(--ease);
 }
 
 .indeterminate {
@@ -23,7 +23,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .indeterminate {
-    animation: slide 1.6s var(--ease-out) infinite;
+    animation: slide 1.6s var(--ease) infinite;
   }
 }
 

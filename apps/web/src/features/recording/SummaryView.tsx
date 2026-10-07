@@ -1,5 +1,4 @@
 import type { Recording } from '@homescribe/shared';
-import { Button } from 'antd';
 import Markdown from 'react-markdown';
 import { useCreateJobMutation, useGetAiSettingsQuery, useGetSummaryQuery } from '../../api/api';
 import { useT } from '../../i18n/useT';
@@ -25,12 +24,14 @@ export function SummaryView({ recording }: { recording: Recording }) {
           {t('recording.summary')}
         </h2>
         {canRegenerate && (
-          <Button
-            loading={isLoading}
+          <button
+            type="button"
+            className="link-action"
+            disabled={isLoading}
             onClick={() => void createJob({ recordingId: recording.id, kind: 'summarize' })}
           >
             {t('recording.regenerate')}
-          </Button>
+          </button>
         )}
       </div>
 
