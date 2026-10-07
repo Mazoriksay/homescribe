@@ -11,7 +11,6 @@ source of truth for the version.
 
 - `STT_VAD_FILTER` (on by default): a local speaches server is asked to skip
   silence, which stops Whisper from repeating one phrase on long recordings.
-
 - The installer asks what to download before pulling anything: speech
   recognition on the GPU, the CPU or not on this computer, the Whisper model
   (`large-v3`, `large-v3-turbo`, `medium`, `small`) and the local summary
@@ -27,6 +26,19 @@ source of truth for the version.
 
 ### Fixed
 
+- Search treats «ё» and «е» as the same letter (the index is rebuilt once
+  on start).
+- An empty upload is refused with `400` instead of becoming a failed job.
+- Links to `198.18.0.0/15` count as internal for link import, and a
+  malformed link is reported once instead of twice.
+- Error details from ffprobe or yt-dlp are folded under «Details», without
+  memory addresses.
+- Settings controls are at least 44 px tall on phones.
+- The transcript language is shown by name («русский» instead of `ru`), the
+  recording title is in the browser tab, and copying the transcript puts
+  each segment on its own line.
+- Links from search results use a rounded start time, and the summary is no
+  longer requested while summaries are off.
 - Long recordings no longer end in one phrase repeated for minutes: runs of
   three or more identical segments are collapsed, and segments past the end
   of the recording are dropped or trimmed.
