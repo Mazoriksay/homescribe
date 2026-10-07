@@ -1,7 +1,7 @@
 import { API_PREFIX, searchQuerySchema, type SearchHit } from '@homescribe/shared';
 import type { FastifyInstance } from 'fastify';
 import type { Repository } from '../db/repository';
-import { buildSnippet, searchTerms } from '../db/snippet';
+import { buildSnippet, foldText, searchTerms } from '../db/snippet';
 import { parseInput } from './errors';
 
 export function registerSearchRoutes(app: FastifyInstance, repo: Repository): void {
@@ -13,7 +13,7 @@ export function registerSearchRoutes(app: FastifyInstance, repo: Repository): vo
     for (const match of matches) {
       const recording = repo.getRecording(match.recordingId);
       if (!recording) continue;
-      const body = match.body.toLowerCase();
+      const body = foldText(match.body);
       const inBody = terms.some((term) => body.includes(term));
       data.push({
         recording,

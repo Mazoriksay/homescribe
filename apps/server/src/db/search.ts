@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { SearchMode } from '@homescribe/shared';
-import { searchTerms } from './snippet';
+import { foldText, searchTerms } from './snippet';
 
 /** True when the SQLite bundled with Node was built with FTS5. */
 export function hasFts5(db: DatabaseSync): boolean {
@@ -34,7 +34,8 @@ const escapeLike = (term: string) => term.replace(/[\\%_]/g, (c) => `\\${c}`);
 /**
  * Full-text index over recording titles, transcripts and summaries. Uses
  * FTS5 when available (ranked, word-prefix matches); otherwise a LIKE scan
- * over lower-cased copies (substring matches, newest first). SPEC.md §7.3.
+ * over folded copies (substring matches, newest first). Both index the folded
+ * text (lower case, ё as е); results carry the original. SPEC.md §7.3.
  */
 export class SearchIndex {
   readonly mode: SearchMode;
@@ -65,7 +66,7 @@ export class SearchIndex {
     ) {
       this.db.exec(`DELETE FROM search_fts;
         INSERT INTO search_fts (recording_id, title, body)
-          SELECT recording_id, title, body FROM search_docs;`);
+          SELECT recording_id, title_lc, body_lc FROM search_docs;`);
     }
   }
 
@@ -96,12 +97,12 @@ export class SearchIndex {
         `INSERT OR REPLACE INTO search_docs (recording_id, title, body, title_lc, body_lc)
          VALUES (?, ?, ?, ?, ?)`,
       )
-      .run(recordingId, row.title, body, row.title.toLowerCase(), body.toLowerCase());
+      .run(recordingId, row.title, body, foldText(row.title), foldText(body));
     if (this.mode === 'fts5') {
       this.db.prepare('DELETE FROM search_fts WHERE recording_id = ?').run(recordingId);
       this.db
         .prepare('INSERT INTO search_fts (recording_id, title, body) VALUES (?, ?, ?)')
-        .run(recordingId, row.title, body);
+        .run(recordingId, foldText(row.title), foldText(body));
     }
   }
 
@@ -125,7 +126,8 @@ export class SearchIndex {
         .get(match) as { n: number };
       const rows = this.db
         .prepare(
-          `SELECT recording_id AS recordingId, title, body FROM search_fts
+          `SELECT d.recording_id AS recordingId, d.title, d.body FROM search_fts
+           JOIN search_docs d ON d.recording_id = search_fts.recording_id
            WHERE search_fts MATCH ? ORDER BY bm25(search_fts, 0, 5, 1) LIMIT ? OFFSET ?`,
         )
         .all(match, pageSize, offset) as unknown as SearchMatch[];

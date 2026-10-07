@@ -11,6 +11,7 @@ for (const [address, prefix] of [
   ['169.254.0.0', 16],
   ['172.16.0.0', 12],
   ['192.168.0.0', 16],
+  ['198.18.0.0', 15], // benchmarking, used by some VPN clients for fake DNS
   ['224.0.0.0', 4],
   ['240.0.0.0', 4],
 ] as const) {

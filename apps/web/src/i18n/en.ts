@@ -53,6 +53,7 @@ export const en = {
   'error.STT_TIMEOUT': 'The speech-to-text server took too long to answer.',
   'error.STT_FAILED': 'The speech-to-text server returned an error.',
   'error.INTERNAL_ERROR': 'Something went wrong on the server.',
+  'error.FILE_REQUIRED': 'The file is empty.',
   'error.FILE_TOO_LARGE': 'The file is larger than the server accepts.',
   'error.UNSUPPORTED_MEDIA_TYPE': 'Only audio and video files can be uploaded.',
   'error.NETWORK': 'The server is unreachable.',

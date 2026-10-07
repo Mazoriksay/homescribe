@@ -117,6 +117,13 @@ describe('HTTP API', () => {
       expect(res.json().error.code).toBe('FILE_REQUIRED');
     });
 
+    it('rejects an empty file and leaves nothing behind', async () => {
+      const res = await upload([{ name: 'file', value: audioFile(0), filename: 'empty.wav' }]);
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe('FILE_REQUIRED');
+      expect(t.repo.listRecordings({ page: 1, pageSize: 10 }).pagination.totalItems).toBe(0);
+    });
+
     it('rejects a non-multipart request', async () => {
       const res = await t.app.inject({
         method: 'POST',

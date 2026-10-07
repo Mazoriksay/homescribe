@@ -80,6 +80,11 @@ const migrations: string[] = [
   ALTER TABLE recordings ADD COLUMN source_url TEXT;
   ALTER TABLE recordings ADD COLUMN title_from_source INTEGER NOT NULL DEFAULT 0;
   `,
+  `
+  -- Searchable text now folds ё into е; SearchIndex rebuilds every entry on start.
+  DELETE FROM search_docs;
+  DROP TABLE IF EXISTS search_fts;
+  `,
 ];
 
 export function openDatabase(file: string): DatabaseSync {
