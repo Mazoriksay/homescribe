@@ -76,6 +76,10 @@ const migrations: string[] = [
     body_lc       TEXT NOT NULL
   );
   `,
+  `
+  ALTER TABLE recordings ADD COLUMN source_url TEXT;
+  ALTER TABLE recordings ADD COLUMN title_from_source INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 export function openDatabase(file: string): DatabaseSync {

@@ -19,7 +19,19 @@ export interface NewRecording {
   originalFilename: string;
   mediaType: string;
   sizeBytes: number;
+  /** '' for a link whose media is not downloaded yet. */
   storedName: string;
+  sourceUrl?: string | null;
+  /** Replace the title with the page's title once the link is downloaded. */
+  titleFromSource?: boolean;
+}
+
+export interface DownloadedMedia {
+  storedName: string;
+  mediaType: string;
+  sizeBytes: number;
+  /** Used only when the recording still has its placeholder title. */
+  title: string | null;
 }
 
 export interface JobPatch {
@@ -75,11 +87,12 @@ interface RecordingRow {
   size_bytes: number;
   stored_name: string;
   duration_seconds: number | null;
+  source_url: string | null;
   created_at: string;
   updated_at: string;
 }
 
-const RUNNING_STATUSES: JobStatus[] = ['converting', 'transcribing', 'summarizing'];
+const RUNNING_STATUSES: JobStatus[] = ['downloading', 'converting', 'transcribing', 'summarizing'];
 
 const LATEST_JOB_ID = `(SELECT j.id FROM jobs j WHERE j.recording_id = r.id
   ORDER BY j.created_at DESC, j.rowid DESC LIMIT 1)`;
@@ -115,6 +128,7 @@ function toRecording(row: Record<string, unknown>): Recording {
     mediaType: r.media_type,
     sizeBytes: r.size_bytes,
     durationSeconds: r.duration_seconds,
+    sourceUrl: r.source_url,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     job: toJob({
@@ -154,8 +168,8 @@ export class Repository {
       this.db
         .prepare(
           `INSERT INTO recordings (id, title, original_filename, media_type, size_bytes,
-             stored_name, duration_seconds, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+             stored_name, duration_seconds, source_url, title_from_source, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
         )
         .run(
           input.id,
@@ -164,6 +178,8 @@ export class Repository {
           input.mediaType,
           input.sizeBytes,
           input.storedName,
+          input.sourceUrl ?? null,
+          input.titleFromSource ? 1 : 0,
           at,
           at,
         );
@@ -176,6 +192,31 @@ export class Repository {
   getRecording(id: string): Recording | null {
     const row = this.db.prepare(`${RECORDING_WITH_JOB} WHERE r.id = ?`).get(id);
     return row ? toRecording(row) : null;
+  }
+
+  /** Stores what a link download produced (SPEC.md §7.7). */
+  setDownloadedMedia(id: string, media: DownloadedMedia): void {
+    transaction(this.db, () => {
+      this.db
+        .prepare(
+          `UPDATE recordings SET stored_name = ?, media_type = ?, size_bytes = ?,
+             title = CASE WHEN title_from_source = 1 AND ? IS NOT NULL THEN ? ELSE title END,
+             title_from_source = CASE WHEN ? IS NOT NULL THEN 0 ELSE title_from_source END,
+             updated_at = ?
+           WHERE id = ?`,
+        )
+        .run(
+          media.storedName,
+          media.mediaType,
+          media.sizeBytes,
+          media.title,
+          media.title,
+          media.title,
+          this.timestamp(),
+          id,
+        );
+      this.search.refresh(id);
+    });
   }
 
   getStoredName(id: string): string | null {

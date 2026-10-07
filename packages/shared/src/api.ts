@@ -17,6 +17,7 @@ export const apiErrorCodes = [
   'TRANSCRIPT_NOT_READY',
   'SUMMARY_NOT_READY',
   'SUMMARIES_OFF',
+  'URL_NOT_ALLOWED',
   'AI_UNREACHABLE',
   'FILE_TOO_LARGE',
   'UNSUPPORTED_MEDIA_TYPE',
@@ -35,6 +36,7 @@ export type ApiError = z.infer<typeof apiErrorSchema>;
 
 export const jobErrorCodes = [
   'INTERRUPTED',
+  'DOWNLOAD_FAILED',
   'MEDIA_UNREADABLE',
   'STT_UNAVAILABLE',
   'STT_TIMEOUT',
@@ -50,6 +52,7 @@ export type JobErrorCode = (typeof jobErrorCodes)[number];
 
 export const jobStatuses = [
   'queued',
+  'downloading',
   'converting',
   'transcribing',
   'summarizing',
@@ -94,6 +97,8 @@ export const recordingSchema = z.object({
   mediaType: z.string(),
   sizeBytes: z.number().int().nonnegative(),
   durationSeconds: z.number().nonnegative().nullable(),
+  /** The link the media was downloaded from (SPEC.md §7.7), or null for uploads. */
+  sourceUrl: z.string().nullable(),
   createdAt: timestamp,
   updatedAt: timestamp,
   job: jobSchema,
@@ -104,6 +109,21 @@ export const TITLE_MAX_LENGTH = 200;
 export const titleSchema = z.string().trim().min(1).max(TITLE_MAX_LENGTH);
 
 export const idParamsSchema = z.object({ id: z.uuid() });
+
+export const SOURCE_URL_MAX_LENGTH = 2000;
+
+export const createFromUrlBodySchema = z.object({
+  url: z
+    .url({ protocol: /^https?$/ })
+    .max(SOURCE_URL_MAX_LENGTH)
+    .refine((value) => {
+      if (!URL.canParse(value)) return false;
+      const url = new URL(value);
+      return !url.username && !url.password;
+    }, 'Links with credentials are not accepted'),
+  title: titleSchema.optional(),
+});
+export type CreateFromUrlBody = z.infer<typeof createFromUrlBodySchema>;
 
 export const updateRecordingBodySchema = z.object({ title: titleSchema });
 export type UpdateRecordingBody = z.infer<typeof updateRecordingBodySchema>;
@@ -197,6 +217,7 @@ export type SearchMode = (typeof searchModes)[number];
 /** Result of the server's self-check (SPEC.md §7.6). */
 export const healthChecksSchema = z.object({
   ffmpeg: z.enum(['ok', 'missing']),
+  ytdlp: z.enum(['ok', 'missing']),
   stt: z.enum(['ok', 'model_missing', 'unreachable']),
   llm: z.enum(['ok', 'model_missing', 'unreachable', 'off']),
   embedding: z.enum(['same_origin', 'origins']),

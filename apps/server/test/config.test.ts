@@ -32,6 +32,25 @@ describe('loadConfig', () => {
     });
     expect(config.discoveryHosts).toEqual(['localhost', 'host.docker.internal']);
     expect(config.basePath).toBe('');
+    expect(config.ytdlp).toEqual({
+      path: 'yt-dlp',
+      autoUpdate: true,
+      timeoutMs: 7_200_000,
+      allowPrivate: false,
+    });
+  });
+
+  it('reads yt-dlp settings and boolean flags', () => {
+    const config = loadConfig(
+      { YTDLP_AUTO_UPDATE: 'false', URL_IMPORT_ALLOW_PRIVATE: 'true', YTDLP_PATH: '/opt/yt-dlp' },
+      root,
+    );
+    expect(config.ytdlp).toMatchObject({
+      path: '/opt/yt-dlp',
+      autoUpdate: false,
+      allowPrivate: true,
+    });
+    expect(() => loadConfig({ YTDLP_AUTO_UPDATE: 'maybe' }, root)).toThrow(/YTDLP_AUTO_UPDATE/);
   });
 
   it('normalises BASE_PATH and rejects odd values', () => {

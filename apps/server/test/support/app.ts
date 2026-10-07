@@ -11,7 +11,13 @@ import { MediaStore } from '../../src/storage';
 import type { AiModel, Discovery } from '@homescribe/shared';
 import { AiSettingsService } from '../../src/ai/settings';
 import { SelfCheck } from '../../src/self-check';
-import { FakeMediaTool, FakeSummarizer, FakeTranscriber, silentLogger } from './fakes';
+import {
+  FakeDownloader,
+  FakeMediaTool,
+  FakeSummarizer,
+  FakeTranscriber,
+  silentLogger,
+} from './fakes';
 
 /** A fully wired app with fake ffmpeg/STT and a temporary DATA_DIR. */
 export async function createTestApp(
@@ -35,6 +41,13 @@ export async function createTestApp(
   const media = new FakeMediaTool();
   const transcriber = new FakeTranscriber();
   const summarizer = new FakeSummarizer();
+  const downloader = new FakeDownloader();
+  // Fake DNS for the link guard: example hosts are public, *.lan is private.
+  const hosts: Record<string, string> = {
+    'www.youtube.com': '142.250.74.46',
+    'media.example.com': '93.184.215.14',
+    'nas.lan': '192.168.1.5',
+  };
   const aiSettings = new AiSettingsService(repo, config);
   // Real settings, fake clients: what the UI chooses decides which fake runs.
   const ai = {
@@ -56,12 +69,15 @@ export async function createTestApp(
     store,
     media,
     ai,
+    downloader,
+    download: { maxBytes: config.maxUploadBytes, timeoutMs: config.ytdlp.timeoutMs },
     events,
     logger: silentLogger,
     progressIntervalMs: 0,
   });
   const selfCheck = new SelfCheck({
     media,
+    downloader,
     aiSettings,
     config,
     logger: { info: () => undefined, warn: () => undefined },
@@ -73,6 +89,11 @@ export async function createTestApp(
   await selfCheck.run();
   const app = await buildApp({
     selfCheck,
+    lookup: async (host) => {
+      const address = hosts[host];
+      if (!address) throw new Error(`ENOTFOUND ${host}`);
+      return [{ address }];
+    },
     config,
     repo,
     store,
@@ -95,6 +116,7 @@ export async function createTestApp(
     media,
     transcriber,
     summarizer,
+    downloader,
     aiSettings,
     selfCheck,
     ai$,

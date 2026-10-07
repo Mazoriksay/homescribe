@@ -31,6 +31,13 @@ const MEDIA_TYPES: Record<string, string> = {
   wmv: 'video/x-ms-wmv',
 };
 
+/** Media type for a downloaded file: by extension, audio/* when it has no video. */
+export function downloadedMediaType(ext: string, audioOnly: boolean): string {
+  const known = MEDIA_TYPES[ext];
+  if (!known) return 'application/octet-stream';
+  return audioOnly && known.startsWith('video/') ? `audio/${known.split('/')[1]}` : known;
+}
+
 /**
  * Type a stored file is served as. Derived from our own allow-list, never
  * from the client, so an upload can never be served as HTML or script.

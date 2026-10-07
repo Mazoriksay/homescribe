@@ -10,6 +10,7 @@ import type { Repository } from '../db/repository';
 import type { EventBus } from '../events';
 import type { JobRunner } from '../jobs/runner';
 import { createNetworkAllowList } from '../network';
+import type { Lookup } from '../media/url-guard';
 import type { SelfCheck } from '../self-check';
 import type { MediaStore } from '../storage';
 import { registerAiRoutes, type AiRouteDeps } from './ai';
@@ -25,6 +26,8 @@ export interface AppDeps extends AiRouteDeps {
   store: MediaStore;
   runner: JobRunner;
   events: EventBus;
+  /** DNS lookup for the link guard; tests pass a fake. */
+  lookup?: Lookup;
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {

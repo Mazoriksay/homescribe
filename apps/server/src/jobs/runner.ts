@@ -1,11 +1,12 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rename, stat } from 'node:fs/promises';
 import path from 'node:path';
-import type { Job, JobErrorCode } from '@homescribe/shared';
+import { TITLE_MAX_LENGTH, type Job, type JobErrorCode } from '@homescribe/shared';
 import type { JobPatch, Repository } from '../db/repository';
 import type { EventBus } from '../events';
 import { LlmError, type Summarizer } from '../llm/summarizer';
+import { DownloadError, type MediaDownloader } from '../media/downloader';
 import { MediaError, type AudioFormat, type MediaTool } from '../media/media-tool';
-import type { MediaStore } from '../storage';
+import { downloadedMediaType, storedNameFor, type MediaStore } from '../storage';
 import { SttError, type Transcriber } from '../stt/transcriber';
 
 /** The AI backends to use, resolved per job so settings changes apply to the next job. */
@@ -25,6 +26,9 @@ export interface JobRunnerDeps {
   store: MediaStore;
   media: MediaTool;
   ai: AiBackends;
+  /** Link import (SPEC.md §7.7); optional so tests without links can omit it. */
+  downloader?: MediaDownloader;
+  download?: { maxBytes: number; timeoutMs: number };
   events: EventBus;
   logger: Logger;
   /** Minimum time between two progress updates of one job. */
@@ -119,10 +123,14 @@ export class JobRunner {
     const { repo, store, logger } = this.deps;
     const recordingId = job.recordingId;
     const storedName = repo.getStoredName(recordingId);
-    if (!storedName) return; // recording deleted meanwhile; its job went with it
+    if (storedName === null) return; // recording deleted meanwhile; its job went with it
 
     try {
-      if (job.kind === 'process') await this.transcribe(job, storedName);
+      if (job.kind === 'process') {
+        // A recording made from a link has no media until it is downloaded.
+        const media = storedName || (await this.download(job));
+        await this.transcribe(job, media, !storedName);
+      }
       await this.summarize(job);
       this.update(job.id, { status: 'done', progress: null, finished: true });
       logger.info({ jobId: job.id, recordingId, kind: job.kind }, 'job done');
@@ -146,7 +154,50 @@ export class JobRunner {
   }
 
   /** converting → transcribing; stores the transcript. */
-  private async transcribe(job: Job, storedName: string): Promise<void> {
+  /** downloading: fetches the recording's link and stores it like an upload. */
+  private async download(job: Job): Promise<string> {
+    const { repo, store, downloader, download } = this.deps;
+    const recording = repo.getRecording(job.recordingId);
+    if (!recording?.sourceUrl) throw new JobFailure('MEDIA_UNREADABLE', 'No media is stored');
+    if (!downloader || !download) {
+      throw new JobFailure('DOWNLOAD_FAILED', 'Link import is not available on this server');
+    }
+
+    this.update(job.id, { status: 'downloading', progress: 0, error: null, started: true });
+    const dir = path.join(store.workDir(recording.id), 'download');
+    await mkdir(dir, { recursive: true });
+    const timeout = AbortSignal.timeout(download.timeoutMs);
+    let file;
+    try {
+      file = await downloader.download(recording.sourceUrl, {
+        dir,
+        maxBytes: download.maxBytes,
+        signal: AbortSignal.any([this.abort.signal, timeout]),
+        onProgress: this.progressReporter(job.id),
+      });
+    } catch (error) {
+      if (timeout.aborted && !this.abort.signal.aborted) {
+        throw new JobFailure(
+          'DOWNLOAD_FAILED',
+          `The download took longer than ${download.timeoutMs} ms`,
+        );
+      }
+      throw error;
+    }
+
+    const storedName = storedNameFor(`download.${file.ext}`);
+    const target = store.originalPath(recording.id, storedName);
+    await rename(file.path, target);
+    repo.setDownloadedMedia(recording.id, {
+      storedName,
+      mediaType: downloadedMediaType(file.ext, file.audioOnly),
+      sizeBytes: (await stat(target)).size,
+      title: file.title ? file.title.slice(0, TITLE_MAX_LENGTH) : null,
+    });
+    return storedName;
+  }
+
+  private async transcribe(job: Job, storedName: string, alreadyStarted: boolean): Promise<void> {
     const { repo, store, media } = this.deps;
     const signal = this.abort.signal;
     const recordingId = job.recordingId;
@@ -155,7 +206,11 @@ export class JobRunner {
     const workDir = store.workDir(recordingId);
     const audio = path.join(workDir, `audio.${format}`);
 
-    this.update(job.id, { status: 'converting', progress: 0, error: null, started: true });
+    this.update(job.id, {
+      status: 'converting',
+      progress: 0,
+      ...(!alreadyStarted && { error: null, started: true }),
+    });
     await mkdir(workDir, { recursive: true });
     const duration = await media.probeDuration(input, signal);
     if (duration !== null) repo.setDuration(recordingId, duration);
@@ -211,6 +266,9 @@ export class JobRunner {
       );
     }
     if (error instanceof JobFailure) return error;
+    if (error instanceof DownloadError) {
+      return new JobFailure('DOWNLOAD_FAILED', `Cannot download the link: ${error.message}`);
+    }
     if (error instanceof SttError || error instanceof LlmError) {
       return new JobFailure(error.code, error.message);
     }

@@ -8,6 +8,7 @@ import { EventBus } from './events';
 import { buildApp } from './http/app';
 import { JobRunner } from './jobs/runner';
 import { FfmpegMediaTool } from './media/ffmpeg';
+import { YtDlpDownloader } from './media/ytdlp';
 import { MediaStore } from './storage';
 import { createAiBackends } from './ai/backends';
 import { discoverServers } from './ai/discovery';
@@ -26,12 +27,15 @@ async function main(): Promise<void> {
   const events = new EventBus();
   const aiSettings = new AiSettingsService(repo, config);
   const media = new FfmpegMediaTool(config.ffmpegPath, config.ffprobePath);
+  const downloader = new YtDlpDownloader(config.ytdlp.path);
   let app: FastifyInstance | undefined;
   const runner = new JobRunner({
     repo,
     store,
     events,
     media,
+    downloader,
+    download: { maxBytes: config.maxUploadBytes, timeoutMs: config.ytdlp.timeoutMs },
     ai: createAiBackends(aiSettings, config),
     logger: {
       info: (obj, msg) => app?.log.info(obj, msg),
@@ -40,6 +44,7 @@ async function main(): Promise<void> {
   });
   const selfCheck = new SelfCheck({
     media,
+    downloader,
     aiSettings,
     config,
     listModels: (baseUrl, apiKey) => listModels(baseUrl, apiKey, 3000),
@@ -73,6 +78,16 @@ async function main(): Promise<void> {
 
   runner.start();
   selfCheck.start();
+
+  // Sites change often; a stale yt-dlp is the most common reason links fail.
+  if (config.ytdlp.autoUpdate) {
+    const update = async () => {
+      const result = await downloader.selfUpdate();
+      app?.log.info({ result }, 'yt-dlp self-update');
+    };
+    void update();
+    setInterval(() => void update(), 24 * 60 * 60 * 1000).unref();
+  }
   await app.listen({ host: config.host, port: config.port });
 }
 

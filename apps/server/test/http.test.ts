@@ -34,7 +34,7 @@ describe('HTTP API', () => {
     expect(res.json()).toEqual({
       status: 'ok',
       search: 'fts5',
-      checks: { ffmpeg: 'ok', stt: 'ok', llm: 'ok', embedding: 'same_origin' },
+      checks: { ffmpeg: 'ok', ytdlp: 'ok', stt: 'ok', llm: 'ok', embedding: 'same_origin' },
       checkedAt: expect.any(String),
     });
     expect(res.headers['x-content-type-options']).toBe('nosniff');

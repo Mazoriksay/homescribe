@@ -40,6 +40,10 @@ const envSchema = z.object({
   MAX_UPLOAD_MB: optional(z.coerce.number().positive().default(2048)),
   FFMPEG_PATH: optional(z.string().default('ffmpeg')),
   FFPROBE_PATH: optional(z.string().default('ffprobe')),
+  YTDLP_PATH: optional(z.string().default('yt-dlp')),
+  YTDLP_AUTO_UPDATE: optional(z.stringbool().default(true)),
+  DOWNLOAD_TIMEOUT_MS: optional(z.coerce.number().int().positive().default(7_200_000)),
+  URL_IMPORT_ALLOW_PRIVATE: optional(z.stringbool().default(false)),
   STT_MODE: optional(z.enum(['local', 'api']).default('local')),
   STT_BASE_URL: optional(url.default('http://localhost:8000')),
   STT_MODEL: optional(z.string().default('Systran/faster-whisper-large-v3')),
@@ -103,6 +107,13 @@ export interface Config {
   maxUploadBytes: number;
   ffmpegPath: string;
   ffprobePath: string;
+  /** Link import (SPEC.md §7.7). */
+  ytdlp: {
+    path: string;
+    autoUpdate: boolean;
+    timeoutMs: number;
+    allowPrivate: boolean;
+  };
   /** Defaults until a backend is chosen in the UI (SPEC.md §7.5). */
   stt: {
     mode: 'local' | 'api';
@@ -152,6 +163,12 @@ export function loadConfig(env: Record<string, string | undefined>, rootDir: str
     maxUploadBytes: Math.floor(e.MAX_UPLOAD_MB * 1024 * 1024),
     ffmpegPath: e.FFMPEG_PATH,
     ffprobePath: e.FFPROBE_PATH,
+    ytdlp: {
+      path: e.YTDLP_PATH,
+      autoUpdate: e.YTDLP_AUTO_UPDATE,
+      timeoutMs: e.DOWNLOAD_TIMEOUT_MS,
+      allowPrivate: e.URL_IMPORT_ALLOW_PRIVATE,
+    },
     stt: {
       mode: e.STT_MODE,
       baseUrl: e.STT_BASE_URL,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   apiErrorSchema,
+  createFromUrlBodySchema,
   jobSchema,
   listRecordingsQuerySchema,
   recordingSchema,
@@ -28,6 +29,7 @@ describe('api schemas', () => {
       mediaType: 'audio/mp4',
       sizeBytes: 1234,
       durationSeconds: null,
+      sourceUrl: null,
       createdAt: job.createdAt,
       updatedAt: job.createdAt,
       job,
@@ -80,5 +82,14 @@ describe('api schemas', () => {
   it('tolerates a verbose STT response without segments', () => {
     const parsed = sttVerboseResponseSchema.parse({ text: '', language: 'en', duration: 0 });
     expect(parsed.segments).toEqual([]);
+  });
+
+  it('accepts http(s) links for import and rejects others', () => {
+    expect(createFromUrlBodySchema.parse({ url: 'https://youtu.be/abc' })).toEqual({
+      url: 'https://youtu.be/abc',
+    });
+    for (const url of ['ftp://x.org/a', 'javascript:alert(1)', 'nope', 'https://u:p@x.org/']) {
+      expect(createFromUrlBodySchema.safeParse({ url }).success, url).toBe(false);
+    }
   });
 });

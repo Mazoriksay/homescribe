@@ -3,6 +3,7 @@ import { pipeline } from 'node:stream/promises';
 import { randomUUID } from 'node:crypto';
 import {
   API_PREFIX,
+  createFromUrlBodySchema,
   createJobBodySchema,
   idParamsSchema,
   listRecordingsQuerySchema,
@@ -11,6 +12,7 @@ import {
   updateRecordingBodySchema,
 } from '@homescribe/shared';
 import type { FastifyInstance } from 'fastify';
+import { assertPublicUrl, UrlNotAllowedError } from '../media/url-guard';
 import { servedMediaType, storedNameFor } from '../storage';
 import { AppError, notFound, parseInput } from './errors';
 import type { AppDeps } from './app';
@@ -95,6 +97,46 @@ export function registerRecordingRoutes(app: FastifyInstance, deps: AppDeps): vo
   app.get(`${API_PREFIX}/recordings/:id`, async (request) => {
     const { id } = parseInput(idParamsSchema, request.params, 'recording id');
     return repo.getRecording(id) ?? Promise.reject(notFound('Recording'));
+  });
+
+  // SPEC.md §7.7: the media is fetched by the job (downloading), not here.
+  app.post(`${API_PREFIX}/recordings/from-url`, async (request, reply) => {
+    const body = parseInput(createFromUrlBodySchema, request.body ?? {}, 'body');
+    if (!config.ytdlp.allowPrivate) {
+      try {
+        await assertPublicUrl(body.url, deps.lookup);
+      } catch (error) {
+        if (error instanceof UrlNotAllowedError) {
+          throw new AppError(400, 'URL_NOT_ALLOWED', error.message);
+        }
+        throw error;
+      }
+    }
+
+    const id = randomUUID();
+    const url = new URL(body.url);
+    const placeholder =
+      `${url.hostname.replace(/^www\./, '')}${url.pathname === '/' ? '' : url.pathname}`.slice(
+        0,
+        TITLE_MAX_LENGTH,
+      );
+    await store.ensureRecordingDir(id);
+    const recording = repo.createRecording({
+      id,
+      title: body.title ?? placeholder,
+      originalFilename: body.url.slice(0, 255),
+      mediaType: 'application/octet-stream',
+      sizeBytes: 0,
+      storedName: '',
+      sourceUrl: body.url,
+      titleFromSource: body.title === undefined,
+    });
+    events.emit({ event: 'job', data: recording.job });
+    runner.kick();
+    return reply
+      .status(201)
+      .header('location', `${config.basePath}${API_PREFIX}/recordings/${id}`)
+      .send(recording);
   });
 
   app.patch(`${API_PREFIX}/recordings/:id`, async (request) => {

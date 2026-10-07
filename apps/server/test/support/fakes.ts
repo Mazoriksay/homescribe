@@ -1,4 +1,6 @@
 import { writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { DownloadError } from '../../src/media/downloader';
 import { LlmError } from '../../src/llm/summarizer';
 import { MediaError, type ConvertOptions, type MediaTool } from '../../src/media/media-tool';
 import {
@@ -102,4 +104,48 @@ export function fakeAi(
     stt: () => ({ transcriber, format: state.format }),
     llm: () => (state.llmOff ? null : summarizer),
   };
+}
+
+/** Pretends to be yt-dlp: writes a file and reports metadata. */
+export class FakeDownloader {
+  isAvailable = true;
+  failWith: string | null = null;
+  result = {
+    ext: 'webm',
+    title: 'Talk: Building a Home Server',
+    durationSeconds: 61,
+    audioOnly: true,
+  };
+  urls: string[] = [];
+  gate: Promise<void> | null = null;
+
+  async available(): Promise<boolean> {
+    return this.isAvailable;
+  }
+
+  async download(
+    url: string,
+    options: { dir: string; onProgress?: (ratio: number) => void; signal?: AbortSignal },
+  ) {
+    this.urls.push(url);
+    if (this.gate) {
+      options.signal?.throwIfAborted();
+      await Promise.race([
+        this.gate,
+        new Promise((_, reject) =>
+          options.signal?.addEventListener('abort', () => reject(options.signal?.reason)),
+        ),
+      ]);
+    }
+    if (this.failWith) throw new DownloadError(this.failWith);
+    options.onProgress?.(0.5);
+    options.onProgress?.(1);
+    const file = path.join(options.dir, `download.${this.result.ext}`);
+    await writeFile(file, 'downloaded media');
+    return { path: file, ...this.result };
+  }
+
+  async selfUpdate(): Promise<string> {
+    return 'yt-dlp is up to date';
+  }
 }

@@ -1,10 +1,12 @@
 import type { AiKind, AiModel, HealthChecks } from '@homescribe/shared';
 import type { AiSettingsService } from './ai/settings';
 import type { Config } from './config';
+import type { MediaDownloader } from './media/downloader';
 import type { MediaTool } from './media/media-tool';
 
 export interface SelfCheckDeps {
   media: MediaTool;
+  downloader: MediaDownloader;
   aiSettings: AiSettingsService;
   config: Config;
   listModels: (baseUrl: string, apiKey: string | null) => Promise<AiModel[]>;
@@ -15,6 +17,8 @@ export interface SelfCheckDeps {
 const HINTS: Record<string, string> = {
   'ffmpeg:missing':
     'Install ffmpeg (it includes ffprobe) or set FFMPEG_PATH/FFPROBE_PATH; uploads cannot be processed until then.',
+  'ytdlp:missing':
+    'Install yt-dlp (and deno for YouTube) or set YTDLP_PATH; links cannot be transcribed until then.',
   'stt:unreachable': 'Start the speech-to-text server or choose another one in Settings.',
   'stt:model_missing':
     'The speech-to-text server does not list the model; for speaches download it (POST /v1/models/<id>) or set PRELOAD_MODELS.',
@@ -62,13 +66,17 @@ export class SelfCheck {
   }
 
   private async check(): Promise<HealthChecks> {
-    const [ffmpeg, stt, llm] = await Promise.all([
+    const [ffmpeg, ytdlp, stt, llm] = await Promise.all([
       this.deps.media.available().then((ok) => (ok ? 'ok' : 'missing') as HealthChecks['ffmpeg']),
+      this.deps.downloader
+        .available()
+        .then((ok) => (ok ? 'ok' : 'missing') as HealthChecks['ytdlp']),
       this.checkAi('stt') as Promise<HealthChecks['stt']>,
       this.checkAi('llm'),
     ]);
     const checks: HealthChecks = {
       ffmpeg,
+      ytdlp,
       stt,
       llm,
       embedding: this.deps.config.frameAncestors.length > 0 ? 'origins' : 'same_origin',
