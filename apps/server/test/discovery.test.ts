@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { discoverServers } from '../src/ai/discovery';
+import { discoverServers, resolveHost } from '../src/ai/discovery';
 import { AiUnreachableError, listModels } from '../src/ai/models';
 import { startFakeOpenAi } from './support/fake-openai';
 
@@ -8,6 +8,7 @@ describe('discoverServers', () => {
     const result = await discoverServers({
       hosts: ['localhost', 'gpu-box'],
       selfPort: 8080,
+      resolve: async (host) => host,
       ports: [
         { port: 11434, product: 'Ollama' },
         { port: 8080, product: 'llama.cpp' },
@@ -31,6 +32,45 @@ describe('discoverServers', () => {
       },
       { baseUrl: 'http://gpu-box:8080', product: 'llama.cpp', models: [] },
     ]);
+  });
+
+  it('probes each host once by address and skips hosts that do not resolve', async () => {
+    const lookups: string[] = [];
+    const probed: string[] = [];
+    const result = await discoverServers({
+      hosts: ['host.docker.internal', 'ollama'],
+      selfPort: 8080,
+      ports: [
+        { port: 11434, product: 'Ollama' },
+        { port: 1234, product: 'LM Studio' },
+      ],
+      resolve: async (host) => {
+        lookups.push(host);
+        return host === 'ollama' ? null : '192.168.65.254';
+      },
+      list: async (baseUrl) => {
+        probed.push(baseUrl);
+        if (baseUrl === 'http://192.168.65.254:11434') return [{ id: 'qwen2.5:7b', kind: 'llm' }];
+        throw new AiUnreachableError('nope');
+      },
+    });
+    expect(lookups).toEqual(['host.docker.internal', 'ollama']);
+    expect(probed).toEqual(['http://192.168.65.254:11434', 'http://192.168.65.254:1234']);
+    expect(result.servers).toEqual([
+      {
+        baseUrl: 'http://host.docker.internal:11434',
+        product: 'Ollama',
+        models: [{ id: 'qwen2.5:7b', kind: 'llm' }],
+      },
+    ]);
+    expect(result.probed).toHaveLength(4);
+  });
+
+  it('resolves names to IPv4 first and keeps IP literals', async () => {
+    expect(await resolveHost('localhost', 1000)).toBe('127.0.0.1');
+    expect(await resolveHost('[::1]', 1000)).toBe('[::1]');
+    expect(await resolveHost('10.0.0.5', 1000)).toBe('10.0.0.5');
+    expect(await resolveHost('no-such-host.invalid', 1000)).toBeNull();
   });
 
   it('finds a real server on a local port', async () => {
