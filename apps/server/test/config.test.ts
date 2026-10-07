@@ -13,6 +13,7 @@ describe('loadConfig', () => {
     expect(config.maxUploadBytes).toBe(2048 * 1024 * 1024);
     expect(config.allowedNetworks).toContain('192.168.0.0/16');
     expect(config.stt).toEqual({
+      mode: 'local',
       baseUrl: 'http://localhost:8000',
       model: 'Systran/faster-whisper-large-v3',
       language: null,
@@ -21,6 +22,32 @@ describe('loadConfig', () => {
     });
     expect(config.webDistDir).toBe(path.join(root, 'apps/web/dist'));
     expect(config.frameAncestors).toEqual([]);
+    expect(config.llm).toEqual({
+      mode: 'local',
+      baseUrl: 'http://localhost:11434',
+      model: 'llama3.1:8b',
+      apiKey: null,
+      timeoutMs: 600_000,
+      chunkChars: 12_000,
+    });
+    expect(config.discoveryHosts).toEqual(['localhost', 'host.docker.internal']);
+  });
+
+  it('reads LLM and discovery settings', () => {
+    const config = loadConfig(
+      {
+        LLM_MODE: 'off',
+        LLM_BASE_URL: 'http://gpu-box:1234/',
+        AI_DISCOVERY_HOSTS: 'localhost, gpu-box, 192.168.1.20, [fd00::5]',
+      },
+      root,
+    );
+    expect(config.llm.mode).toBe('off');
+    expect(config.llm.baseUrl).toBe('http://gpu-box:1234');
+    expect(config.discoveryHosts).toEqual(['localhost', 'gpu-box', '192.168.1.20', '[fd00::5]']);
+    expect(() => loadConfig({ AI_DISCOVERY_HOSTS: 'http://gpu-box:1234' }, root)).toThrow(
+      /AI_DISCOVERY_HOSTS/,
+    );
   });
 
   it('reads the origins allowed to embed the UI', () => {

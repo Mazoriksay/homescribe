@@ -7,9 +7,11 @@ import type {
   ListRecordingsQuery,
   Recording,
   RecordingPage,
+  Summary,
   Transcript,
 } from '@homescribe/shared';
 import { transaction } from './database';
+import { SearchIndex } from './search';
 
 export interface NewRecording {
   id: string;
@@ -28,6 +30,21 @@ export interface JobPatch {
   started?: boolean;
   /** Set `finished_at` to now. */
   finished?: boolean;
+}
+
+export interface NewSummary {
+  summary: string;
+  actionItems: string[];
+  model: string;
+}
+
+/** AI backend settings as stored; the API key never leaves the server. */
+export interface StoredAiSettings {
+  mode: 'local' | 'api' | 'off';
+  provider: string | null;
+  baseUrl: string;
+  model: string;
+  apiKey: string | null;
 }
 
 export interface NewTranscript {
@@ -117,10 +134,15 @@ function toRecording(row: Record<string, unknown>): Recording {
 
 /** All SQL lives here. Methods are synchronous because node:sqlite is. */
 export class Repository {
+  readonly search: SearchIndex;
+
   constructor(
     private readonly db: DatabaseSync,
     private readonly now: () => Date = () => new Date(),
-  ) {}
+    options: { forceLikeSearch?: boolean } = {},
+  ) {
+    this.search = new SearchIndex(db, { forceLike: options.forceLikeSearch });
+  }
 
   private timestamp(): string {
     return this.now().toISOString();
@@ -146,6 +168,7 @@ export class Repository {
           at,
         );
       this.insertJob(input.id, 'process', at);
+      this.search.refresh(input.id);
     });
     return this.getRecording(input.id)!;
   }
@@ -185,8 +208,21 @@ export class Repository {
       .run(durationSeconds, this.timestamp(), id);
   }
 
+  renameRecording(id: string, title: string): Recording | null {
+    transaction(this.db, () => {
+      this.db
+        .prepare('UPDATE recordings SET title = ?, updated_at = ? WHERE id = ?')
+        .run(title, this.timestamp(), id);
+      this.search.refresh(id);
+    });
+    return this.getRecording(id);
+  }
+
   deleteRecording(id: string): boolean {
-    return this.db.prepare('DELETE FROM recordings WHERE id = ?').run(id).changes > 0;
+    return transaction(this.db, () => {
+      this.search.remove(id);
+      return this.db.prepare('DELETE FROM recordings WHERE id = ?').run(id).changes > 0;
+    });
   }
 
   createJob(recordingId: string, kind: JobKind): Job {
@@ -290,7 +326,97 @@ export class Repository {
       transcript.segments.forEach((segment, index) => {
         insert.run(recordingId, index, segment.start, segment.end, segment.text);
       });
+      this.search.refresh(recordingId);
     });
+  }
+
+  saveSummary(recordingId: string, summary: NewSummary): void {
+    transaction(this.db, () => {
+      this.db
+        .prepare(
+          `INSERT OR REPLACE INTO summaries (recording_id, summary, action_items, model, created_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(
+          recordingId,
+          summary.summary,
+          JSON.stringify(summary.actionItems),
+          summary.model,
+          this.timestamp(),
+        );
+      this.search.refresh(recordingId);
+    });
+  }
+
+  getSummary(recordingId: string): Summary | null {
+    const row = this.db
+      .prepare('SELECT * FROM summaries WHERE recording_id = ?')
+      .get(recordingId) as
+      { summary: string; action_items: string; model: string; created_at: string } | undefined;
+    if (!row) return null;
+    return {
+      recordingId,
+      summary: row.summary,
+      actionItems: JSON.parse(row.action_items) as string[],
+      model: row.model,
+      createdAt: row.created_at,
+    };
+  }
+
+  /** Transcript segments containing any of the (lower-cased) terms, first one only. */
+  firstMatchingSegment(
+    recordingId: string,
+    terms: string[],
+  ): { index: number; start: number } | null {
+    const rows = this.db
+      .prepare('SELECT idx, start_seconds, text FROM segments WHERE recording_id = ? ORDER BY idx')
+      .all(recordingId) as { idx: number; start_seconds: number; text: string }[];
+    const hit = rows.find((row) => {
+      const text = row.text.toLowerCase();
+      return terms.some((term) => text.includes(term));
+    });
+    return hit ? { index: hit.idx, start: hit.start_seconds } : null;
+  }
+
+  getAiSettings(kind: string): StoredAiSettings | null {
+    const row = this.db.prepare('SELECT * FROM ai_settings WHERE kind = ?').get(kind) as
+      | {
+          mode: string;
+          provider: string | null;
+          base_url: string;
+          model: string;
+          api_key: string | null;
+        }
+      | undefined;
+    if (!row) return null;
+    return {
+      mode: row.mode as StoredAiSettings['mode'],
+      provider: row.provider,
+      baseUrl: row.base_url,
+      model: row.model,
+      apiKey: row.api_key,
+    };
+  }
+
+  saveAiSettings(kind: string, settings: StoredAiSettings): void {
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO ai_settings (kind, mode, provider, base_url, model, api_key, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        kind,
+        settings.mode,
+        settings.provider,
+        settings.baseUrl,
+        settings.model,
+        settings.apiKey,
+        this.timestamp(),
+      );
+  }
+
+  deleteAiSettings(kind: string): void {
+    this.db.prepare('DELETE FROM ai_settings WHERE kind = ?').run(kind);
   }
 
   getTranscript(recordingId: string): Transcript | null {

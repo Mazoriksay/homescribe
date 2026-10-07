@@ -47,6 +47,35 @@ const migrations: string[] = [
     PRIMARY KEY (recording_id, idx)
   );
   `,
+  `
+  CREATE TABLE summaries (
+    recording_id  TEXT PRIMARY KEY REFERENCES recordings(id) ON DELETE CASCADE,
+    summary       TEXT NOT NULL,
+    action_items  TEXT NOT NULL,
+    model         TEXT NOT NULL,
+    created_at    TEXT NOT NULL
+  );
+
+  CREATE TABLE ai_settings (
+    kind        TEXT PRIMARY KEY,
+    mode        TEXT NOT NULL,
+    provider    TEXT,
+    base_url    TEXT NOT NULL,
+    model       TEXT NOT NULL,
+    api_key     TEXT,
+    updated_at  TEXT NOT NULL
+  );
+
+  -- Searchable text per recording. *_lc columns are lower-cased in JavaScript,
+  -- because SQLite's lower() and LIKE only fold ASCII (Cyrillic would not match).
+  CREATE TABLE search_docs (
+    recording_id  TEXT PRIMARY KEY REFERENCES recordings(id) ON DELETE CASCADE,
+    title         TEXT NOT NULL,
+    body          TEXT NOT NULL,
+    title_lc      TEXT NOT NULL,
+    body_lc       TEXT NOT NULL
+  );
+  `,
 ];
 
 export function openDatabase(file: string): DatabaseSync {

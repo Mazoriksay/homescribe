@@ -123,4 +123,55 @@ describe('Repository', () => {
     repo.setDuration(recording.id, 12.5);
     expect(repo.getRecording(recording.id)?.durationSeconds).toBe(12.5);
   });
+
+  it('stores, replaces and deletes a summary with its recording', () => {
+    const recording = repo.createRecording(newRecording());
+    expect(repo.getSummary(recording.id)).toBeNull();
+    repo.saveSummary(recording.id, { summary: '# Plan', actionItems: ['Call Bob'], model: 'llm' });
+    repo.saveSummary(recording.id, { summary: 'Better', actionItems: [], model: 'llm2' });
+    expect(repo.getSummary(recording.id)).toMatchObject({
+      summary: 'Better',
+      actionItems: [],
+      model: 'llm2',
+    });
+    repo.deleteRecording(recording.id);
+    expect(repo.getSummary(recording.id)).toBeNull();
+  });
+
+  it('renames a recording', () => {
+    const recording = repo.createRecording(newRecording());
+    expect(repo.renameRecording(recording.id, 'Retro')?.title).toBe('Retro');
+    expect(repo.renameRecording(randomUUID(), 'x')).toBeNull();
+  });
+
+  it('stores AI settings per kind', () => {
+    expect(repo.getAiSettings('llm')).toBeNull();
+    const settings = {
+      mode: 'api' as const,
+      provider: 'groq',
+      baseUrl: 'https://api.groq.com/openai',
+      model: 'llama-3.3-70b-versatile',
+      apiKey: 'secret',
+    };
+    repo.saveAiSettings('llm', settings);
+    expect(repo.getAiSettings('llm')).toEqual(settings);
+    expect(repo.getAiSettings('stt')).toBeNull();
+    repo.deleteAiSettings('llm');
+    expect(repo.getAiSettings('llm')).toBeNull();
+  });
+
+  it('finds the first segment that mentions a term', () => {
+    const recording = repo.createRecording(newRecording());
+    repo.saveTranscript(recording.id, {
+      language: 'ru',
+      model: 'm',
+      text: '',
+      segments: [
+        { start: 0, end: 2, text: 'Привет' },
+        { start: 2, end: 4, text: 'Обсудим Бюджет' },
+      ],
+    });
+    expect(repo.firstMatchingSegment(recording.id, ['бюджет'])).toEqual({ index: 1, start: 2 });
+    expect(repo.firstMatchingSegment(recording.id, ['nothing'])).toBeNull();
+  });
 });
