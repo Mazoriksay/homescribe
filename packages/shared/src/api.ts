@@ -15,6 +15,8 @@ export const apiErrorCodes = [
   'NOT_FOUND',
   'JOB_ACTIVE',
   'TRANSCRIPT_NOT_READY',
+  'SUMMARY_NOT_READY',
+  'AI_UNREACHABLE',
   'FILE_TOO_LARGE',
   'UNSUPPORTED_MEDIA_TYPE',
   'INTERNAL_ERROR',
@@ -36,6 +38,9 @@ export const jobErrorCodes = [
   'STT_UNAVAILABLE',
   'STT_TIMEOUT',
   'STT_FAILED',
+  'LLM_UNAVAILABLE',
+  'LLM_TIMEOUT',
+  'LLM_FAILED',
   'INTERNAL_ERROR',
 ] as const;
 export type JobErrorCode = (typeof jobErrorCodes)[number];
@@ -57,7 +62,8 @@ export type JobStatus = z.infer<typeof jobStatusSchema>;
 export const finalJobStatuses: readonly JobStatus[] = ['done', 'failed'];
 export const isJobFinal = (status: JobStatus): boolean => finalJobStatuses.includes(status);
 
-export const jobKindSchema = z.enum(['process']);
+/** `process`: convert, transcribe, summarize. `summarize`: only (re)create the summary. */
+export const jobKindSchema = z.enum(['process', 'summarize']);
 export type JobKind = z.infer<typeof jobKindSchema>;
 
 const timestamp = z.iso.datetime();
@@ -97,6 +103,9 @@ export const TITLE_MAX_LENGTH = 200;
 export const titleSchema = z.string().trim().min(1).max(TITLE_MAX_LENGTH);
 
 export const idParamsSchema = z.object({ id: z.uuid() });
+
+export const updateRecordingBodySchema = z.object({ title: titleSchema });
+export type UpdateRecordingBody = z.infer<typeof updateRecordingBodySchema>;
 
 export const listRecordingsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -138,7 +147,56 @@ export const transcriptSchema = z.object({
 });
 export type Transcript = z.infer<typeof transcriptSchema>;
 
-export const healthSchema = z.object({ status: z.literal('ok') });
+// ---------------------------------------------------------------- summaries
+
+export const SUMMARY_MAX_LENGTH = 20_000;
+export const ACTION_ITEMS_MAX = 50;
+export const ACTION_ITEM_MAX_LENGTH = 500;
+
+export const summarySchema = z.object({
+  recordingId: z.uuid(),
+  /** Markdown; render without raw HTML. */
+  summary: z.string(),
+  actionItems: z.array(z.string()),
+  model: z.string(),
+  createdAt: timestamp,
+});
+export type Summary = z.infer<typeof summarySchema>;
+
+// ---------------------------------------------------------------- search
+
+export const searchQuerySchema = z.object({
+  q: z.string().trim().min(1).max(200),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(20),
+});
+export type SearchQuery = z.infer<typeof searchQuerySchema>;
+
+/** A text fragment split into plain and matching parts, for highlighting. */
+export const snippetSchema = z.array(z.object({ text: z.string(), match: z.boolean() }));
+export type Snippet = z.infer<typeof snippetSchema>;
+
+export const searchHitSchema = z.object({
+  recording: recordingSchema,
+  snippet: snippetSchema,
+  /** First transcript segment containing the query, if the match is in the transcript. */
+  segment: z.object({ index: z.number().int(), start: z.number() }).nullable(),
+});
+export type SearchHit = z.infer<typeof searchHitSchema>;
+
+export const searchPageSchema = z.object({
+  data: z.array(searchHitSchema),
+  pagination: paginationSchema,
+});
+export type SearchPage = z.infer<typeof searchPageSchema>;
+
+export const searchModes = ['fts5', 'like'] as const;
+export type SearchMode = (typeof searchModes)[number];
+
+export const healthSchema = z.object({
+  status: z.literal('ok'),
+  search: z.enum(searchModes),
+});
 export type Health = z.infer<typeof healthSchema>;
 
 // ---------------------------------------------------------------- events (SSE)
@@ -150,6 +208,28 @@ export type ServerEvent =
   | { event: 'recording.deleted'; data: z.infer<typeof recordingDeletedEventSchema> };
 
 // ---------------------------------------------------------------- upstream: speech-to-text
+
+// ---------------------------------------------------------------- upstream: model lists and chat
+
+/** `GET /v1/models` of an OpenAI-compatible server; speaches adds `task`. */
+export const upstreamModelListSchema = z.object({
+  data: z.array(z.object({ id: z.string(), task: z.string().nullish() })),
+});
+
+/** Subset of an OpenAI-compatible chat completion response. */
+export const chatCompletionSchema = z.object({
+  choices: z.array(z.object({ message: z.object({ content: z.string().nullish() }) })).min(1),
+});
+
+/** What the summarizer must return; validated before anything is stored. */
+export const summaryPayloadSchema = z.object({
+  summary: z.string().trim().min(1).max(SUMMARY_MAX_LENGTH),
+  actionItems: z
+    .array(z.string().trim().min(1).max(ACTION_ITEM_MAX_LENGTH))
+    .max(ACTION_ITEMS_MAX)
+    .default([]),
+});
+export type SummaryPayload = z.infer<typeof summaryPayloadSchema>;
 
 /**
  * Subset of the OpenAI-compatible `verbose_json` transcription response that
