@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadPrefs, savePrefs } from '../src/app/prefs';
+import { loadPrefs, savePrefs, withUrlOverrides } from '../src/app/prefs';
 import { resolveTheme } from '../src/theme/theme';
 
 describe('resolveTheme', () => {
@@ -40,5 +40,18 @@ describe('prefs persistence', () => {
     expect(loadPrefs(broken, ['en'])).toEqual({ locale: 'en', theme: 'auto' });
     expect(() => savePrefs(broken, { locale: 'en', theme: 'auto' })).not.toThrow();
     expect(loadPrefs(undefined, [])).toEqual({ locale: 'en', theme: 'auto' });
+  });
+});
+
+describe('withUrlOverrides', () => {
+  const saved = { locale: 'en', theme: 'light' } as const;
+
+  it('lets an embedding page set language and theme', () => {
+    expect(withUrlOverrides(saved, '?lang=ru&theme=dark')).toEqual({ locale: 'ru', theme: 'dark' });
+  });
+
+  it('ignores missing or unknown values', () => {
+    expect(withUrlOverrides(saved, '')).toEqual(saved);
+    expect(withUrlOverrides(saved, '?lang=de&theme=neon')).toEqual(saved);
   });
 });
