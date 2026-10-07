@@ -63,7 +63,10 @@ describe.skipIf(!hasFfmpeg)('FfmpegMediaTool (real ffmpeg)', () => {
   it('throws MediaError for a file that is not media', async () => {
     const junk = path.join(dir, 'junk.mp3');
     await writeFile(junk, 'definitely not audio');
-    await expect(tool.probeDuration(junk)).rejects.toBeInstanceOf(MediaError);
+    const error = await tool.probeDuration(junk).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(MediaError);
+    expect((error as Error).message).toContain('junk.mp3');
+    expect((error as Error).message).not.toContain(dir);
     await expect(
       tool.convertToWav(junk, path.join(dir, 'junk.wav'), { durationSeconds: null }),
     ).rejects.toBeInstanceOf(MediaError);

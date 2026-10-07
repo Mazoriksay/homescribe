@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import path from 'node:path';
 import { MediaError, type ConvertOptions, type MediaTool } from './media-tool';
 
 const STDERR_LIMIT = 4000;
@@ -16,6 +17,7 @@ function run(
   bin: string,
   args: string[],
   signal: AbortSignal | undefined,
+  redact: string[],
   onStdout?: (chunk: string) => void,
 ): Promise<RunResult> {
   return new Promise((resolve, reject) => {
@@ -33,12 +35,17 @@ function run(
       reject(
         signal?.aborted
           ? error
-          : new MediaError(`Cannot run ${bin}: ${error.message}`, { cause: error }),
+          : new MediaError(`Cannot run ${path.basename(bin)}`, { cause: error }),
       );
     });
     child.on('close', (code) => {
-      if (code === 0) resolve({ stdout, stderr });
-      else reject(new MediaError(`${bin} exited with code ${code}: ${stderr.trim()}`));
+      if (code === 0) return resolve({ stdout, stderr });
+      // Error messages reach API clients; never leak server paths.
+      const message = redact.reduce(
+        (text, filePath) => text.replaceAll(filePath, path.basename(filePath)),
+        stderr.trim(),
+      );
+      reject(new MediaError(`${path.basename(bin)} exited with code ${code}: ${message}`));
     });
   });
 }
@@ -55,6 +62,7 @@ export class FfmpegMediaTool implements MediaTool {
       this.ffprobePath,
       ['-v', 'error', '-show_entries', 'format=duration', '-of', 'json', input],
       signal,
+      [input],
     );
     let parsed: unknown;
     try {
@@ -105,6 +113,7 @@ export class FfmpegMediaTool implements MediaTool {
         output,
       ],
       signal,
+      [input, output],
       handleProgress,
     );
   }
