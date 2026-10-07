@@ -3,9 +3,17 @@ import path from 'node:path';
 import type { Job, JobErrorCode } from '@homescribe/shared';
 import type { JobPatch, Repository } from '../db/repository';
 import type { EventBus } from '../events';
-import { MediaError, type MediaTool } from '../media/media-tool';
+import { LlmError, type Summarizer } from '../llm/summarizer';
+import { MediaError, type AudioFormat, type MediaTool } from '../media/media-tool';
 import type { MediaStore } from '../storage';
 import { SttError, type Transcriber } from '../stt/transcriber';
+
+/** The AI backends to use, resolved per job so settings changes apply to the next job. */
+export interface AiBackends {
+  stt(): { transcriber: Transcriber; format: AudioFormat };
+  /** null when summaries are turned off. */
+  llm(): Summarizer | null;
+}
 
 export interface Logger {
   info(obj: object, msg: string): void;
@@ -16,7 +24,7 @@ export interface JobRunnerDeps {
   repo: Repository;
   store: MediaStore;
   media: MediaTool;
-  transcriber: Transcriber;
+  ai: AiBackends;
   events: EventBus;
   logger: Logger;
   /** Minimum time between two progress updates of one job. */
@@ -96,43 +104,28 @@ export class JobRunner {
     this.deps.events.emit({ event: 'job', data: job });
   }
 
+  /** Persists progress at most every `progressIntervalMs`. */
+  private progressReporter(jobId: string): (ratio: number) => void {
+    let lastAt = 0;
+    return (ratio) => {
+      const now = Date.now();
+      if (now - lastAt < this.progressIntervalMs) return;
+      lastAt = now;
+      this.update(jobId, { progress: Math.round(ratio * 1000) / 1000 });
+    };
+  }
+
   private async run(job: Job): Promise<void> {
-    const { repo, store, media, transcriber, logger } = this.deps;
-    const signal = this.abort.signal;
+    const { repo, store, logger } = this.deps;
     const recordingId = job.recordingId;
     const storedName = repo.getStoredName(recordingId);
     if (!storedName) return; // recording deleted meanwhile; its job went with it
 
-    const workDir = store.workDir(recordingId);
-    const wav = path.join(workDir, 'audio.wav');
-
     try {
-      const input = store.originalPath(recordingId, storedName);
-      this.update(job.id, { status: 'converting', progress: 0, error: null, started: true });
-      await mkdir(workDir, { recursive: true });
-      const duration = await media.probeDuration(input, signal);
-      if (duration !== null) repo.setDuration(recordingId, duration);
-
-      let lastProgressAt = 0;
-      await media.convertToWav(input, wav, {
-        durationSeconds: duration,
-        signal,
-        onProgress: (ratio) => {
-          const now = Date.now();
-          if (now - lastProgressAt < this.progressIntervalMs) return;
-          lastProgressAt = now;
-          this.update(job.id, { progress: Math.round(ratio * 1000) / 1000 });
-        },
-      });
-
-      this.update(job.id, { status: 'transcribing', progress: null });
-      const result = await transcriber.transcribe(wav, signal);
-      if (signal.aborted) throw signal.reason;
-
-      repo.saveTranscript(recordingId, { ...result, model: transcriber.model });
-      // Stage 2 inserts the 'summarizing' step here.
+      if (job.kind === 'process') await this.transcribe(job, storedName);
+      await this.summarize(job);
       this.update(job.id, { status: 'done', progress: null, finished: true });
-      logger.info({ jobId: job.id, recordingId }, 'job done');
+      logger.info({ jobId: job.id, recordingId, kind: job.kind }, 'job done');
     } catch (error) {
       const failure = this.toFailure(error);
       if (failure.code === 'INTERNAL_ERROR')
@@ -152,6 +145,61 @@ export class JobRunner {
     }
   }
 
+  /** converting → transcribing; stores the transcript. */
+  private async transcribe(job: Job, storedName: string): Promise<void> {
+    const { repo, store, media } = this.deps;
+    const signal = this.abort.signal;
+    const recordingId = job.recordingId;
+    const { transcriber, format } = this.deps.ai.stt();
+    const input = store.originalPath(recordingId, storedName);
+    const workDir = store.workDir(recordingId);
+    const audio = path.join(workDir, `audio.${format}`);
+
+    this.update(job.id, { status: 'converting', progress: 0, error: null, started: true });
+    await mkdir(workDir, { recursive: true });
+    const duration = await media.probeDuration(input, signal);
+    if (duration !== null) repo.setDuration(recordingId, duration);
+    await media.convertAudio(input, audio, {
+      format,
+      durationSeconds: duration,
+      signal,
+      onProgress: this.progressReporter(job.id),
+    });
+
+    this.update(job.id, { status: 'transcribing', progress: null });
+    const result = await transcriber.transcribe(audio, signal);
+    if (signal.aborted) throw signal.reason;
+    repo.saveTranscript(recordingId, { ...result, model: transcriber.model });
+  }
+
+  /** summarizing; skipped when summaries are off or there is no speech. */
+  private async summarize(job: Job): Promise<void> {
+    const { repo } = this.deps;
+    const summarizer = this.deps.ai.llm();
+    const transcript = repo.getTranscript(job.recordingId);
+    if (!summarizer || !transcript?.text.trim()) {
+      if (job.kind === 'summarize') {
+        throw new JobFailure(
+          'LLM_FAILED',
+          summarizer ? 'There is no speech to summarize' : 'Summaries are turned off',
+        );
+      }
+      return;
+    }
+
+    this.update(job.id, {
+      status: 'summarizing',
+      progress: 0,
+      ...(job.kind === 'summarize' && { error: null, started: true }),
+    });
+    const result = await summarizer.summarize(
+      { text: transcript.text, language: transcript.language },
+      { signal: this.abort.signal, onProgress: this.progressReporter(job.id) },
+    );
+    if (this.abort.signal.aborted) throw this.abort.signal.reason;
+    repo.saveSummary(job.recordingId, { ...result, model: summarizer.model });
+  }
+
   private toFailure(error: unknown): JobFailure {
     if (this.abort.signal.aborted) {
       return new JobFailure('INTERRUPTED', 'The server stopped while this job was running');
@@ -162,7 +210,10 @@ export class JobRunner {
         `Cannot read or convert the media: ${error.message}`,
       );
     }
-    if (error instanceof SttError) return new JobFailure(error.code, error.message);
+    if (error instanceof JobFailure) return error;
+    if (error instanceof SttError || error instanceof LlmError) {
+      return new JobFailure(error.code, error.message);
+    }
     return new JobFailure('INTERNAL_ERROR', 'Unexpected error; see the server log');
   }
 }

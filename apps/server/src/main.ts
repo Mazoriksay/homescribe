@@ -9,7 +9,10 @@ import { buildApp } from './http/app';
 import { JobRunner } from './jobs/runner';
 import { FfmpegMediaTool } from './media/ffmpeg';
 import { MediaStore } from './storage';
-import { OpenAiTranscriber } from './stt/openai-transcriber';
+import { createAiBackends } from './ai/backends';
+import { discoverServers } from './ai/discovery';
+import { listModels } from './ai/models';
+import { AiSettingsService } from './ai/settings';
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
 
@@ -20,19 +23,30 @@ async function main(): Promise<void> {
   const repo = new Repository(openDatabase(path.join(config.dataDir, 'homescribe.db')));
   const store = new MediaStore(config.dataDir);
   const events = new EventBus();
+  const aiSettings = new AiSettingsService(repo, config);
   let app: FastifyInstance | undefined;
   const runner = new JobRunner({
     repo,
     store,
     events,
     media: new FfmpegMediaTool(config.ffmpegPath, config.ffprobePath),
-    transcriber: new OpenAiTranscriber(config.stt),
+    ai: createAiBackends(aiSettings, config),
     logger: {
       info: (obj, msg) => app?.log.info(obj, msg),
       error: (obj, msg) => app?.log.error(obj, msg),
     },
   });
-  app = await buildApp({ config, repo, store, runner, events });
+  app = await buildApp({
+    config,
+    repo,
+    store,
+    runner,
+    events,
+    aiSettings,
+    discover: () => discoverServers({ hosts: config.discoveryHosts, selfPort: config.port }),
+    listModels: (baseUrl, apiKey) => listModels(baseUrl, apiKey),
+  });
+  app.log.info({ search: repo.search.mode }, 'search index ready');
 
   const shutdown = async (signal: string) => {
     app?.log.info({ signal }, 'shutting down');

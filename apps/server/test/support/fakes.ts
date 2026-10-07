@@ -1,4 +1,5 @@
 import { writeFile } from 'node:fs/promises';
+import { LlmError } from '../../src/llm/summarizer';
 import { MediaError, type ConvertOptions, type MediaTool } from '../../src/media/media-tool';
 import {
   SttError,
@@ -11,19 +12,19 @@ import {
 export class FakeMediaTool implements MediaTool {
   duration: number | null = 42;
   failWith: string | null = null;
-  readonly converted: { input: string; output: string }[] = [];
+  readonly converted: { input: string; output: string; format: string }[] = [];
 
   async probeDuration(): Promise<number | null> {
     if (this.failWith) throw new MediaError(this.failWith);
     return this.duration;
   }
 
-  async convertToWav(input: string, output: string, options: ConvertOptions): Promise<void> {
+  async convertAudio(input: string, output: string, options: ConvertOptions): Promise<void> {
     if (this.failWith) throw new MediaError(this.failWith);
     options.onProgress?.(0.5);
     options.onProgress?.(1);
-    await writeFile(output, 'RIFF');
-    this.converted.push({ input, output });
+    await writeFile(output, options.format === 'ogg' ? 'OggS' : 'RIFF');
+    this.converted.push({ input, output, format: options.format });
   }
 }
 
@@ -63,4 +64,36 @@ export function deferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve!: () => void;
   const promise = new Promise<void>((r) => (resolve = r));
   return { promise, resolve };
+}
+
+/** Pretends to be the LLM. */
+export class FakeSummarizer {
+  readonly model = 'fake-llm';
+  result = { summary: '- Plan agreed', actionItems: ['Ann: send notes'] };
+  failWith: 'LLM_UNAVAILABLE' | 'LLM_TIMEOUT' | 'LLM_FAILED' | null = null;
+  calls: { text: string; language: string | null }[] = [];
+
+  async summarize(
+    transcript: { text: string; language: string | null },
+    options: { onProgress?: (ratio: number) => void } = {},
+  ) {
+    this.calls.push(transcript);
+    if (this.failWith) throw new LlmError(this.failWith, 'fake failure');
+    options.onProgress?.(0.5);
+    options.onProgress?.(1);
+    return this.result;
+  }
+}
+
+/** AI backends wired to the fakes; `llmOff` simulates summaries turned off. */
+export function fakeAi(
+  transcriber: FakeTranscriber,
+  summarizer: FakeSummarizer,
+  state: { llmOff: boolean; format: 'wav' | 'ogg' } = { llmOff: false, format: 'wav' },
+) {
+  return {
+    state,
+    stt: () => ({ transcriber, format: state.format }),
+    llm: () => (state.llmOff ? null : summarizer),
+  };
 }

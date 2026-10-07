@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
@@ -10,11 +11,13 @@ import type { EventBus } from '../events';
 import type { JobRunner } from '../jobs/runner';
 import { createNetworkAllowList } from '../network';
 import type { MediaStore } from '../storage';
+import { registerAiRoutes, type AiRouteDeps } from './ai';
 import { errorBody, errorHandler } from './errors';
 import { registerEventRoutes } from './events';
 import { registerRecordingRoutes } from './recordings';
+import { registerSearchRoutes } from './search';
 
-export interface AppDeps {
+export interface AppDeps extends AiRouteDeps {
   config: Config;
   repo: Repository;
   store: MediaStore;
@@ -58,15 +61,21 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.addHook('onSend', async (_request, reply) => {
     reply.header('x-content-type-options', 'nosniff');
     reply.header('referrer-policy', 'no-referrer');
-    reply.header('content-security-policy', csp);
+    // Routes may send a stricter policy (media files are sandboxed).
+    if (!reply.hasHeader('content-security-policy')) reply.header('content-security-policy', csp);
   });
 
   app.setErrorHandler(errorHandler);
 
   await app.register(fastifyMultipart);
 
-  app.get(`${API_PREFIX}/health`, async () => ({ status: 'ok' as const }));
+  app.get(`${API_PREFIX}/health`, async () => ({
+    status: 'ok' as const,
+    search: deps.repo.search.mode,
+  }));
   registerRecordingRoutes(app, deps);
+  registerSearchRoutes(app, deps.repo);
+  registerAiRoutes(app, deps);
   registerEventRoutes(app, deps.events);
 
   const hasWeb = existsSync(path.join(config.webDistDir, 'index.html'));
@@ -85,6 +94,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     });
   } else {
     app.log.warn({ webDistDir: config.webDistDir }, 'web UI not built; serving the API only');
+    // Still needed for reply.sendFile (recording media).
+    await mkdir(deps.store.root, { recursive: true });
+    await app.register(fastifyStatic, { root: deps.store.root, serve: false });
   }
 
   app.setNotFoundHandler((request, reply) => {

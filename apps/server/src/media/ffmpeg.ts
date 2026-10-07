@@ -75,8 +75,9 @@ export class FfmpegMediaTool implements MediaTool {
     return Number.isFinite(duration) && duration >= 0 ? duration : null;
   }
 
-  async convertToWav(input: string, output: string, options: ConvertOptions): Promise<void> {
-    const { durationSeconds, onProgress, signal } = options;
+  async convertAudio(input: string, output: string, options: ConvertOptions): Promise<void> {
+    const { durationSeconds, onProgress, signal, format } = options;
+    const codec = format === 'ogg' ? ['-c:a', 'libopus', '-b:a', '32k'] : ['-c:a', 'pcm_s16le'];
     let buffer = '';
     const handleProgress = (chunk: string) => {
       buffer += chunk;
@@ -105,8 +106,7 @@ export class FfmpegMediaTool implements MediaTool {
         '1',
         '-ar',
         '16000',
-        '-c:a',
-        'pcm_s16le',
+        ...codec,
         '-progress',
         'pipe:1',
         '-nostats',

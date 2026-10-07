@@ -8,7 +8,9 @@ import { EventBus } from '../../src/events';
 import { buildApp } from '../../src/http/app';
 import { JobRunner } from '../../src/jobs/runner';
 import { MediaStore } from '../../src/storage';
-import { FakeMediaTool, FakeTranscriber, silentLogger } from './fakes';
+import type { AiModel, Discovery } from '@homescribe/shared';
+import { AiSettingsService } from '../../src/ai/settings';
+import { FakeMediaTool, FakeSummarizer, FakeTranscriber, silentLogger } from './fakes';
 
 /** A fully wired app with fake ffmpeg/STT and a temporary DATA_DIR. */
 export async function createTestApp(env: Record<string, string> = {}) {
@@ -21,17 +23,46 @@ export async function createTestApp(env: Record<string, string> = {}) {
   const store = new MediaStore(config.dataDir);
   const media = new FakeMediaTool();
   const transcriber = new FakeTranscriber();
+  const summarizer = new FakeSummarizer();
+  const aiSettings = new AiSettingsService(repo, config);
+  // Real settings, fake clients: what the UI chooses decides which fake runs.
+  const ai = {
+    stt: () => ({
+      transcriber,
+      format: aiSettings.effective('stt').mode === 'api' ? ('ogg' as const) : ('wav' as const),
+    }),
+    llm: () => (aiSettings.effective('llm').mode === 'off' ? null : summarizer),
+  };
+  const ai$ = {
+    discovery: { servers: [], probed: [] } as Discovery,
+    models: [] as AiModel[],
+    modelsError: null as Error | null,
+    modelCalls: [] as { baseUrl: string; apiKey: string | null }[],
+  };
   const events = new EventBus();
   const runner = new JobRunner({
     repo,
     store,
     media,
-    transcriber,
+    ai,
     events,
     logger: silentLogger,
     progressIntervalMs: 0,
   });
-  const app = await buildApp({ config, repo, store, runner, events });
+  const app = await buildApp({
+    config,
+    repo,
+    store,
+    runner,
+    events,
+    aiSettings,
+    discover: async () => ai$.discovery,
+    listModels: async (baseUrl, apiKey) => {
+      ai$.modelCalls.push({ baseUrl, apiKey });
+      if (ai$.modelsError) throw ai$.modelsError;
+      return ai$.models;
+    },
+  });
   runner.start();
 
   return {
@@ -40,6 +71,9 @@ export async function createTestApp(env: Record<string, string> = {}) {
     store,
     media,
     transcriber,
+    summarizer,
+    aiSettings,
+    ai$,
     events,
     runner,
     config,

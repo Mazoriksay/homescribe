@@ -8,9 +8,10 @@ import {
   listRecordingsQuerySchema,
   TITLE_MAX_LENGTH,
   titleSchema,
+  updateRecordingBodySchema,
 } from '@homescribe/shared';
 import type { FastifyInstance } from 'fastify';
-import { storedNameFor } from '../storage';
+import { servedMediaType, storedNameFor } from '../storage';
 import { AppError, notFound, parseInput } from './errors';
 import type { AppDeps } from './app';
 
@@ -29,7 +30,7 @@ function cleanFilename(filename: string | undefined): string {
 }
 
 export function registerRecordingRoutes(app: FastifyInstance, deps: AppDeps): void {
-  const { repo, store, runner, events, config } = deps;
+  const { repo, store, runner, events, config, aiSettings } = deps;
 
   app.post(`${API_PREFIX}/recordings`, async (request, reply) => {
     const data = await request.file({
@@ -93,6 +94,32 @@ export function registerRecordingRoutes(app: FastifyInstance, deps: AppDeps): vo
     return repo.getRecording(id) ?? Promise.reject(notFound('Recording'));
   });
 
+  app.patch(`${API_PREFIX}/recordings/:id`, async (request) => {
+    const { id } = parseInput(idParamsSchema, request.params, 'recording id');
+    const { title } = parseInput(updateRecordingBodySchema, request.body ?? {}, 'body');
+    return repo.renameRecording(id, title) ?? Promise.reject(notFound('Recording'));
+  });
+
+  app.get(`${API_PREFIX}/recordings/:id/summary`, async (request) => {
+    const { id } = parseInput(idParamsSchema, request.params, 'recording id');
+    if (!repo.getRecording(id)) throw notFound('Recording');
+    const summary = repo.getSummary(id);
+    if (!summary) throw new AppError(409, 'SUMMARY_NOT_READY', 'There is no summary yet');
+    return summary;
+  });
+
+  app.get(`${API_PREFIX}/recordings/:id/media`, async (request, reply) => {
+    const { id } = parseInput(idParamsSchema, request.params, 'recording id');
+    const recording = repo.getRecording(id);
+    const storedName = repo.getStoredName(id);
+    if (!recording || !storedName) throw notFound('Recording');
+    return reply
+      .header('content-type', servedMediaType(storedName, recording.mediaType))
+      .header('content-disposition', 'inline')
+      .header('content-security-policy', "sandbox; default-src 'none'")
+      .sendFile(storedName, store.recordingDir(id), { contentType: false, cacheControl: false });
+  });
+
   app.delete(`${API_PREFIX}/recordings/:id`, async (request, reply) => {
     const { id } = parseInput(idParamsSchema, request.params, 'recording id');
     if (!repo.getRecording(id)) throw notFound('Recording');
@@ -122,6 +149,14 @@ export function registerRecordingRoutes(app: FastifyInstance, deps: AppDeps): vo
     if (!repo.getRecording(id)) throw notFound('Recording');
     if (repo.activeJob(id)) {
       throw new AppError(409, 'JOB_ACTIVE', 'This recording already has a job in progress');
+    }
+    if (body.kind === 'summarize') {
+      if (!repo.getTranscript(id)) {
+        throw new AppError(409, 'TRANSCRIPT_NOT_READY', 'Transcribe the recording first');
+      }
+      if (aiSettings.effective('llm').mode === 'off') {
+        throw new AppError(409, 'SUMMARIES_OFF', 'Summaries are turned off in the settings');
+      }
     }
     const job = repo.createJob(id, body.kind);
     events.emit({ event: 'job', data: job });

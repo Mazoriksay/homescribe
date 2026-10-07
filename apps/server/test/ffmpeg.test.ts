@@ -47,7 +47,8 @@ describe.skipIf(!hasFfmpeg)('FfmpegMediaTool (real ffmpeg)', () => {
   it('converts to 16 kHz mono PCM WAV and reports progress', async () => {
     const output = path.join(dir, 'out.wav');
     const ratios: number[] = [];
-    await tool.convertToWav(input, output, {
+    await tool.convertAudio(input, output, {
+      format: 'wav',
       durationSeconds: 2,
       onProgress: (ratio) => ratios.push(ratio),
     });
@@ -60,6 +61,14 @@ describe.skipIf(!hasFfmpeg)('FfmpegMediaTool (real ffmpeg)', () => {
     expect(Math.max(...ratios)).toBeLessThanOrEqual(1);
   });
 
+  it('converts to Ogg Opus for cloud APIs', async () => {
+    const output = path.join(dir, 'out.ogg');
+    await tool.convertAudio(input, output, { format: 'ogg', durationSeconds: 2 });
+    const ogg = await readFile(output);
+    expect(ogg.toString('ascii', 0, 4)).toBe('OggS');
+    expect(await tool.probeDuration(output)).toBeGreaterThan(1.9);
+  });
+
   it('throws MediaError for a file that is not media', async () => {
     const junk = path.join(dir, 'junk.mp3');
     await writeFile(junk, 'definitely not audio');
@@ -68,7 +77,7 @@ describe.skipIf(!hasFfmpeg)('FfmpegMediaTool (real ffmpeg)', () => {
     expect((error as Error).message).toContain('junk.mp3');
     expect((error as Error).message).not.toContain(dir);
     await expect(
-      tool.convertToWav(junk, path.join(dir, 'junk.wav'), { durationSeconds: null }),
+      tool.convertAudio(junk, path.join(dir, 'junk.wav'), { format: 'wav', durationSeconds: null }),
     ).rejects.toBeInstanceOf(MediaError);
   });
 });

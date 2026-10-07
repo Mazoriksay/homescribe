@@ -10,7 +10,14 @@ import { Repository } from '../src/db/repository';
 import { EventBus } from '../src/events';
 import { JobRunner } from '../src/jobs/runner';
 import { MediaStore } from '../src/storage';
-import { deferred, FakeMediaTool, FakeTranscriber, silentLogger } from './support/fakes';
+import {
+  deferred,
+  fakeAi,
+  FakeMediaTool,
+  FakeSummarizer,
+  FakeTranscriber,
+  silentLogger,
+} from './support/fakes';
 
 describe('JobRunner', () => {
   let dataDir: string;
@@ -18,6 +25,8 @@ describe('JobRunner', () => {
   let store: MediaStore;
   let media: FakeMediaTool;
   let transcriber: FakeTranscriber;
+  let summarizer: FakeSummarizer;
+  let ai: ReturnType<typeof fakeAi>;
   let events: EventBus;
   let seen: ServerEvent[];
   let runner: JobRunner;
@@ -28,6 +37,8 @@ describe('JobRunner', () => {
     store = new MediaStore(dataDir);
     media = new FakeMediaTool();
     transcriber = new FakeTranscriber();
+    summarizer = new FakeSummarizer();
+    ai = fakeAi(transcriber, summarizer, { llmOff: false, format: 'wav' });
     events = new EventBus();
     seen = [];
     events.subscribe((event) => seen.push(event));
@@ -35,7 +46,7 @@ describe('JobRunner', () => {
       repo,
       store,
       media,
-      transcriber,
+      ai,
       events,
       logger: silentLogger,
       progressIntervalMs: 0,
@@ -84,7 +95,15 @@ describe('JobRunner', () => {
       ],
     });
     expect(media.converted[0]?.input).toBe(store.originalPath(id, 'original.m4a'));
-    expect(new Set(statuses(job.id))).toEqual(new Set(['converting', 'transcribing', 'done']));
+    expect(new Set(statuses(job.id))).toEqual(
+      new Set(['converting', 'transcribing', 'summarizing', 'done']),
+    );
+    expect(repo.getSummary(id)).toMatchObject({
+      summary: '- Plan agreed',
+      actionItems: ['Ann: send notes'],
+      model: 'fake-llm',
+    });
+    expect(summarizer.calls).toEqual([{ text: 'Hello there. Bye.', language: 'en' }]);
     expect(existsSync(store.workDir(id))).toBe(false);
   });
 
@@ -96,6 +115,73 @@ describe('JobRunner', () => {
       .filter((e) => e.event === 'job' && e.data.id === job.id && e.data.status === 'converting')
       .map((e) => (e.data as Job).progress);
     expect(progress).toEqual([0, 0.5, 1]);
+  });
+
+  it('skips summarizing when summaries are off', async () => {
+    ai.state.llmOff = true;
+    const { id, job } = await upload();
+    runner.start();
+    await runner.idle();
+    expect(repo.getJob(job.id)?.status).toBe('done');
+    expect(statuses(job.id)).not.toContain('summarizing');
+    expect(repo.getSummary(id)).toBeNull();
+  });
+
+  it('skips summarizing when no speech was recognised', async () => {
+    transcriber.result = { language: null, text: '', segments: [] };
+    const { job } = await upload();
+    runner.start();
+    await runner.idle();
+    expect(repo.getJob(job.id)?.status).toBe('done');
+    expect(summarizer.calls).toEqual([]);
+  });
+
+  it('keeps the transcript when the summary fails', async () => {
+    summarizer.failWith = 'LLM_UNAVAILABLE';
+    const { id, job } = await upload();
+    runner.start();
+    await runner.idle();
+    expect(repo.getJob(job.id)).toMatchObject({
+      status: 'failed',
+      error: { code: 'LLM_UNAVAILABLE' },
+    });
+    expect(repo.getTranscript(id)).not.toBeNull();
+    expect(repo.getSummary(id)).toBeNull();
+  });
+
+  it('regenerates only the summary for a summarize job', async () => {
+    const { id } = await upload();
+    runner.start();
+    await runner.idle();
+    summarizer.result = { summary: 'Second take', actionItems: [] };
+    const job = repo.createJob(id, 'summarize');
+    runner.kick();
+    await runner.idle();
+    expect(repo.getJob(job.id)?.status).toBe('done');
+    expect(statuses(job.id)).toEqual(['summarizing', 'summarizing', 'summarizing', 'done']);
+    expect(repo.getSummary(id)?.summary).toBe('Second take');
+    expect(transcriber.calls).toBe(1);
+    expect(media.converted).toHaveLength(1);
+  });
+
+  it('fails a summarize job when summaries are off', async () => {
+    const { id } = await upload();
+    runner.start();
+    await runner.idle();
+    ai.state.llmOff = true;
+    const job = repo.createJob(id, 'summarize');
+    runner.kick();
+    await runner.idle();
+    expect(repo.getJob(job.id)?.error?.message).toBe('Summaries are turned off');
+  });
+
+  it('converts to Ogg Opus for a cloud speech-to-text API', async () => {
+    ai.state.format = 'ogg';
+    await upload();
+    runner.start();
+    await runner.idle();
+    expect(media.converted[0]?.output.endsWith('audio.ogg')).toBe(true);
+    expect(media.converted[0]?.format).toBe('ogg');
   });
 
   it('fails with MEDIA_UNREADABLE when ffmpeg cannot read the file', async () => {
