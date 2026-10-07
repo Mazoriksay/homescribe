@@ -511,7 +511,14 @@ if [ "$STT" != none ]; then
       || warn "Could not ask the speech server to download $STT_ID."
   fi
   waited=0
-  until health | grep -q '"stt":"ok"'; do
+  # speaches lists a model as soon as its first files are on disk, so a
+  # requested download is done only when its answer is in the log.
+  stt_ready() {
+    health | grep -q '"stt":"ok"' || return 1
+    has "$STT_ID" ${HAVE_STT[@]+"${HAVE_STT[@]}"} && return 0
+    $DOCKER compose exec -T "stt-$STT" cat /tmp/homescribe-download.log 2>/dev/null | grep -Eq 'downloaded|already exists'
+  }
+  until stt_ready; do
     if [ "$waited" -ge 1800 ]; then
       echo; warn "Speech recognition is not ready yet; it keeps downloading in the background."
       $DOCKER compose exec -T "stt-$STT" cat /tmp/homescribe-download.log 2>/dev/null | tail -5 || true
