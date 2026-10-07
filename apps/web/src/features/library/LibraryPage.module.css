@@ -1,5 +1,7 @@
 .page {
   display: grid;
+  /* minmax(0, 1fr): wide content (segmented controls, long URLs) must not widen the page. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
 }
 

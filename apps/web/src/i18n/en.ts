@@ -96,7 +96,7 @@ export const en = {
   'settings.currentOff': 'Turned off',
   'settings.source.env': 'Default from the server environment',
   'settings.source.saved': 'Chosen here',
-  'settings.mode.local': 'On this computer',
+  'settings.mode.local': 'Local',
   'settings.mode.api': 'Cloud API',
   'settings.mode.off': 'Off',
   'settings.offBody': 'Recordings are only transcribed. You can turn summaries on at any time.',
