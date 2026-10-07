@@ -25,6 +25,7 @@ npm run build && npm start  # one process serves API + built UI
 npm run typecheck
 npm run lint                # ESLint + Prettier check; `npm run format` fixes formatting
 npm test                    # all workspaces; `npm test -w apps/server` for one
+docker compose --profile gpu up -d   # main way to run: app + speaches (or --profile cpu)
 ```
 
 Run typecheck, lint and test before every commit and report honestly what
@@ -68,7 +69,8 @@ passed and what you could not run.
   transcription; ffprobe reads the duration.
 - The UI is generic and may be embedded in another app's iframe
   (`FRAME_ANCESTORS`, `?lang=`/`?theme=`, SPEC.md §11.1); no embedder-specific
-  code.
+  code. The preferred setup is the hub's own origin via `BASE_PATH` (§11.2);
+  one web build must keep working under any base path.
 - All URLs, model names, paths and the port come from environment variables
   (AI backends: defaults, overridable in the UI), listed in `.env.example`.
   Data lives in `DATA_DIR` (git-ignored). No personal paths, names or hosts

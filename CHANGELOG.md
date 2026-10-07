@@ -22,6 +22,17 @@ source of truth for the version.
 - Audio and video player on the recording page; the transcript follows
   playback and tapping a timestamp seeks.
 - Rename recordings.
+- Docker image with ffmpeg and a Compose file that runs Homescribe with
+  speech-to-text (GPU or CPU) and optionally Ollama, restarting with the
+  machine.
+- `BASE_PATH` to serve everything under a path such as `/homescribe`, so a
+  home hub can show it from its own address behind one proxy.
+- Self-check: missing ffmpeg or unreachable AI servers are logged, reported in
+  `GET /api/v1/health` and shown as a notice in the UI.
+- When embedded, the page tells the parent when it is ready and where it
+  navigated (`postMessage`).
+- README: Docker setup, putting Homescribe into a hub, and HTTPS through
+  Tailscale or Let's Encrypt without a private certificate authority.
 
 - Upload audio or video files from the web UI; they are converted with ffmpeg
   and transcribed by any OpenAI-compatible speech-to-text server.
