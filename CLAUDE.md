@@ -85,9 +85,12 @@ passed and what you could not run.
   restart become `failed` with code `INTERRUPTED`.
 - Progress goes to clients over Server-Sent Events.
 - Every error response: `{ error: { code, message, details? } }`.
-- UI in English and Russian, light/dark/auto theme, phone-friendly (large tap
-  targets, no hover-only actions), one neutral colour family plus one accent,
-  system fonts only (works offline on a LAN), not the stock Ant Design look.
+- UI in English and Russian, Auto/Day/Night theme, phone-friendly (large tap
+  targets, no hover-only actions), system fonts only (works offline on a LAN).
+  Visual language: the Home Hub design system (SPEC.md §11): warm gray plus a
+  rust accent, hairlines instead of cards, no shadows or gradients, no
+  explanatory copy, not the stock Ant Design look. Tokens live in
+  `apps/web/src/global.css` and are mirrored in `apps/web/src/theme/theme.ts`.
 - No npm script commits, pushes or bumps a version.
 - External services (ffmpeg, STT, LLM) stay behind interfaces; tests use
   fakes and must pass without a GPU, ffmpeg or network.

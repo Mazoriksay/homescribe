@@ -603,13 +603,35 @@ and treats the response as untrusted input (validated with Zod).
   **Recording** (title, metadata, job status with progress or error + retry,
   transcript with clickable timestamps). Stage 2: summary + action items,
   search, player. Stage 3: record screen.
-- English and Russian, switch in the header, remembered in `localStorage`,
+- English and Russian, chosen in Settings, remembered in `localStorage`,
   first visit follows the browser language.
-- Themes: light, dark, auto (follows `prefers-color-scheme`), remembered.
-- Visual language: one neutral colour family plus one accent; system font
-  stack only; no stock Ant Design look (antd is themed through
-  `ConfigProvider` tokens and used for form controls only — buttons,
-  segmented switches, inputs). Layout and lists are hand-written CSS modules.
+- Themes: Auto / Day / Night (Auto follows `prefers-color-scheme`),
+  remembered; `data-theme` is set on `<html>` before the first paint by
+  `public/theme-init.js` (an external file, so the CSP needs no inline script).
+- Visual language: the **Home Hub design system**, so Homescribe looks like it
+  belongs next to the hub. Tokens live in `apps/web/src/global.css` and are
+  mirrored for Ant Design in `apps/web/src/theme/theme.ts`; change both
+  together.
+  - A reference book, not a dashboard: rows separated by hairlines, no card
+    grids, shadows, gradients or glass.
+  - One warm gray family and a single rust accent, used only for the active
+    item, links, the primary button, progress and errors-by-text; success in
+    `--ok`. State is never shown by colour alone.
+  - System fonts only: a serif for headings, a sans for text, a mono for ids,
+    models and addresses.
+  - No explanatory copy: no leads or hints; a screen shows its content, its
+    controls and its state (status, errors, empty states).
+  - Ant Design for form controls only, themed through `ConfigProvider`;
+    layout, navigation and lists are CSS modules. A secondary action next to a
+    primary one is an underlined accent link.
+  - Motion: one curve (`--ease`), 0.15 s colour transitions, small entrances
+    (opacity, 6 px, 0.96 scale), `translateY(1px)` on press; all off under
+    `prefers-reduced-motion`.
+- Layout: desktop has a sticky side rail with the wordmark and navigation;
+  phones (≤ 860 px) get a blurred sticky top bar and a fixed bottom tab bar,
+  switched in CSS. When the page runs inside a frame (another app embeds it),
+  the rail and bars are hidden and a slim inline navigation row is shown, so
+  there is no second set of app chrome inside the host.
 - Phone first: tap targets ≥ 44 px, no hover-only actions, readable at 320 px
   width, long transcripts render without layout jank.
 

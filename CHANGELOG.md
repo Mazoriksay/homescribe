@@ -53,3 +53,11 @@ source of truth for the version.
 - English and Russian UI, light, dark and automatic themes (in Settings).
 - The UI can be embedded in another app's iframe: allow the embedding origin
   with `FRAME_ANCESTORS` and pass `?lang=` / `?theme=` in the iframe URL.
+
+### Changed
+
+- New look that matches Home Hub: warm gray with one rust accent, serif page
+  titles, hairline-separated rows instead of cards, Auto / Day / Night theme
+  set before the first paint, a side rail on desktop and a tab bar on phones.
+  Inside another app's frame the app hides its own chrome. Explanatory hints
+  were removed from the pages.
