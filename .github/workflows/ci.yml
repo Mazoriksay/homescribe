@@ -11,14 +11,21 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-      # Optional: lets the real-ffmpeg tests run instead of being skipped.
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      # Optional: lets the real-ffmpeg tests run instead of being skipped. A slow
+      # package mirror must not hold up the run, so give up after a few minutes.
+      - name: Install ffmpeg (optional)
+        timeout-minutes: 5
+        continue-on-error: true
+        run: |
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends ffmpeg
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
