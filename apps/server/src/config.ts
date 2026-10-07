@@ -11,9 +11,7 @@ const DEFAULT_ALLOWED_NETWORKS =
 const optional = <T extends z.ZodType>(schema: T) =>
   z.preprocess((value) => (value === '' ? undefined : value), schema);
 
-const url = z
-  .url({ protocol: /^https?$/ })
-  .transform((value) => value.replace(/\/+$/, ''));
+const url = z.url({ protocol: /^https?$/ }).transform((value) => value.replace(/\/+$/, ''));
 
 const envSchema = z.object({
   HOST: optional(z.string().default('0.0.0.0')),
@@ -38,7 +36,12 @@ const envSchema = z.object({
   FFPROBE_PATH: optional(z.string().default('ffprobe')),
   STT_BASE_URL: optional(url.default('http://localhost:8000')),
   STT_MODEL: optional(z.string().default('Systran/faster-whisper-large-v3')),
-  STT_LANGUAGE: optional(z.string().regex(/^[a-z]{2,3}$/).optional()),
+  STT_LANGUAGE: optional(
+    z
+      .string()
+      .regex(/^[a-z]{2,3}$/)
+      .optional(),
+  ),
   STT_API_KEY: optional(z.string().optional()),
   STT_TIMEOUT_MS: optional(z.coerce.number().int().positive().default(3_600_000)),
   WEB_DIST_DIR: optional(z.string().optional()),

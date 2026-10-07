@@ -48,8 +48,6 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ PORT: 'eighty' }, root)).toThrow(ConfigError);
     expect(() => loadConfig({ PORT: 'eighty' }, root)).toThrow(/PORT/);
     expect(() => loadConfig({ STT_BASE_URL: 'not a url' }, root)).toThrow(/STT_BASE_URL/);
-    expect(() => loadConfig({ ALLOWED_NETWORKS: '10.0.0.0/33' }, root)).toThrow(
-      /ALLOWED_NETWORKS/,
-    );
+    expect(() => loadConfig({ ALLOWED_NETWORKS: '10.0.0.0/33' }, root)).toThrow(/ALLOWED_NETWORKS/);
   });
 });

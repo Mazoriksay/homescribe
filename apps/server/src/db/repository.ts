@@ -157,8 +157,7 @@ export class Repository {
 
   getStoredName(id: string): string | null {
     const row = this.db.prepare('SELECT stored_name FROM recordings WHERE id = ?').get(id) as
-      | { stored_name: string }
-      | undefined;
+      { stored_name: string } | undefined;
     return row?.stored_name ?? null;
   }
 
@@ -298,15 +297,19 @@ export class Repository {
     const row = this.db
       .prepare('SELECT * FROM transcripts WHERE recording_id = ?')
       .get(recordingId) as
-      | { language: string | null; text: string; model: string; created_at: string }
-      | undefined;
+      { language: string | null; text: string; model: string; created_at: string } | undefined;
     if (!row) return null;
     const segments = this.db
       .prepare(
         `SELECT idx, start_seconds, end_seconds, text FROM segments
          WHERE recording_id = ? ORDER BY idx`,
       )
-      .all(recordingId) as { idx: number; start_seconds: number; end_seconds: number; text: string }[];
+      .all(recordingId) as {
+      idx: number;
+      start_seconds: number;
+      end_seconds: number;
+      text: string;
+    }[];
     return {
       recordingId,
       language: row.language,
