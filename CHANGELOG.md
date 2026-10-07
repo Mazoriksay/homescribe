@@ -26,6 +26,9 @@ source of truth for the version.
 
 ### Fixed
 
+- "Find AI on this computer" finds Ollama running on the Docker host. Each
+  host is looked up once, IPv4 first, so an unresolvable name such as a
+  stopped `ollama` service no longer makes the other probes time out.
 - Search treats «ё» and «е» as the same letter (the index is rebuilt once
   on start).
 - An empty upload is refused with `400` instead of becoming a failed job.
