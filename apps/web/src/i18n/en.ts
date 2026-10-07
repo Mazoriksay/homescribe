@@ -43,6 +43,7 @@ export const en = {
   'recording.transcript': 'Transcript',
   'recording.copy': 'Copy text',
   'recording.copied': 'Copied',
+  'recording.errorDetails': 'Details',
   'recording.noSpeech': 'No speech was recognised in this recording.',
   'recording.transcriptPending': 'The transcript appears here when processing is done.',
   'recording.language': 'Language: {language}',

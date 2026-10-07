@@ -1,5 +1,5 @@
 import type { Recording } from '@homescribe/shared';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { errorCode, useGetRecordingQuery } from '../../api/api';
 import { useT } from '../../i18n/useT';
@@ -37,6 +37,15 @@ function RecordingDetails({ recording }: { recording: Recording }) {
   const media = useRef<HTMLMediaElement | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [params] = useSearchParams();
+
+  useEffect(() => {
+    const previous = document.title;
+    document.title = `${recording.title} · ${previous}`;
+    return () => {
+      document.title = previous;
+    };
+  }, [recording.title]);
+
   // `?t=<seconds>` (from search results) starts playback position there.
   const startAt = Math.max(0, Number(params.get('t')) || 0);
 

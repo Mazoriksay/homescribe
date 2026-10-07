@@ -90,10 +90,26 @@
   color: var(--accent);
 }
 
+.error p {
+  margin: 0;
+}
+
 .errorDetail {
+  color: var(--text-muted);
+}
+
+.errorDetail summary {
+  padding: 12px 0;
+  line-height: 20px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.errorDetail pre {
+  margin: 0;
   font-family: var(--font-mono);
   font-size: 13px;
-  color: var(--text-muted);
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 

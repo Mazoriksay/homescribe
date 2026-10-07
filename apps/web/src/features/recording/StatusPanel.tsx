@@ -6,6 +6,7 @@ import { useCreateJobMutation, useDeleteRecordingMutation } from '../../api/api'
 import { errorMessageKey, useT } from '../../i18n/useT';
 import { ProgressBar } from '../../ui/ProgressBar';
 import { StatusBadge } from '../../ui/StatusBadge';
+import { cleanToolOutput } from './recording-text';
 import styles from './RecordingPage.module.css';
 
 export function StatusPanel({ recording }: { recording: Recording }) {
@@ -35,10 +36,13 @@ export function StatusPanel({ recording }: { recording: Recording }) {
         <ProgressBar value={null} label={t('status.transcribing')} />
       )}
       {job.status === 'failed' && job.error && (
-        <p className={styles.error} role="alert">
-          {t(errorMessageKey(job.error.code))}
-          <span className={styles.errorDetail}>{job.error.message}</span>
-        </p>
+        <div className={styles.error} role="alert">
+          <p>{t(errorMessageKey(job.error.code))}</p>
+          <details className={styles.errorDetail}>
+            <summary>{t('recording.errorDetails')}</summary>
+            <pre>{cleanToolOutput(job.error.message)}</pre>
+          </details>
+        </div>
       )}
     </section>
   );

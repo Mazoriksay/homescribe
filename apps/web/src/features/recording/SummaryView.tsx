@@ -7,11 +7,12 @@ import styles from './SummaryView.module.css';
 export function SummaryView({ recording }: { recording: Recording }) {
   const t = useT();
   const { job } = recording;
-  // The server answers 409 SUMMARY_NOT_READY until one exists; SSE refetches on 'done'.
-  const { data: summary } = useGetSummaryQuery(recording.id);
   const { data: settings } = useGetAiSettingsQuery();
-  const [createJob, { isLoading }] = useCreateJobMutation();
   const llmOff = settings?.llm.mode === 'off';
+  // The server answers 409 SUMMARY_NOT_READY until one exists; SSE refetches on 'done'.
+  // With summaries off there is nothing to wait for, so do not ask.
+  const { data: summary } = useGetSummaryQuery(recording.id, { skip: !settings || llmOff });
+  const [createJob, { isLoading }] = useCreateJobMutation();
   const canRegenerate =
     !llmOff &&
     (job.status === 'done' || job.status === 'failed') &&
