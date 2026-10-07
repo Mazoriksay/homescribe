@@ -13,9 +13,17 @@ In-browser recording and offline support come next.
 ## Install
 
 One command sets everything up. It checks Docker and offers to install it,
-finds an NVIDIA GPU (and offers the NVIDIA Container Toolkit on Linux), picks
-speech recognition on the GPU or CPU, asks whether to run a local AI for
-summaries, finds a free port, starts everything and waits until it works.
+finds an NVIDIA GPU (and offers the NVIDIA Container Toolkit on Linux), then
+asks what to download and shows a summary before anything is pulled:
+
+- where speech recognition runs: the GPU, the CPU, or not on this computer;
+- the Whisper model: `large-v3` (about 3.1 GB, best), `large-v3-turbo`
+  (1.6 GB, much faster), `medium` (1.5 GB) or `small` (0.5 GB, for a CPU);
+- a local AI for summaries: `qwen2.5:7b` (4.7 GB, good in Russian),
+  `llama3.1:8b` (4.9 GB), `qwen2.5:3b` (1.9 GB) or none (a cloud API in
+  Settings, or no summaries).
+
+Then it finds a free port, starts everything and waits until it works.
 
 **Linux / macOS**
 
@@ -35,10 +43,11 @@ downloads the speech model (about 3 GB). Everything restarts with the machine.
 
 To update, run the same command again. It keeps your port and settings.
 
-Options, for example `bash install.sh --cpu --no-llm --yes` or
-`.\install.ps1 -Cpu -NoLlm -Yes`: install folder, port, GPU/CPU or no
-speech recognition here, local LLM or not, non-interactive. See
-`install.sh --help`.
+Options skip the questions, for example
+`bash install.sh --gpu --stt-model large-v3-turbo --llm-model qwen2.5:7b --yes`
+or `.\install.ps1 -Cpu -SttModel small -NoLlm -Yes`: install folder, port,
+GPU/CPU or no speech recognition here, the Whisper and summary models,
+non-interactive. See `install.sh --help`.
 
 What runs where: GPU acceleration works on Linux and on Windows with an
 NVIDIA card. Docker on macOS has no GPU access, so speech recognition runs on

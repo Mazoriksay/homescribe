@@ -3,8 +3,10 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/mazoriksay/homescribe/main/install.sh | bash
 #
-# Checks (and with your consent installs) Docker, finds an NVIDIA GPU, picks
-# the matching setup, writes compose.yaml and .env into an install folder,
+# Checks (and with your consent installs) Docker, finds an NVIDIA GPU, asks
+# what to download (where speech recognition runs, the Whisper model, a local
+# summary model or none) and shows a summary before pulling, writes
+# compose.yaml and .env into an install folder,
 # starts everything and waits until Homescribe answers. Re-run it any time to
 # update. `install.sh --help` lists the options.
 
@@ -17,7 +19,8 @@ PORT=""
 IMAGE="${HOMESCRIBE_IMAGE:-ghcr.io/$REPO:latest}"
 STT=""            # gpu | cpu | none
 LLM=""            # yes | no
-LLM_MODEL="${HOMESCRIBE_LLM_MODEL:-llama3.1:8b}"
+STT_MODEL=""      # short name from the list below or any model id
+LLM_MODEL="${HOMESCRIBE_LLM_MODEL:-}"
 ASSUME_YES=0
 SOURCE_DIR=""     # use compose.yaml from a local checkout instead of downloading
 
@@ -29,7 +32,9 @@ Usage: install.sh [options]
   --port N         Port for the web UI (default: 8080, or the next free one)
   --gpu | --cpu    Speech-to-text on the NVIDIA GPU or the CPU (default: detect)
   --no-stt         Do not run speech-to-text here (use your own server)
+  --stt-model M    Whisper model: large-v3, large-v3-turbo, medium, small or an id
   --llm | --no-llm Run a local LLM (Ollama) for summaries, or not (default: ask)
+  --llm-model M    Ollama model for summaries, e.g. qwen2.5:7b (implies --llm)
   --image IMAGE    Homescribe image (default: ghcr.io/<repo>:latest)
   --yes, -y        Accept all defaults and consents without asking
   --source DIR     Use compose.yaml from a local checkout (for development)
@@ -46,6 +51,8 @@ while [ $# -gt 0 ]; do
     --no-stt) STT=none; shift ;;
     --llm) LLM=yes; shift ;;
     --no-llm) LLM=no; shift ;;
+    --stt-model) STT_MODEL="$2"; shift 2 ;;
+    --llm-model) LLM_MODEL="$2"; shift 2 ;;
     --image) IMAGE="$2"; shift 2 ;;
     -y|--yes) ASSUME_YES=1; shift ;;
     --source) SOURCE_DIR="$2"; shift 2 ;;
@@ -77,6 +84,42 @@ ask_yes_no() { # question default(y|n)
   answer="${answer:-$default}"
   case "$answer" in [Yy]*) return 0 ;; *) return 1 ;; esac
 }
+
+# A numbered menu; prints the chosen index (0-based). --yes takes the default.
+choose() { # title default option...
+  local title="$1" default="$2" answer i; shift 2
+  if [ "$ASSUME_YES" = 1 ] || ! { : </dev/tty; } 2>/dev/null; then echo "$default"; return; fi
+  printf '\n%s\n' "$title" >/dev/tty
+  i=0
+  for option in "$@"; do
+    i=$((i + 1))
+    if [ "$i" -eq $((default + 1)) ]; then printf '  %d) %s  <- default\n' "$i" "$option" >/dev/tty
+    else printf '  %d) %s\n' "$i" "$option" >/dev/tty; fi
+  done
+  while :; do
+    printf 'Choose 1-%d [%d] ' "$#" $((default + 1)) >/dev/tty
+    read -r answer </dev/tty || answer=""
+    [ -z "$answer" ] && { echo "$default"; return; }
+    case "$answer" in
+      *[!0-9]*) ;;
+      *) if [ "$answer" -ge 1 ] && [ "$answer" -le "$#" ]; then echo $((answer - 1)); return; fi ;;
+    esac
+    printf 'Enter one of the numbers above.\n' >/dev/tty
+  done
+}
+
+# What can be downloaded: name|id|approximate GB|note
+STT_MODELS=(
+  "large-v3|Systran/faster-whisper-large-v3|3.1|best quality"
+  "large-v3-turbo|deepdml/faster-whisper-large-v3-turbo-ct2|1.6|almost as good, several times faster"
+  "medium|Systran/faster-whisper-medium|1.5|good, for older GPUs"
+  "small|Systran/faster-whisper-small|0.5|fast on a CPU, rougher text"
+)
+LLM_MODELS=(
+  "qwen2.5:7b|4.7|good in Russian and English"
+  "llama3.1:8b|4.9|good in English"
+  "qwen2.5:3b|1.9|smaller, for weaker machines"
+)
 
 need() { command -v "$1" >/dev/null 2>&1; }
 
@@ -183,34 +226,82 @@ install_nvidia_toolkit() {
   wait_for_docker
 }
 
+[ -n "$LLM_MODEL" ] && [ "$LLM" != no ] && LLM=yes
+
 if [ -z "$STT" ]; then
-  step "Choosing where speech recognition runs"
+  step "Choosing what to download"
+  gpu_ok=no
   if has_nvidia_gpu; then
     ok "NVIDIA GPU found: $(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)"
     if docker_has_nvidia; then
-      STT=gpu
+      gpu_ok=yes
     elif ask_yes_no "Docker cannot use the GPU yet. Install the NVIDIA Container Toolkit?" y \
       && install_nvidia_toolkit && docker_has_nvidia; then
-      STT=gpu
+      gpu_ok=yes
     else
-      warn "Using the CPU for speech recognition (slower). Re-run with --gpu after setting up the toolkit."
-      STT=cpu
+      warn "Docker cannot use the GPU; re-run with --gpu after setting up the NVIDIA Container Toolkit."
     fi
-  else
-    [ "$OS" = Darwin ] && warn "Docker on macOS cannot use the GPU; speech recognition runs on the CPU (slower)."
-    STT=cpu
+  elif [ "$OS" = Darwin ]; then
+    warn "Docker on macOS cannot use the GPU; speech recognition here would run on the CPU (slower)."
   fi
+  where=() values=()
+  if [ "$gpu_ok" = yes ]; then where+=("On this NVIDIA GPU"); values+=(gpu); fi
+  where+=("On the CPU (works anywhere, slow for long recordings)"); values+=(cpu)
+  where+=("Not on this computer (a cloud API or another server, chosen in Settings)"); values+=(none)
+  STT="${values[$(choose "Speech recognition:" 0 "${where[@]}")]}"
 fi
-ok "Speech recognition: $STT"
 
-if [ -z "$LLM" ]; then
-  if [ "$STT" = gpu ]; then default_llm=y; else default_llm=n; fi
-  if ask_yes_no "Run a local AI for summaries (Ollama, $LLM_MODEL, about 5 GB)? You can also pick a cloud API later in Settings." "$default_llm"; then
-    LLM=yes
+# The Whisper model: a short name from the list or any model id.
+STT_ID="" STT_NAME="" STT_SIZE=""
+if [ "$STT" != none ]; then
+  if [ -n "$STT_MODEL" ]; then
+    STT_NAME="$STT_MODEL" STT_ID="$STT_MODEL"
+    for entry in "${STT_MODELS[@]}"; do
+      IFS='|' read -r name id size _ <<<"$entry"
+      if [ "$name" = "$STT_MODEL" ] || [ "$id" = "$STT_MODEL" ]; then STT_NAME="$name" STT_ID="$id" STT_SIZE="$size"; fi
+    done
   else
-    LLM=no
+    labels=()
+    for entry in "${STT_MODELS[@]}"; do
+      IFS='|' read -r name _ size note <<<"$entry"
+      labels+=("$name - about $size GB, $note")
+    done
+    if [ "$STT" = gpu ]; then default_stt=0; else default_stt=3; fi
+    IFS='|' read -r STT_NAME STT_ID STT_SIZE _ <<<"${STT_MODELS[$(choose "Speech recognition model (Whisper):" "$default_stt" "${labels[@]}")]}"
   fi
 fi
+
+# The local summary model, or none.
+if [ "$LLM" = yes ]; then
+  [ -z "$LLM_MODEL" ] && LLM_MODEL="${LLM_MODELS[0]%%|*}"
+elif [ -z "$LLM" ]; then
+  labels=()
+  for entry in "${LLM_MODELS[@]}"; do
+    IFS='|' read -r id size note <<<"$entry"
+    labels+=("$id - about $size GB, $note")
+  done
+  labels+=("None (use a cloud API in Settings, or no summaries)")
+  if [ "$STT" = gpu ]; then default_llm=0; else default_llm=${#LLM_MODELS[@]}; fi
+  pick="$(choose "Local AI for summaries (Ollama):" "$default_llm" "${labels[@]}")"
+  if [ "$pick" -lt "${#LLM_MODELS[@]}" ]; then LLM=yes LLM_MODEL="${LLM_MODELS[$pick]%%|*}"; else LLM=no; fi
+fi
+
+# Summary, then one confirmation before anything is downloaded.
+step "You chose"
+echo "  Homescribe app"
+if [ "$STT" = none ]; then echo "  Speech recognition: not on this computer"
+else echo "  Speech recognition on the $(echo "$STT" | tr '[:lower:]' '[:upper:]'): $STT_NAME${STT_SIZE:+ (model about $STT_SIZE GB)}"; fi
+if [ "$LLM" = yes ]; then
+  llm_size=""
+  for entry in "${LLM_MODELS[@]}"; do
+    IFS='|' read -r id size _ <<<"$entry"
+    [ "$id" = "$LLM_MODEL" ] && llm_size="$size"
+  done
+  echo "  Summaries: Ollama with $LLM_MODEL${llm_size:+ (about $llm_size GB)}"
+else
+  echo "  Summaries: no local AI"
+fi
+ask_yes_no "Download and start?" y || { echo "Nothing was downloaded."; exit 0; }
 
 # ---------------------------------------------------------------- port
 
@@ -248,12 +339,15 @@ profiles=""
 # Our keys are rewritten; anything else you put into .env is kept.
 touch "$DIR/.env"
 tmp="$(mktemp)"
-grep -vE '^(COMPOSE_PROFILES|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|LLM_MODE|LLM_MODEL)=' "$DIR/.env" > "$tmp" || true
+ours='COMPOSE_PROFILES|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|LLM_MODE|LLM_MODEL'
+[ "$STT" != none ] && ours="$ours|STT_MODEL"
+grep -vE "^($ours)=" "$DIR/.env" > "$tmp" || true
 {
   cat "$tmp"
   echo "COMPOSE_PROFILES=$profiles"
   echo "HOMESCRIBE_IMAGE=$IMAGE"
   echo "HOMESCRIBE_PORT=$PORT"
+  [ "$STT" != none ] && echo "STT_MODEL=$STT_ID"
   if [ "$LLM" = yes ]; then echo "LLM_MODE=local"; echo "LLM_MODEL=$LLM_MODEL"; else echo "LLM_MODE=off"; fi
 } > "$DIR/.env"
 rm -f "$tmp"
@@ -291,7 +385,8 @@ if [ "$LLM" = yes ]; then
 fi
 
 if [ "$STT" != none ]; then
-  step "Waiting for the speech model (first start downloads about 3 GB)"
+  if [ -n "$STT_SIZE" ]; then stt_download="about $STT_SIZE GB"; else stt_download="the model"; fi
+  step "Waiting for the speech model (first start downloads $stt_download)"
   waited=0
   until health | grep -q '"stt":"ok"'; do
     if [ "$waited" -ge 1800 ]; then
