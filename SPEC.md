@@ -42,17 +42,17 @@ and have it transcribed once the phone is back on the home LAN.
 
 ## 3. Tech stack (fixed)
 
-| Area      | Choice                                                                                                       |
-| --------- | ------------------------------------------------------------------------------------------------------------ |
-| Repo      | npm workspaces monorepo: `apps/server`, `apps/web`, `packages/shared`                                        |
-| Runtime   | Node.js 24, TypeScript, `tsx` runs TS directly (no server build step)                                        |
-| Server    | Fastify 5, Zod 4, `node:sqlite`, `@fastify/multipart`, `@fastify/static`                                     |
-| Web       | React 19, Vite, Redux Toolkit + RTK Query, React Router 7, Ant Design 6 (form controls only), CSS modules    |
-| Shared    | Zod schemas for every API payload; server and web types are inferred from them                              |
-| Media     | system `ffmpeg` and `ffprobe` binaries                                                                       |
-| STT       | any server with OpenAI-compatible `POST /v1/audio/transcriptions` (e.g. speaches / faster-whisper-server)    |
-| LLM       | any server with OpenAI-compatible `POST /v1/chat/completions` (Ollama, LM Studio, vLLM)                      |
-| Quality   | Vitest, ESLint + typescript-eslint, Prettier                                                                 |
+| Area    | Choice                                                                                                    |
+| ------- | --------------------------------------------------------------------------------------------------------- |
+| Repo    | npm workspaces monorepo: `apps/server`, `apps/web`, `packages/shared`                                     |
+| Runtime | Node.js 24, TypeScript, `tsx` runs TS directly (no server build step)                                     |
+| Server  | Fastify 5, Zod 4, `node:sqlite`, `@fastify/multipart`, `@fastify/static`                                  |
+| Web     | React 19, Vite, Redux Toolkit + RTK Query, React Router 7, Ant Design 6 (form controls only), CSS modules |
+| Shared  | Zod schemas for every API payload; server and web types are inferred from them                            |
+| Media   | system `ffmpeg` and `ffprobe` binaries                                                                    |
+| STT     | any server with OpenAI-compatible `POST /v1/audio/transcriptions` (e.g. speaches / faster-whisper-server) |
+| LLM     | any server with OpenAI-compatible `POST /v1/chat/completions` (Ollama, LM Studio, vLLM)                   |
+| Quality | Vitest, ESLint + typescript-eslint, Prettier                                                              |
 
 Extra npm packages beyond the list above (and the type/tooling packages the
 stack implies) require the maintainer's approval first.
@@ -85,32 +85,32 @@ apps/server               apps/web
 
 `apps/server/src`
 
-| Module              | Responsibility                                                         | Depends on                 |
-| ------------------- | ---------------------------------------------------------------------- | -------------------------- |
-| `config`            | Read and validate environment variables once at startup                | shared                     |
-| `network`           | CIDR allow-list check on the socket address                            | config                     |
-| `db`                | `node:sqlite` connection, migrations, repositories                     | —                          |
-| `storage`           | Paths inside `DATA_DIR`; never derives a path from user input          | config                     |
-| `media`             | `MediaTool` interface + ffmpeg/ffprobe implementation                  | config                     |
-| `stt`               | `Transcriber` interface + OpenAI-compatible HTTP client                | config, shared             |
-| `llm` (stage 2)     | `Summarizer` interface + OpenAI-compatible chat client                 | config, shared             |
-| `jobs`              | Single in-process queue, job runner, recovery after restart            | db, media, stt, llm, events |
-| `events`            | In-process event bus feeding the SSE endpoint                          | shared                     |
-| `http`              | Fastify app: routes, error handler, SSE, static web UI                 | everything above           |
+| Module          | Responsibility                                                | Depends on                  |
+| --------------- | ------------------------------------------------------------- | --------------------------- |
+| `config`        | Read and validate environment variables once at startup       | shared                      |
+| `network`       | CIDR allow-list check on the socket address                   | config                      |
+| `db`            | `node:sqlite` connection, migrations, repositories            | —                           |
+| `storage`       | Paths inside `DATA_DIR`; never derives a path from user input | config                      |
+| `media`         | `MediaTool` interface + ffmpeg/ffprobe implementation         | config                      |
+| `stt`           | `Transcriber` interface + OpenAI-compatible HTTP client       | config, shared              |
+| `llm` (stage 2) | `Summarizer` interface + OpenAI-compatible chat client        | config, shared              |
+| `jobs`          | Single in-process queue, job runner, recovery after restart   | db, media, stt, llm, events |
+| `events`        | In-process event bus feeding the SSE endpoint                 | shared                      |
+| `http`          | Fastify app: routes, error handler, SSE, static web UI        | everything above            |
 
 External services (`media`, `stt`, `llm`) sit behind interfaces; tests pass
 fakes so the suite needs no GPU, ffmpeg or network models.
 
 `apps/web/src`
 
-| Module      | Responsibility                                                       |
-| ----------- | -------------------------------------------------------------------- |
-| `api`       | RTK Query API slice, upload with progress, SSE subscription          |
-| `app`       | Store, router, providers (theme, locale)                             |
-| `i18n`      | English and Russian dictionaries, `useT()` hook                      |
-| `theme`     | Light / dark / auto, design tokens as CSS variables + antd theme     |
-| `features/` | Screens: library (list + upload), recording (status + transcript)   |
-| `ui/`       | Small hand-written layout pieces                                     |
+| Module      | Responsibility                                                    |
+| ----------- | ----------------------------------------------------------------- |
+| `api`       | RTK Query API slice, upload with progress, SSE subscription       |
+| `app`       | Store, router, providers (theme, locale)                          |
+| `i18n`      | English and Russian dictionaries, `useT()` hook                   |
+| `theme`     | Light / dark / auto, design tokens as CSS variables + antd theme  |
+| `features/` | Screens: library (list + upload), recording (status + transcript) |
+| `ui/`       | Small hand-written layout pieces                                  |
 
 ## 6. Data model
 
@@ -208,29 +208,29 @@ Every non-2xx response has exactly this shape:
 `details` is optional. `message` is for humans and may change; clients branch
 on `code` only.
 
-| HTTP | `code`                 | When                                                         |
-| ---- | ---------------------- | ------------------------------------------------------------ |
-| 400  | `VALIDATION_ERROR`     | Bad path/query/body; `details` holds the Zod issues          |
-| 400  | `FILE_REQUIRED`        | Upload without a `file` part                                 |
-| 403  | `NETWORK_NOT_ALLOWED`  | Client address outside `ALLOWED_NETWORKS`                    |
-| 404  | `NOT_FOUND`            | Unknown recording/job id or unknown route                    |
-| 409  | `JOB_ACTIVE`           | Action needs the recording's job to be finished              |
-| 409  | `TRANSCRIPT_NOT_READY` | Transcript requested before the job reached `done`           |
-| 413  | `FILE_TOO_LARGE`       | Upload larger than `MAX_UPLOAD_MB`                           |
+| HTTP | `code`                   | When                                                                       |
+| ---- | ------------------------ | -------------------------------------------------------------------------- |
+| 400  | `VALIDATION_ERROR`       | Bad path/query/body; `details` holds the Zod issues                        |
+| 400  | `FILE_REQUIRED`          | Upload without a `file` part                                               |
+| 403  | `NETWORK_NOT_ALLOWED`    | Client address outside `ALLOWED_NETWORKS`                                  |
+| 404  | `NOT_FOUND`              | Unknown recording/job id or unknown route                                  |
+| 409  | `JOB_ACTIVE`             | Action needs the recording's job to be finished                            |
+| 409  | `TRANSCRIPT_NOT_READY`   | Transcript requested before the job reached `done`                         |
+| 413  | `FILE_TOO_LARGE`         | Upload larger than `MAX_UPLOAD_MB`                                         |
 | 415  | `UNSUPPORTED_MEDIA_TYPE` | Upload MIME type is not `audio/*`, `video/*` or `application/octet-stream` |
-| 500  | `INTERNAL_ERROR`       | Anything unexpected; never includes stack traces             |
+| 500  | `INTERNAL_ERROR`         | Anything unexpected; never includes stack traces                           |
 
 Job failures are not HTTP errors; they live on the job (`error.code`):
 
-| `code`              | Meaning                                                   |
-| ------------------- | --------------------------------------------------------- |
-| `INTERRUPTED`       | Server stopped while the job was running                  |
-| `MEDIA_UNREADABLE`  | ffprobe/ffmpeg could not read or convert the upload       |
-| `STT_UNAVAILABLE`   | Speech-to-text server unreachable                         |
-| `STT_TIMEOUT`       | No answer within `STT_TIMEOUT_MS`                         |
-| `STT_FAILED`        | Non-2xx answer or a response that does not match the schema |
-| `LLM_UNAVAILABLE` / `LLM_TIMEOUT` / `LLM_FAILED` | Same for the LLM (stage 2) |
-| `INTERNAL_ERROR`    | Bug; details in the server log                            |
+| `code`                                           | Meaning                                                     |
+| ------------------------------------------------ | ----------------------------------------------------------- |
+| `INTERRUPTED`                                    | Server stopped while the job was running                    |
+| `MEDIA_UNREADABLE`                               | ffprobe/ffmpeg could not read or convert the upload         |
+| `STT_UNAVAILABLE`                                | Speech-to-text server unreachable                           |
+| `STT_TIMEOUT`                                    | No answer within `STT_TIMEOUT_MS`                           |
+| `STT_FAILED`                                     | Non-2xx answer or a response that does not match the schema |
+| `LLM_UNAVAILABLE` / `LLM_TIMEOUT` / `LLM_FAILED` | Same for the LLM (stage 2)                                  |
+| `INTERNAL_ERROR`                                 | Bug; details in the server log                              |
 
 ### 7.2 Types
 
@@ -243,8 +243,8 @@ interface Job {
   recordingId: string;
   kind: JobKind;
   status: JobStatus;
-  progress: number | null;          // 0..1 within the current status, null = unknown
-  error: { code: string; message: string } | null;   // set only when status = 'failed'
+  progress: number | null; // 0..1 within the current status, null = unknown
+  error: { code: string; message: string } | null; // set only when status = 'failed'
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
@@ -259,10 +259,15 @@ interface Recording {
   durationSeconds: number | null;
   createdAt: string;
   updatedAt: string;
-  job: Job;                          // the latest job of this recording
+  job: Job; // the latest job of this recording
 }
 
-interface Segment { index: number; start: number; end: number; text: string }  // seconds
+interface Segment {
+  index: number;
+  start: number;
+  end: number;
+  text: string;
+} // seconds
 
 interface Transcript {
   recordingId: string;
@@ -281,21 +286,21 @@ interface Page<T> {
 
 ### 7.3 Endpoints
 
-| Method & path                              | Stage | Request                                         | Success                         | Errors                     |
-| ------------------------------------------ | ----- | ----------------------------------------------- | ------------------------------- | -------------------------- |
-| `GET /api/v1/health`                       | 1     | —                                               | `200 { status: 'ok' }`          |                            |
-| `POST /api/v1/recordings`                  | 1     | `multipart/form-data`: `file` (required), `title` (optional text field, sent **before** `file`, 1–200 chars) | `201 Recording`, `Location` header | 400, 413, 415 |
-| `GET /api/v1/recordings`                   | 1     | query `page` (≥1, default 1), `pageSize` (1–100, default 20); stage 2 adds `q` | `200 Page<Recording>`, newest first | 400 |
-| `GET /api/v1/recordings/:id`               | 1     | —                                               | `200 Recording`                 | 404                        |
-| `DELETE /api/v1/recordings/:id`            | 1     | —                                               | `204`; a queued job is dropped  | 404, 409 `JOB_ACTIVE` if running |
-| `GET /api/v1/recordings/:id/transcript`    | 1     | —                                               | `200 Transcript`                | 404, 409 `TRANSCRIPT_NOT_READY` |
-| `POST /api/v1/recordings/:id/jobs`         | 1     | `{ kind: 'process' }` (stage 2 adds `'summarize'`) | `202 Job`                    | 400, 404, 409 `JOB_ACTIVE` |
-| `GET /api/v1/jobs/:id`                     | 1     | —                                               | `200 Job`                       | 404                        |
-| `GET /api/v1/events`                       | 1     | `Accept: text/event-stream`                     | SSE stream, see §7.4            |                            |
-| `PATCH /api/v1/recordings/:id`             | 2     | `{ title }`                                     | `200 Recording`                 | 400, 404                   |
-| `GET /api/v1/recordings/:id/summary`       | 2     | —                                               | `200 { recordingId, summary, actionItems: string[], model, createdAt }` | 404, 409 `SUMMARY_NOT_READY` |
-| `GET /api/v1/recordings/:id/media`         | 2     | `Range` supported                               | `200/206` original media        | 404                        |
-| `GET /api/v1/search?q=&page=&pageSize=`    | 2     | `q` 1–200 chars                                 | `200 Page<{ recording, snippet, segmentIndex }>` | 400 |
+| Method & path                           | Stage | Request                                                                                                      | Success                                                                 | Errors                           |
+| --------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- | -------------------------------- |
+| `GET /api/v1/health`                    | 1     | —                                                                                                            | `200 { status: 'ok' }`                                                  |                                  |
+| `POST /api/v1/recordings`               | 1     | `multipart/form-data`: `file` (required), `title` (optional text field, sent **before** `file`, 1–200 chars) | `201 Recording`, `Location` header                                      | 400, 413, 415                    |
+| `GET /api/v1/recordings`                | 1     | query `page` (≥1, default 1), `pageSize` (1–100, default 20); stage 2 adds `q`                               | `200 Page<Recording>`, newest first                                     | 400                              |
+| `GET /api/v1/recordings/:id`            | 1     | —                                                                                                            | `200 Recording`                                                         | 404                              |
+| `DELETE /api/v1/recordings/:id`         | 1     | —                                                                                                            | `204`; a queued job is dropped                                          | 404, 409 `JOB_ACTIVE` if running |
+| `GET /api/v1/recordings/:id/transcript` | 1     | —                                                                                                            | `200 Transcript`                                                        | 404, 409 `TRANSCRIPT_NOT_READY`  |
+| `POST /api/v1/recordings/:id/jobs`      | 1     | `{ kind: 'process' }` (stage 2 adds `'summarize'`)                                                           | `202 Job`                                                               | 400, 404, 409 `JOB_ACTIVE`       |
+| `GET /api/v1/jobs/:id`                  | 1     | —                                                                                                            | `200 Job`                                                               | 404                              |
+| `GET /api/v1/events`                    | 1     | `Accept: text/event-stream`                                                                                  | SSE stream, see §7.4                                                    |                                  |
+| `PATCH /api/v1/recordings/:id`          | 2     | `{ title }`                                                                                                  | `200 Recording`                                                         | 400, 404                         |
+| `GET /api/v1/recordings/:id/summary`    | 2     | —                                                                                                            | `200 { recordingId, summary, actionItems: string[], model, createdAt }` | 404, 409 `SUMMARY_NOT_READY`     |
+| `GET /api/v1/recordings/:id/media`      | 2     | `Range` supported                                                                                            | `200/206` original media                                                | 404                              |
+| `GET /api/v1/search?q=&page=&pageSize=` | 2     | `q` 1–200 chars                                                                                              | `200 Page<{ recording, snippet, segmentIndex }>`                        | 400                              |
 
 Notes:
 
@@ -313,10 +318,10 @@ Notes:
 
 `GET /api/v1/events` keeps a `text/event-stream` open. Events:
 
-| `event:`            | `data:` (JSON)                     | Sent when                                     |
-| ------------------- | ---------------------------------- | --------------------------------------------- |
-| `job`               | `Job`                              | a job is created, changes status or progress  |
-| `recording.deleted` | `{ id }`                           | a recording is deleted                        |
+| `event:`            | `data:` (JSON) | Sent when                                    |
+| ------------------- | -------------- | -------------------------------------------- |
+| `job`               | `Job`          | a job is created, changes status or progress |
+| `recording.deleted` | `{ id }`       | a recording is deleted                       |
 
 A comment line (`: ping`) is sent every 15 s to keep proxies and phones from
 closing the connection. Progress events are throttled to at most 2 per second
@@ -356,26 +361,26 @@ All settings come from environment variables; `.env.example` lists them.
 exists (Node's `--env-file-if-exists`). Invalid values stop the server at
 startup with a message naming the variable.
 
-| Variable            | Default                                                                                  | Stage | Meaning |
-| ------------------- | ---------------------------------------------------------------------------------------- | ----- | ------- |
-| `HOST`              | `0.0.0.0`                                                                                | 1     | Listen address |
-| `PORT`              | `8080`                                                                                   | 1     | Listen port |
-| `DATA_DIR`          | `./data`                                                                                 | 1     | SQLite file and media; created if missing |
-| `ALLOWED_NETWORKS`  | `127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,fe80::/10`          | 1     | Comma-separated CIDR list of allowed client addresses |
-| `MAX_UPLOAD_MB`     | `2048`                                                                                   | 1     | Largest accepted upload |
-| `FFMPEG_PATH`       | `ffmpeg`                                                                                 | 1     | ffmpeg binary |
-| `FFPROBE_PATH`      | `ffprobe`                                                                                | 1     | ffprobe binary |
-| `STT_BASE_URL`      | `http://localhost:8000`                                                                  | 1     | Base URL; the server calls `${STT_BASE_URL}/v1/audio/transcriptions` |
-| `STT_MODEL`         | `Systran/faster-whisper-large-v3`                                                        | 1     | `model` form field |
-| `STT_LANGUAGE`      | *(empty = auto-detect)*                                                                  | 1     | ISO 639-1 code sent as `language` |
-| `STT_API_KEY`       | *(empty)*                                                                                | 1     | Sent as `Authorization: Bearer …` when set |
-| `STT_TIMEOUT_MS`    | `3600000`                                                                                | 1     | Per-request timeout |
-| `LLM_BASE_URL`      | `http://localhost:11434`                                                                 | 2     | Base URL; calls `${LLM_BASE_URL}/v1/chat/completions` |
-| `LLM_MODEL`         | `llama3.1:8b`                                                                            | 2     | `model` field |
-| `LLM_API_KEY`       | *(empty)*                                                                                | 2     | Bearer token when set |
-| `LLM_TIMEOUT_MS`    | `600000`                                                                                 | 2     | Per-request timeout |
-| `WEB_DIST_DIR`      | `apps/web/dist` (resolved from the repo root)                                            | 1     | Built UI to serve; skipped if missing |
-| `LOG_LEVEL`         | `info`                                                                                   | 1     | Fastify/pino log level |
+| Variable           | Default                                                                          | Stage | Meaning                                                              |
+| ------------------ | -------------------------------------------------------------------------------- | ----- | -------------------------------------------------------------------- |
+| `HOST`             | `0.0.0.0`                                                                        | 1     | Listen address                                                       |
+| `PORT`             | `8080`                                                                           | 1     | Listen port                                                          |
+| `DATA_DIR`         | `./data`                                                                         | 1     | SQLite file and media; created if missing                            |
+| `ALLOWED_NETWORKS` | `127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,fe80::/10` | 1     | Comma-separated CIDR list of allowed client addresses                |
+| `MAX_UPLOAD_MB`    | `2048`                                                                           | 1     | Largest accepted upload                                              |
+| `FFMPEG_PATH`      | `ffmpeg`                                                                         | 1     | ffmpeg binary                                                        |
+| `FFPROBE_PATH`     | `ffprobe`                                                                        | 1     | ffprobe binary                                                       |
+| `STT_BASE_URL`     | `http://localhost:8000`                                                          | 1     | Base URL; the server calls `${STT_BASE_URL}/v1/audio/transcriptions` |
+| `STT_MODEL`        | `Systran/faster-whisper-large-v3`                                                | 1     | `model` form field                                                   |
+| `STT_LANGUAGE`     | _(empty = auto-detect)_                                                          | 1     | ISO 639-1 code sent as `language`                                    |
+| `STT_API_KEY`      | _(empty)_                                                                        | 1     | Sent as `Authorization: Bearer …` when set                           |
+| `STT_TIMEOUT_MS`   | `3600000`                                                                        | 1     | Per-request timeout                                                  |
+| `LLM_BASE_URL`     | `http://localhost:11434`                                                         | 2     | Base URL; calls `${LLM_BASE_URL}/v1/chat/completions`                |
+| `LLM_MODEL`        | `llama3.1:8b`                                                                    | 2     | `model` field                                                        |
+| `LLM_API_KEY`      | _(empty)_                                                                        | 2     | Bearer token when set                                                |
+| `LLM_TIMEOUT_MS`   | `600000`                                                                         | 2     | Per-request timeout                                                  |
+| `WEB_DIST_DIR`     | `apps/web/dist` (resolved from the repo root)                                    | 1     | Built UI to serve; skipped if missing                                |
+| `LOG_LEVEL`        | `info`                                                                           | 1     | Fastify/pino log level                                               |
 
 STT request (verified against the speaches source, `src/speaches/routers/stt.py`,
 and the OpenAI types it returns, `openai.types.audio.TranscriptionVerbose`):
@@ -465,7 +470,7 @@ export class AppError extends Error {
 
 - **Always:** validate input at the HTTP edge and responses from STT/LLM; keep
   the error shape; run typecheck, lint and tests before pushing; update
-  `CHANGELOG.md` under *Unreleased*.
+  `CHANGELOG.md` under _Unreleased_.
 - **Ask first:** new npm packages, schema changes outside a migration,
   breaking API changes, changes to CI.
 - **Never:** commit to `main` directly, commit `.env` or `DATA_DIR`, hardcode

@@ -112,6 +112,6 @@ These are set on GitHub, not in the repository:
 - Default branch `main`; branch protection on `main`: require a pull request,
   require status checks (CI) and an up-to-date branch, require linear
   history, block force pushes and deletions, include administrators.
-- Merge buttons: only *Rebase and merge* enabled; *Automatically delete head
-  branches* on.
+- Merge buttons: only _Rebase and merge_ enabled; _Automatically delete head
+  branches_ on.
 - Tag protection (ruleset) for `v*`: only maintainers may create or delete.
