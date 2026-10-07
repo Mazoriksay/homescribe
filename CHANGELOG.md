@@ -7,6 +7,8 @@ source of truth for the version.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-07
+
 ### Added
 
 - Summaries and action items from a local or cloud LLM, created after every
@@ -61,3 +63,6 @@ source of truth for the version.
   set before the first paint, a side rail on desktop and a tab bar on phones.
   Inside another app's frame the app hides its own chrome. Explanatory hints
   were removed from the pages.
+
+[Unreleased]: https://github.com/Mazoriksay/homescribe/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Mazoriksay/homescribe/releases/tag/v0.3.0
