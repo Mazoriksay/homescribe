@@ -16,6 +16,8 @@ export function createAiBackends(settings: AiSettingsService, config: Config): A
           apiKey: s.apiKey,
           language: config.stt.language,
           timeoutMs: config.stt.timeoutMs,
+          // A speaches extension; cloud APIs get only the standard OpenAI fields.
+          vadFilter: s.mode === 'local' && config.stt.vadFilter,
         }),
         // Cloud APIs cap uploads (~25 MB); compressed audio fits far longer recordings.
         format: s.mode === 'api' ? 'ogg' : 'wav',

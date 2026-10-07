@@ -107,6 +107,22 @@ describe('JobRunner', () => {
     expect(existsSync(store.workDir(id))).toBe(false);
   });
 
+  it('keeps segments within the length of the recording', async () => {
+    media.duration = 4;
+    transcriber.result = {
+      language: 'ru',
+      text: 'Конец. Хвост.',
+      segments: [
+        { start: 2, end: 4.5, text: 'Конец.' },
+        { start: 4.2, end: 5, text: 'Хвост.' },
+      ],
+    };
+    const { id } = await upload();
+    runner.start();
+    await runner.idle();
+    expect(repo.getTranscript(id)?.segments).toMatchObject([{ start: 2, end: 4, text: 'Конец.' }]);
+  });
+
   it('publishes conversion progress', async () => {
     const { job } = await upload();
     runner.start();

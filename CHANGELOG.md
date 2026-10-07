@@ -9,6 +9,9 @@ source of truth for the version.
 
 ### Added
 
+- `STT_VAD_FILTER` (on by default): a local speaches server is asked to skip
+  silence, which stops Whisper from repeating one phrase on long recordings.
+
 - The installer asks what to download before pulling anything: speech
   recognition on the GPU, the CPU or not on this computer, the Whisper model
   (`large-v3`, `large-v3-turbo`, `medium`, `small`) and the local summary
@@ -24,6 +27,9 @@ source of truth for the version.
 
 ### Fixed
 
+- Long recordings no longer end in one phrase repeated for minutes: runs of
+  three or more identical segments are collapsed, and segments past the end
+  of the recording are dropped or trimmed.
 - The speech model is now actually downloaded: the installer asks the speech
   server for it (`POST /v1/models/{id}`) instead of relying on
   `PRELOAD_MODELS`, which the image ignored, so it no longer waits forever.

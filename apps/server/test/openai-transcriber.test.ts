@@ -173,6 +173,45 @@ describe('OpenAiTranscriber', () => {
     expect(fake.received[0]?.authorization).toBeUndefined();
   });
 
+  it('asks speaches to skip silence only when told to', async () => {
+    const fake = await startFakeServer((_, res) => res.end(JSON.stringify(verbose)));
+    servers.push(fake.server);
+    await transcriber(fake.baseUrl).transcribe(wav);
+    await new OpenAiTranscriber({
+      baseUrl: fake.baseUrl,
+      model: 'test-model',
+      language: null,
+      apiKey: null,
+      timeoutMs: 5000,
+      vadFilter: true,
+    }).transcribe(wav);
+    expect(fake.received[0]?.fields.vad_filter).toBeUndefined();
+    expect(fake.received[1]?.fields.vad_filter).toBe('true');
+  });
+
+  it('drops a phrase Whisper got stuck repeating and rebuilds the text', async () => {
+    const loop = Array.from({ length: 5 }, (_, i) => ({
+      ...verbose.segments[0]!,
+      id: i + 2,
+      start: 3 + i,
+      end: 4 + i,
+      text: ' Борис.',
+    }));
+    const fake = await startFakeServer((_, res) =>
+      res.end(
+        JSON.stringify({
+          ...verbose,
+          text: 'Hello there. Bye. Борис. Борис. Борис. Борис. Борис.',
+          segments: [...verbose.segments, ...loop],
+        }),
+      ),
+    );
+    servers.push(fake.server);
+    const result = await transcriber(fake.baseUrl).transcribe(wav);
+    expect(result.segments.map((s) => s.text)).toEqual(['Hello there.', 'Bye.', 'Борис.']);
+    expect(result.text).toBe('Hello there. Bye. Борис.');
+  });
+
   it('maps an HTTP error to STT_FAILED', async () => {
     const fake = await startFakeServer((_, res) => res.writeHead(500).end('model not found'));
     servers.push(fake.server);
