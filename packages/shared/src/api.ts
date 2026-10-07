@@ -194,9 +194,21 @@ export type SearchPage = z.infer<typeof searchPageSchema>;
 export const searchModes = ['fts5', 'like'] as const;
 export type SearchMode = (typeof searchModes)[number];
 
+/** Result of the server's self-check (SPEC.md §7.6). */
+export const healthChecksSchema = z.object({
+  ffmpeg: z.enum(['ok', 'missing']),
+  stt: z.enum(['ok', 'model_missing', 'unreachable']),
+  llm: z.enum(['ok', 'model_missing', 'unreachable', 'off']),
+  embedding: z.enum(['same_origin', 'origins']),
+});
+export type HealthChecks = z.infer<typeof healthChecksSchema>;
+
 export const healthSchema = z.object({
   status: z.literal('ok'),
   search: z.enum(searchModes),
+  /** null until the first check has finished. */
+  checks: healthChecksSchema.nullable(),
+  checkedAt: timestamp.nullable(),
 });
 export type Health = z.infer<typeof healthSchema>;
 

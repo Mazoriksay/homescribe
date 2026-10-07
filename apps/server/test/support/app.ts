@@ -10,6 +10,7 @@ import { JobRunner } from '../../src/jobs/runner';
 import { MediaStore } from '../../src/storage';
 import type { AiModel, Discovery } from '@homescribe/shared';
 import { AiSettingsService } from '../../src/ai/settings';
+import { SelfCheck } from '../../src/self-check';
 import { FakeMediaTool, FakeSummarizer, FakeTranscriber, silentLogger } from './fakes';
 
 /** A fully wired app with fake ffmpeg/STT and a temporary DATA_DIR. */
@@ -59,7 +60,19 @@ export async function createTestApp(
     logger: silentLogger,
     progressIntervalMs: 0,
   });
+  const selfCheck = new SelfCheck({
+    media,
+    aiSettings,
+    config,
+    logger: { info: () => undefined, warn: () => undefined },
+    listModels: async (baseUrl) =>
+      baseUrl === config.stt.baseUrl
+        ? [{ id: config.stt.model, kind: 'stt' }]
+        : [{ id: config.llm.model, kind: 'llm' }],
+  });
+  await selfCheck.run();
   const app = await buildApp({
+    selfCheck,
     config,
     repo,
     store,
@@ -83,6 +96,7 @@ export async function createTestApp(
     transcriber,
     summarizer,
     aiSettings,
+    selfCheck,
     ai$,
     events,
     runner,

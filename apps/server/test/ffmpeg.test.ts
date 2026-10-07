@@ -38,6 +38,10 @@ describe.skipIf(!hasFfmpeg)('FfmpegMediaTool (real ffmpeg)', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it('reports itself available', async () => {
+    expect(await tool.available()).toBe(true);
+  });
+
   it('reads the duration', async () => {
     const duration = await tool.probeDuration(input);
     expect(duration).toBeGreaterThan(1.9);
@@ -86,5 +90,6 @@ describe('FfmpegMediaTool (missing binary)', () => {
   it('reports a missing binary as MediaError', async () => {
     const tool = new FfmpegMediaTool('/nonexistent/ffmpeg', '/nonexistent/ffprobe');
     await expect(tool.probeDuration('/tmp/x.wav')).rejects.toBeInstanceOf(MediaError);
+    expect(await tool.available()).toBe(false);
   });
 });

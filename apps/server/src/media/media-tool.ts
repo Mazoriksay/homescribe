@@ -17,6 +17,8 @@ export interface ConvertOptions {
 
 /** Media inspection and conversion (ffmpeg in production, a fake in tests). */
 export interface MediaTool {
+  /** True when the binaries can be run (self-check). */
+  available(): Promise<boolean>;
   /** Duration in seconds, or null when the container does not say. Throws MediaError if unreadable. */
   probeDuration(input: string, signal?: AbortSignal): Promise<number | null>;
   /** Writes 16 kHz mono audio in the requested format to `output`. Throws MediaError on failure. */

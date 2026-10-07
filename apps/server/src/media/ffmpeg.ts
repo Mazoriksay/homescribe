@@ -57,6 +57,16 @@ export class FfmpegMediaTool implements MediaTool {
     private readonly ffprobePath: string,
   ) {}
 
+  async available(): Promise<boolean> {
+    try {
+      await run(this.ffmpegPath, ['-version'], undefined, []);
+      await run(this.ffprobePath, ['-version'], undefined, []);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async probeDuration(input: string, signal?: AbortSignal): Promise<number | null> {
     const { stdout } = await run(
       this.ffprobePath,

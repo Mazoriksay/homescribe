@@ -14,6 +14,12 @@ export class FakeMediaTool implements MediaTool {
   failWith: string | null = null;
   readonly converted: { input: string; output: string; format: string }[] = [];
 
+  isAvailable = true;
+
+  async available(): Promise<boolean> {
+    return this.isAvailable;
+  }
+
   async probeDuration(): Promise<number | null> {
     if (this.failWith) throw new MediaError(this.failWith);
     return this.duration;

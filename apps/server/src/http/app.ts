@@ -10,6 +10,7 @@ import type { Repository } from '../db/repository';
 import type { EventBus } from '../events';
 import type { JobRunner } from '../jobs/runner';
 import { createNetworkAllowList } from '../network';
+import type { SelfCheck } from '../self-check';
 import type { MediaStore } from '../storage';
 import { registerAiRoutes, type AiRouteDeps } from './ai';
 import { errorBody, errorHandler } from './errors';
@@ -18,6 +19,7 @@ import { registerRecordingRoutes } from './recordings';
 import { registerSearchRoutes } from './search';
 
 export interface AppDeps extends AiRouteDeps {
+  selfCheck: SelfCheck;
   config: Config;
   repo: Repository;
   store: MediaStore;
@@ -76,10 +78,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       scope.get(`${API_PREFIX}/health`, async () => ({
         status: 'ok' as const,
         search: deps.repo.search.mode,
+        checks: deps.selfCheck.latest?.checks ?? null,
+        checkedAt: deps.selfCheck.latest?.checkedAt ?? null,
       }));
       registerRecordingRoutes(scope, deps);
       registerSearchRoutes(scope, deps.repo);
-      registerAiRoutes(scope, deps);
+      registerAiRoutes(scope, {
+        ...deps,
+        // A new backend choice is checked right away, not at the next round.
+        onSettingsChanged: () => void deps.selfCheck.run(),
+      });
       registerEventRoutes(scope, deps.events);
     },
     { prefix: base },

@@ -13,6 +13,7 @@ import { createAiBackends } from './ai/backends';
 import { discoverServers } from './ai/discovery';
 import { listModels } from './ai/models';
 import { AiSettingsService } from './ai/settings';
+import { SelfCheck } from './self-check';
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
 
@@ -24,19 +25,31 @@ async function main(): Promise<void> {
   const store = new MediaStore(config.dataDir);
   const events = new EventBus();
   const aiSettings = new AiSettingsService(repo, config);
+  const media = new FfmpegMediaTool(config.ffmpegPath, config.ffprobePath);
   let app: FastifyInstance | undefined;
   const runner = new JobRunner({
     repo,
     store,
     events,
-    media: new FfmpegMediaTool(config.ffmpegPath, config.ffprobePath),
+    media,
     ai: createAiBackends(aiSettings, config),
     logger: {
       info: (obj, msg) => app?.log.info(obj, msg),
       error: (obj, msg) => app?.log.error(obj, msg),
     },
   });
+  const selfCheck = new SelfCheck({
+    media,
+    aiSettings,
+    config,
+    listModels: (baseUrl, apiKey) => listModels(baseUrl, apiKey, 3000),
+    logger: {
+      info: (obj, msg) => app?.log.info(obj, msg),
+      warn: (obj, msg) => app?.log.warn(obj, msg),
+    },
+  });
   app = await buildApp({
+    selfCheck,
     config,
     repo,
     store,
@@ -50,6 +63,7 @@ async function main(): Promise<void> {
 
   const shutdown = async (signal: string) => {
     app?.log.info({ signal }, 'shutting down');
+    selfCheck.stop();
     await runner.stop();
     await app?.close();
     process.exit(0);
@@ -58,6 +72,7 @@ async function main(): Promise<void> {
   process.once('SIGTERM', () => void shutdown('SIGTERM'));
 
   runner.start();
+  selfCheck.start();
   await app.listen({ host: config.host, port: config.port });
 }
 

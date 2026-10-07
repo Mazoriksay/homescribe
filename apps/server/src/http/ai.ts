@@ -15,6 +15,7 @@ export interface AiRouteDeps {
   aiSettings: AiSettingsService;
   discover: () => Promise<Discovery>;
   listModels: (baseUrl: string, apiKey: string | null) => Promise<AiModel[]>;
+  onSettingsChanged?: () => void;
 }
 
 /** Choosing speech-to-text and LLM backends (SPEC.md §7.5). */
@@ -30,7 +31,9 @@ export function registerAiRoutes(app: FastifyInstance, deps: AiRouteDeps): void 
     const { kind } = parseInput(aiKindParamsSchema, request.params, 'kind');
     const body = parseInput(updateAiSettingsBodySchema, request.body ?? {}, 'body');
     try {
-      return aiSettings.update(kind, body);
+      const saved = aiSettings.update(kind, body);
+      deps.onSettingsChanged?.();
+      return saved;
     } catch (error) {
       if (error instanceof AiSettingsError) {
         throw new AppError(400, 'VALIDATION_ERROR', error.message);
@@ -41,7 +44,9 @@ export function registerAiRoutes(app: FastifyInstance, deps: AiRouteDeps): void 
 
   app.delete(`${API_PREFIX}/settings/ai/:kind`, async (request) => {
     const { kind } = parseInput(aiKindParamsSchema, request.params, 'kind');
-    return aiSettings.reset(kind);
+    const reset = aiSettings.reset(kind);
+    deps.onSettingsChanged?.();
+    return reset;
   });
 
   app.get(`${API_PREFIX}/ai/discovery`, async () => deps.discover());

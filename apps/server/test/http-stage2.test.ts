@@ -244,6 +244,13 @@ describe('HTTP API, stage 2', () => {
       expect((await json('PUT', '/api/v1/settings/ai/tts', { mode: 'off' })).statusCode).toBe(400);
     });
 
+    it('checks a new choice right away', async () => {
+      await json('PUT', '/api/v1/settings/ai/llm', { mode: 'off' });
+      await t.selfCheck.run();
+      const health = await t.app.inject('/api/v1/health');
+      expect(health.json().checks.llm).toBe('off');
+    });
+
     it('resets to the environment defaults', async () => {
       await json('PUT', '/api/v1/settings/ai/llm', { mode: 'off' });
       const res = await t.app.inject({ method: 'DELETE', url: '/api/v1/settings/ai/llm' });
