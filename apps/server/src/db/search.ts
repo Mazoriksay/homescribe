@@ -18,6 +18,17 @@ export interface SearchMatch {
   body: string;
 }
 
+/** Markdown summary as plain text, so snippets do not show `**` or list markers. */
+export function plainText(markdown: string): string {
+  return markdown
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/gm, '')
+    .replace(/(\*\*|__|\*|_|~~|`)(?=\S)([\s\S]*?\S)\1/g, '$2')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+}
+
 const escapeLike = (term: string) => term.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 /**
@@ -78,7 +89,8 @@ export class SearchIndex {
       | undefined;
     if (!row) return;
     const actionItems = row.action_items ? (JSON.parse(row.action_items) as string[]) : [];
-    const body = [row.transcript, row.summary, ...actionItems].filter(Boolean).join('\n\n');
+    const summary = row.summary ? plainText(row.summary) : null;
+    const body = [row.transcript, summary, ...actionItems].filter(Boolean).join('\n\n');
     this.db
       .prepare(
         `INSERT OR REPLACE INTO search_docs (recording_id, title, body, title_lc, body_lc)

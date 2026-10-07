@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { plainText } from '../src/db/search';
 import { buildSnippet, searchTerms } from '../src/db/snippet';
 
 describe('searchTerms', () => {
@@ -34,5 +35,15 @@ describe('buildSnippet', () => {
     const parts = buildSnippet(text, ['zebra'], 40);
     expect(parts[0]?.text.startsWith('We started')).toBe(true);
     expect(parts.every((p) => !p.match)).toBe(true);
+  });
+});
+
+describe('plainText', () => {
+  it('drops Markdown markup but keeps the words', () => {
+    expect(
+      plainText(
+        '# Plan\n\nShort sync about the **office move**.\n\n- The `budget` is *approved*\n1. [Notes](http://x) follow',
+      ),
+    ).toBe('Plan\nShort sync about the office move.\nThe budget is approved\nNotes follow');
   });
 });
