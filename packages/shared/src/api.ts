@@ -117,7 +117,8 @@ export const createFromUrlBodySchema = z.object({
     .url({ protocol: /^https?$/ })
     .max(SOURCE_URL_MAX_LENGTH)
     .refine((value) => {
-      if (!URL.canParse(value)) return false;
+      // An unparsable link is already reported by z.url(); say it only once.
+      if (!URL.canParse(value)) return true;
       const url = new URL(value);
       return !url.username && !url.password;
     }, 'Links with credentials are not accepted'),

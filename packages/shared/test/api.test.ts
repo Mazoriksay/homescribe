@@ -92,4 +92,9 @@ describe('api schemas', () => {
       expect(createFromUrlBodySchema.safeParse({ url }).success, url).toBe(false);
     }
   });
+
+  it('reports a malformed link once', () => {
+    const result = createFromUrlBodySchema.safeParse({ url: 'nope' });
+    expect(result.error?.issues).toHaveLength(1);
+  });
 });

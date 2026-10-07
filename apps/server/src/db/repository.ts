@@ -12,6 +12,7 @@ import type {
 } from '@homescribe/shared';
 import { transaction } from './database';
 import { SearchIndex } from './search';
+import { foldText } from './snippet';
 
 export interface NewRecording {
   id: string;
@@ -404,7 +405,7 @@ export class Repository {
     };
   }
 
-  /** Transcript segments containing any of the (lower-cased) terms, first one only. */
+  /** Transcript segments containing any of the (folded) terms, first one only. */
   firstMatchingSegment(
     recordingId: string,
     terms: string[],
@@ -413,7 +414,7 @@ export class Repository {
       .prepare('SELECT idx, start_seconds, text FROM segments WHERE recording_id = ? ORDER BY idx')
       .all(recordingId) as { idx: number; start_seconds: number; text: string }[];
     const hit = rows.find((row) => {
-      const text = row.text.toLowerCase();
+      const text = foldText(row.text);
       return terms.some((term) => text.includes(term));
     });
     return hit ? { index: hit.idx, start: hit.start_seconds } : null;

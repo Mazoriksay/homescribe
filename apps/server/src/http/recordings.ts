@@ -68,6 +68,9 @@ export function registerRecordingRoutes(app: FastifyInstance, deps: AppDeps): vo
       if (data.file.truncated) {
         throw new AppError(413, 'FILE_TOO_LARGE', 'The upload is larger than allowed');
       }
+      if (output.bytesWritten === 0) {
+        throw new AppError(400, 'FILE_REQUIRED', 'The file is empty');
+      }
     } catch (error) {
       await store.removeRecording(id);
       throw error;

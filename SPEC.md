@@ -191,10 +191,10 @@ CREATE TABLE ai_settings (                   -- one row per kind once chosen in 
 CREATE TABLE search_docs (                   -- title + transcript + summary (plain text)
   recording_id  TEXT PRIMARY KEY REFERENCES recordings(id) ON DELETE CASCADE,
   title TEXT NOT NULL, body TEXT NOT NULL,
-  title_lc TEXT NOT NULL, body_lc TEXT NOT NULL  -- lower-cased in JS (SQLite folds ASCII only)
+  title_lc TEXT NOT NULL, body_lc TEXT NOT NULL  -- lower-cased, ё as е, in JS (SQLite folds ASCII only)
 );
 -- created at startup only if FTS5 is available (checked at runtime):
-CREATE VIRTUAL TABLE search_fts USING fts5(recording_id UNINDEXED, title, body,
+CREATE VIRTUAL TABLE search_fts USING fts5(recording_id UNINDEXED, title, body,  -- the *_lc text
   tokenize = 'unicode61 remove_diacritics 2');
 ```
 

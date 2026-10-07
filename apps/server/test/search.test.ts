@@ -54,6 +54,17 @@ describe.each(modes)('search (%s)', (mode, forceLike) => {
     );
   });
 
+  it('treats ё and е as the same letter and keeps the original text', () => {
+    const { repo, add } = setup(forceLike);
+    const tree = add('Ёлка', 'Купили ёлку');
+    const plain = add('Елки', 'Елки-палки');
+    expect(new Set(repo.search.query('елк', 1, 10).matches.map((m) => m.recordingId))).toEqual(
+      new Set([tree, plain]),
+    );
+    const [match] = repo.search.query('ЁЛКУ', 1, 10).matches;
+    expect(match).toMatchObject({ recordingId: tree, title: 'Ёлка', body: 'Купили ёлку' });
+  });
+
   it('requires every term and matches word prefixes', () => {
     const { repo, add } = setup(forceLike);
     const both = add('a', 'hiring two engineers next month');

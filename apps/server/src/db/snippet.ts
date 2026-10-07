@@ -1,11 +1,18 @@
 import type { Snippet } from '@homescribe/shared';
 
-/** Splits a search query into lower-cased terms. */
+/**
+ * Lower case with ё folded into е, so either spelling finds the other.
+ * Keeps the length of `text` whenever toLowerCase() does.
+ */
+export function foldText(text: string): string {
+  return text.toLowerCase().replace(/ё/g, 'е');
+}
+
+/** Splits a search query into folded terms. */
 export function searchTerms(query: string): string[] {
   return [
     ...new Set(
-      query
-        .toLowerCase()
+      foldText(query)
         .split(/\s+/)
         .map((term) => term.replace(/^["'«(]+|["'»).,!?;:]+$/g, ''))
         .filter(Boolean),
@@ -18,7 +25,7 @@ export function searchTerms(query: string): string[] {
  * matching and plain parts. Without a match, the start of the text.
  */
 export function buildSnippet(text: string, terms: string[], width = 160): Snippet {
-  const lower = text.toLowerCase();
+  const lower = foldText(text);
   const sameLength = lower.length === text.length;
   let first = -1;
   for (const term of terms) {
@@ -39,7 +46,7 @@ export function buildSnippet(text: string, terms: string[], width = 160): Snippe
   }
 
   const window = text.slice(start, end);
-  const windowLower = sameLength ? lower.slice(start, end) : window.toLowerCase();
+  const windowLower = sameLength ? lower.slice(start, end) : foldText(window);
   const marks = new Array<boolean>(window.length).fill(false);
   if (windowLower.length === window.length) {
     for (const term of terms) {

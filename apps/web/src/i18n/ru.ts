@@ -56,6 +56,7 @@ export const ru: Record<MessageKey, string> = {
   'error.STT_TIMEOUT': 'Сервер распознавания речи слишком долго не отвечал.',
   'error.STT_FAILED': 'Сервер распознавания речи вернул ошибку.',
   'error.INTERNAL_ERROR': 'На сервере что-то пошло не так.',
+  'error.FILE_REQUIRED': 'Файл пустой.',
   'error.FILE_TOO_LARGE': 'Файл больше, чем разрешено на сервере.',
   'error.UNSUPPORTED_MEDIA_TYPE': 'Загружать можно только аудио и видео.',
   'error.NETWORK': 'Сервер недоступен.',
