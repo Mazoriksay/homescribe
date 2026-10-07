@@ -45,6 +45,7 @@ export class FakeTranscriber implements Transcriber {
   async transcribe(_wavPath: string, signal?: AbortSignal): Promise<TranscriptionResult> {
     this.calls += 1;
     if (this.gate) {
+      signal?.throwIfAborted();
       await Promise.race([
         this.gate,
         new Promise((_, reject) => signal?.addEventListener('abort', () => reject(signal.reason))),

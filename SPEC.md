@@ -210,12 +210,12 @@ on `code` only.
 
 | HTTP | `code`                   | When                                                                       |
 | ---- | ------------------------ | -------------------------------------------------------------------------- |
-| 400  | `VALIDATION_ERROR`       | Bad path/query/body; `details` holds the Zod issues                        |
+| 400  | `VALIDATION_ERROR`       | Bad path/query/body (including a malformed id); `details` holds the issues |
 | 400  | `FILE_REQUIRED`          | Upload without a `file` part                                               |
 | 403  | `NETWORK_NOT_ALLOWED`    | Client address outside `ALLOWED_NETWORKS`                                  |
 | 404  | `NOT_FOUND`              | Unknown recording/job id or unknown route                                  |
 | 409  | `JOB_ACTIVE`             | Action needs the recording's job to be finished                            |
-| 409  | `TRANSCRIPT_NOT_READY`   | Transcript requested before the job reached `done`                         |
+| 409  | `TRANSCRIPT_NOT_READY`   | No transcript stored yet (first job not `done`)                            |
 | 413  | `FILE_TOO_LARGE`         | Upload larger than `MAX_UPLOAD_MB`                                         |
 | 415  | `UNSUPPORTED_MEDIA_TYPE` | Upload MIME type is not `audio/*`, `video/*` or `application/octet-stream` |
 | 500  | `INTERNAL_ERROR`         | Anything unexpected; never includes stack traces                           |
@@ -308,7 +308,8 @@ Notes:
   text fields. The `title` field must precede `file` in the multipart body
   because the server streams the file to disk as it arrives.
 - `POST …/jobs` with `kind: 'process'` re-runs the whole pipeline from the
-  stored original, replacing the previous transcript. Used to retry failed or
+  stored original, replacing the previous transcript (the previous one stays
+  readable until the new one is stored). Used to retry failed or
   interrupted jobs.
 - Lists are paginated from day one; the page size cap keeps a phone fast.
 - The API is safe to call from the bundled UI and from the home hub; it
