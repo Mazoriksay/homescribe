@@ -108,17 +108,18 @@ choose() { # title default option...
   done
 }
 
-# What can be downloaded: name|id|approximate GB|note
+# What can be downloaded: name|id|download GB|GB in use|note. In use means
+# video memory on a GPU, RAM on a CPU; all sizes are approximate.
 STT_MODELS=(
-  "large-v3|Systran/faster-whisper-large-v3|3.1|best quality"
-  "large-v3-turbo|deepdml/faster-whisper-large-v3-turbo-ct2|1.6|almost as good, several times faster"
-  "medium|Systran/faster-whisper-medium|1.5|good, for older GPUs"
-  "small|Systran/faster-whisper-small|0.5|fast on a CPU, rougher text"
+  "large-v3|Systran/faster-whisper-large-v3|3.1|4.5|best quality"
+  "large-v3-turbo|deepdml/faster-whisper-large-v3-turbo-ct2|1.6|2.5|almost as good, several times faster"
+  "medium|Systran/faster-whisper-medium|1.5|2.5|good, for older GPUs"
+  "small|Systran/faster-whisper-small|0.5|1|fast on a CPU, rougher text"
 )
 LLM_MODELS=(
-  "qwen2.5:7b|4.7|good in Russian and English"
-  "llama3.1:8b|4.9|good in English"
-  "qwen2.5:3b|1.9|smaller, for weaker machines"
+  "qwen2.5:7b|4.7|6|good in Russian and English"
+  "llama3.1:8b|4.9|6.5|good in English"
+  "qwen2.5:3b|1.9|3|smaller, for weaker machines"
 )
 
 need() { command -v "$1" >/dev/null 2>&1; }
@@ -228,11 +229,14 @@ install_nvidia_toolkit() {
 
 [ -n "$LLM_MODEL" ] && [ "$LLM" != no ] && LLM=yes
 
+GPU_MEM=""
 if [ -z "$STT" ]; then
   step "Choosing what to download"
   gpu_ok=no
   if has_nvidia_gpu; then
-    ok "NVIDIA GPU found: $(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)"
+    mib="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -dc '0-9')"
+    [ -n "$mib" ] && GPU_MEM="$(awk -v m="$mib" 'BEGIN { printf "%.1f", m / 1024 }')"
+    ok "NVIDIA GPU found: $(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)${GPU_MEM:+, $GPU_MEM GB}"
     if docker_has_nvidia; then
       gpu_ok=yes
     elif ask_yes_no "Docker cannot use the GPU yet. Install the NVIDIA Container Toolkit?" y \
@@ -250,24 +254,27 @@ if [ -z "$STT" ]; then
   where+=("Not on this computer (a cloud API or another server, chosen in Settings)"); values+=(none)
   STT="${values[$(choose "Speech recognition:" 0 "${where[@]}")]}"
 fi
+if [ "$STT" = gpu ]; then MEM="video memory"; else MEM="RAM"; fi
 
 # The Whisper model: a short name from the list or any model id.
-STT_ID="" STT_NAME="" STT_SIZE=""
+STT_ID="" STT_NAME="" STT_SIZE="" STT_MEM=""
 if [ "$STT" != none ]; then
   if [ -n "$STT_MODEL" ]; then
     STT_NAME="$STT_MODEL" STT_ID="$STT_MODEL"
     for entry in "${STT_MODELS[@]}"; do
-      IFS='|' read -r name id size _ <<<"$entry"
-      if [ "$name" = "$STT_MODEL" ] || [ "$id" = "$STT_MODEL" ]; then STT_NAME="$name" STT_ID="$id" STT_SIZE="$size"; fi
+      IFS='|' read -r name id size inuse _ <<<"$entry"
+      if [ "$name" = "$STT_MODEL" ] || [ "$id" = "$STT_MODEL" ]; then
+        STT_NAME="$name" STT_ID="$id" STT_SIZE="$size" STT_MEM="$inuse"
+      fi
     done
   else
     labels=()
     for entry in "${STT_MODELS[@]}"; do
-      IFS='|' read -r name _ size note <<<"$entry"
-      labels+=("$name - about $size GB, $note")
+      IFS='|' read -r name _ size inuse note <<<"$entry"
+      labels+=("$name - download $size GB, uses ~$inuse GB $MEM, $note")
     done
     if [ "$STT" = gpu ]; then default_stt=0; else default_stt=3; fi
-    IFS='|' read -r STT_NAME STT_ID STT_SIZE _ <<<"${STT_MODELS[$(choose "Speech recognition model (Whisper):" "$default_stt" "${labels[@]}")]}"
+    IFS='|' read -r STT_NAME STT_ID STT_SIZE STT_MEM _ <<<"${STT_MODELS[$(choose "Speech recognition model (Whisper):" "$default_stt" "${labels[@]}")]}"
   fi
 fi
 
@@ -275,10 +282,18 @@ fi
 if [ "$LLM" = yes ]; then
   [ -z "$LLM_MODEL" ] && LLM_MODEL="${LLM_MODELS[0]%%|*}"
 elif [ -z "$LLM" ]; then
+  if { : </dev/tty; } 2>/dev/null && [ "$ASSUME_YES" != 1 ]; then
+    {
+      echo
+      echo "The two models take turns: a recording is transcribed first, then summarized."
+      echo "Each stays loaded for about 5 minutes after use, so right after a recording both"
+      echo "can sit in $MEM at once. Plan for the sum of the two."
+    } >/dev/tty
+  fi
   labels=()
   for entry in "${LLM_MODELS[@]}"; do
-    IFS='|' read -r id size note <<<"$entry"
-    labels+=("$id - about $size GB, $note")
+    IFS='|' read -r id size inuse note <<<"$entry"
+    labels+=("$id - download $size GB, uses ~$inuse GB $MEM, $note")
   done
   labels+=("None (use a cloud API in Settings, or no summaries)")
   if [ "$STT" = gpu ]; then default_llm=0; else default_llm=${#LLM_MODELS[@]}; fi
@@ -290,16 +305,26 @@ fi
 step "You chose"
 echo "  Homescribe app"
 if [ "$STT" = none ]; then echo "  Speech recognition: not on this computer"
-else echo "  Speech recognition on the $(echo "$STT" | tr '[:lower:]' '[:upper:]'): $STT_NAME${STT_SIZE:+ (model about $STT_SIZE GB)}"; fi
+else echo "  Speech recognition on the $(echo "$STT" | tr '[:lower:]' '[:upper:]'): $STT_NAME${STT_SIZE:+ (download about $STT_SIZE GB)}"; fi
+llm_mem=""
 if [ "$LLM" = yes ]; then
   llm_size=""
   for entry in "${LLM_MODELS[@]}"; do
-    IFS='|' read -r id size _ <<<"$entry"
-    [ "$id" = "$LLM_MODEL" ] && llm_size="$size"
+    IFS='|' read -r id size inuse _ <<<"$entry"
+    if [ "$id" = "$LLM_MODEL" ]; then llm_size="$size" llm_mem="$inuse"; fi
   done
-  echo "  Summaries: Ollama with $LLM_MODEL${llm_size:+ (about $llm_size GB)}"
+  echo "  Summaries: Ollama with $LLM_MODEL${llm_size:+ (download about $llm_size GB)}"
 else
   echo "  Summaries: no local AI"
+fi
+mem_sum="$(awk -v a="${STT_MEM:-0}" -v b="${llm_mem:-0}" 'BEGIN { s = a + b; if (s > 0) printf "%g", s }')"
+if [ -n "$mem_sum" ]; then
+  gpu_note=""
+  [ "$STT" = gpu ] && [ -n "$GPU_MEM" ] && gpu_note=" (this GPU has $GPU_MEM GB)"
+  echo "  Memory: up to ~$mem_sum GB of $MEM while both are loaded$gpu_note"
+  if [ "$STT" = gpu ] && [ -n "$GPU_MEM" ] && awk -v s="$mem_sum" -v g="$GPU_MEM" 'BEGIN { exit !(s > g) }'; then
+    warn "More than this GPU has: Ollama then runs partly on the CPU and summaries get slower. Pick smaller models to avoid that."
+  fi
 fi
 ask_yes_no "Download and start?" y || { echo "Nothing was downloaded."; exit 0; }
 
