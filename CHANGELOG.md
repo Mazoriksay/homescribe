@@ -22,6 +22,12 @@ source of truth for the version.
 - Audio and video player on the recording page; the transcript follows
   playback and tapping a timestamp seeks.
 - Rename recordings.
+- One-command installer for Linux, macOS (`install.sh`) and Windows
+  (`install.ps1`): installs Docker and the NVIDIA Container Toolkit if you
+  agree, picks GPU or CPU, optionally sets up Ollama, finds a free port, and
+  waits until everything works. Re-running it updates.
+- Ready-made multi-arch Docker image published to GitHub Container Registry,
+  and CI on every pull request.
 - Transcribe a link: paste a YouTube (or other video site) link or a direct
   media link; the audio is downloaded with yt-dlp and processed like an
   upload. Links into the local network are refused by default.

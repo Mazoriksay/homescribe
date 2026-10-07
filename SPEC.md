@@ -739,6 +739,12 @@ export class AppError extends Error {
 - [x] Private-address guard; `yt-dlp -U` at startup and daily; `ytdlp` in the self-check.
 - [x] Docker image with yt-dlp and deno; UI: paste a link next to the upload, source link on the recording page.
 
+### Stage 3c — one-command install
+
+- [x] Published multi-arch image (`linux/amd64`, `linux/arm64`) on GHCR from GitHub Actions: `latest` from `main`, `X.Y.Z`/`X.Y` from tags; CI (lint, typecheck, test, build, installer parse, compose config) on every PR.
+- [x] `compose.yaml` pulls the image; `compose.dev.yaml` builds from source; profiles `gpu`/`cpu` (speaches) and `llm-gpu`/`llm-cpu` (Ollama), settable through `COMPOSE_PROFILES` in `.env`.
+- [x] `install.sh` (Linux, macOS) and `install.ps1` (Windows): install Docker with consent (get.docker.com, Homebrew `docker-desktop`, winget `Docker.DockerDesktop`), NVIDIA Container Toolkit with consent (apt/dnf), GPU/CPU choice, optional Ollama with a model, free port, `.env` that keeps user lines, start, wait for health and the speech model, print LAN addresses and the self-check. Re-running updates.
+
 ### Stage 4 — record in the browser, PWA, offline
 
 - [ ] Record screen using `MediaRecorder`; pick the first supported of `audio/webm;codecs=opus`, `audio/mp4`, `audio/webm` via `MediaRecorder.isTypeSupported`, upload with the matching extension (Chrome → webm, Safari → mp4).
@@ -748,7 +754,6 @@ export class AppError extends Error {
 
 ### Stage 5 — release
 
-- [ ] GitHub Actions CI: install, lint, typecheck, test on pull requests and `main`.
 - [ ] `README.md` with features, quick start, configuration, API overview, screenshot placeholders.
 - [ ] `LICENSE` (MIT), `CHANGELOG.md` entry, tag `v1.0.0`.
 
@@ -777,6 +782,8 @@ Resolved with the maintainer:
 
 8. Links are imported with yt-dlp (self-updating, deno as its JS runtime),
    not limited to direct file links.
+9. Installation is one command per OS against a published image; Docker
+   and the NVIDIA toolkit are installed only after the user agrees.
 
 ## 17. Open questions
 

@@ -6,37 +6,64 @@ items, all searchable. Speech-to-text and summaries come from AI servers you
 choose: on this machine (found automatically) or a cloud API. See
 [`SPEC.md`](SPEC.md) for the full design.
 
-**Status:** stages 1–3 of 5 (transcription, summaries and search, deployment).
+**Status:** stages 1–3 of 5 (transcription, summaries and search, links,
+deployment with a one-command installer).
 In-browser recording and offline support come next.
 
-## Run with Docker Compose (recommended)
+## Install
 
-Requires Docker with Compose v2. The image contains ffmpeg; speech-to-text
-(speaches) and an LLM (Ollama) can run next to it.
+One command sets everything up. It checks Docker and offers to install it,
+finds an NVIDIA GPU (and offers the NVIDIA Container Toolkit on Linux), picks
+speech recognition on the GPU or CPU, asks whether to run a local AI for
+summaries, finds a free port, starts everything and waits until it works.
+
+**Linux / macOS**
 
 ```sh
-git clone https://github.com/<you>/homescribe.git && cd homescribe
-
-docker compose --profile gpu up -d     # + speech-to-text on an NVIDIA GPU
-# or
-docker compose --profile cpu up -d     # + speech-to-text on the CPU (slow)
-
-# optional: a local LLM for summaries
-docker compose --profile gpu --profile llm up -d
-docker compose exec ollama ollama pull llama3.1:8b
+curl -fsSL https://raw.githubusercontent.com/mazoriksay/homescribe/main/install.sh | bash
 ```
 
-Open `http://<server>:8080`. The first start downloads the speech model
-(about 3 GB), so give it a few minutes. If something is missing, a notice at
-the top of the page says what, and `GET /api/v1/health` lists the same
-checks. Settings in the UI choose other AI servers or a cloud API at any time.
+**Windows** (PowerShell; uses Docker Desktop)
 
-Everything restarts with the machine (`restart: unless-stopped`). Data lives
-in the `homescribe-data` volume.
+```powershell
+irm https://raw.githubusercontent.com/mazoriksay/homescribe/main/install.ps1 | iex
+```
 
-Settings that are not about AI go into an optional `.env` file next to
-`compose.yaml` (see [`.env.example`](.env.example)), for example
-`BASE_PATH=/homescribe` or `MAX_UPLOAD_MB=4096`.
+At the end it prints the addresses to open, for example
+`http://192.168.1.20:8080`, and what the self-check found. The first start
+downloads the speech model (about 3 GB). Everything restarts with the machine.
+
+To update, run the same command again. It keeps your port and settings.
+
+Options, for example `bash install.sh --cpu --no-llm --yes` or
+`.\install.ps1 -Cpu -NoLlm -Yes`: install folder, port, GPU/CPU or no
+speech recognition here, local LLM or not, non-interactive. See
+`install.sh --help`.
+
+What runs where: GPU acceleration works on Linux and on Windows with an
+NVIDIA card. Docker on macOS has no GPU access, so speech recognition runs on
+the CPU there (fine for voice notes, slow for hour-long recordings); point
+Settings at a faster server if you have one.
+
+### By hand with Docker Compose
+
+The installer only writes `compose.yaml` and `.env` into `~/homescribe`. To
+do it yourself:
+
+```sh
+mkdir homescribe && cd homescribe
+curl -fsSLO https://raw.githubusercontent.com/mazoriksay/homescribe/main/compose.yaml
+docker compose --profile gpu up -d     # or --profile cpu; add --profile llm-gpu for Ollama
+```
+
+Settings go into `.env` next to `compose.yaml` (see
+[`.env.example`](.env.example)), for example `COMPOSE_PROFILES=gpu,llm-gpu`,
+`HOMESCRIBE_PORT=8080`, `BASE_PATH=/homescribe` or `MAX_UPLOAD_MB=4096`. Data
+lives in the `homescribe-data` volume. If something is missing, a notice at
+the top of the page says what, and `GET /api/v1/health` lists the same checks.
+
+To build the image from a checkout instead of pulling it:
+`docker compose -f compose.yaml -f compose.dev.yaml --profile cpu up -d --build`.
 
 ## Transcribe a link
 

@@ -100,6 +100,10 @@ interface: a breaking API change is a major bump (and a new `/api/vN` path).
   git push origin vX.Y.Z
   ```
 
+- Pushing the tag makes the `Image` workflow publish `ghcr.io/<owner>/homescribe:X.Y.Z`
+  and `:X.Y`; every merge to `main` updates `:latest`, which the installer
+  uses. CI (`.github/workflows/ci.yml`) must be green before merging.
+
 - `CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/):
   newest on top, entries grouped under `Added`, `Changed`, `Fixed`,
   `Deprecated`, `Removed`, `Security`, written for users, not copied from

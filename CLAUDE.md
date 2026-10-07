@@ -25,7 +25,8 @@ npm run build && npm start  # one process serves API + built UI
 npm run typecheck
 npm run lint                # ESLint + Prettier check; `npm run format` fixes formatting
 npm test                    # all workspaces; `npm test -w apps/server` for one
-docker compose --profile gpu up -d   # main way to run: app + speaches (or --profile cpu)
+./install.sh               # what users run (install.ps1 on Windows); --help for options
+docker compose -f compose.yaml -f compose.dev.yaml --profile cpu up -d --build  # run from source
 ```
 
 Run typecheck, lint and test before every commit and report honestly what
