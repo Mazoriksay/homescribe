@@ -14,7 +14,9 @@ source of truth for the version.
   (`large-v3`, `large-v3-turbo`, `medium`, `small`) and the local summary
   model (`qwen2.5:7b`, `llama3.1:8b`, `qwen2.5:3b` or none), with sizes and a
   summary to confirm. New options `--stt-model`/`--llm-model`
-  (`-SttModel`/`-LlmModel` on Windows).
+  (`-SttModel`/`-LlmModel` on Windows). Each option shows how much video
+  memory (or RAM) it uses, and the summary adds up both models and warns when
+  that is more than the GPU has.
 
 ### Fixed
 

@@ -23,6 +23,13 @@ asks what to download and shows a summary before anything is pulled:
   `llama3.1:8b` (4.9 GB), `qwen2.5:3b` (1.9 GB) or none (a cloud API in
   Settings, or no summaries).
 
+Each option shows its download size and how much memory it uses (video
+memory on a GPU). The two models take turns, transcription first and the
+summary after it, but each stays loaded for about 5 minutes after use, so
+plan for both at once: for example `large-v3` (~4.5 GB) plus `qwen2.5:7b`
+(~6 GB) need about 10.5 GB. The summary before downloading adds this up and
+warns when it is more than the GPU has (Ollama then runs partly on the CPU).
+
 Then it finds a free port, starts everything and waits until it works.
 
 **Linux / macOS**

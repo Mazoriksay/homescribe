@@ -37,17 +37,18 @@ if (-not $Image) { $Image = if ($env:HOMESCRIBE_IMAGE) { $env:HOMESCRIBE_IMAGE }
 if (-not $LlmModel -and $env:HOMESCRIBE_LLM_MODEL) { $LlmModel = $env:HOMESCRIBE_LLM_MODEL }
 if ($LlmModel) { $Llm = $true }
 
-# What can be downloaded, with approximate sizes.
+# What can be downloaded: download size and memory in use (video memory on a
+# GPU, RAM on a CPU), both approximate.
 $SttModels = @(
-  @{ Name = 'large-v3'; Id = 'Systran/faster-whisper-large-v3'; Size = 3.1; Note = 'best quality' },
-  @{ Name = 'large-v3-turbo'; Id = 'deepdml/faster-whisper-large-v3-turbo-ct2'; Size = 1.6; Note = 'almost as good, several times faster' },
-  @{ Name = 'medium'; Id = 'Systran/faster-whisper-medium'; Size = 1.5; Note = 'good, for older GPUs' },
-  @{ Name = 'small'; Id = 'Systran/faster-whisper-small'; Size = 0.5; Note = 'fast on a CPU, rougher text' }
+  @{ Name = 'large-v3'; Vram = 4.5; Id = 'Systran/faster-whisper-large-v3'; Size = 3.1; Note = 'best quality' },
+  @{ Name = 'large-v3-turbo'; Vram = 2.5; Id = 'deepdml/faster-whisper-large-v3-turbo-ct2'; Size = 1.6; Note = 'almost as good, several times faster' },
+  @{ Name = 'medium'; Vram = 2.5; Id = 'Systran/faster-whisper-medium'; Size = 1.5; Note = 'good, for older GPUs' },
+  @{ Name = 'small'; Vram = 1; Id = 'Systran/faster-whisper-small'; Size = 0.5; Note = 'fast on a CPU, rougher text' }
 )
 $LlmModels = @(
-  @{ Id = 'qwen2.5:7b'; Size = 4.7; Note = 'good in Russian and English' },
-  @{ Id = 'llama3.1:8b'; Size = 4.9; Note = 'good in English' },
-  @{ Id = 'qwen2.5:3b'; Size = 1.9; Note = 'smaller, for weaker machines' }
+  @{ Id = 'qwen2.5:7b'; Vram = 6; Size = 4.7; Note = 'good in Russian and English' },
+  @{ Id = 'llama3.1:8b'; Vram = 6.5; Size = 4.9; Note = 'good in English' },
+  @{ Id = 'qwen2.5:3b'; Vram = 3; Size = 1.9; Note = 'smaller, for weaker machines' }
 )
 
 function Step($text) { Write-Host "`n==> $text" -ForegroundColor Cyan }
@@ -128,6 +129,7 @@ Ok "Docker $(docker version --format '{{.Server.Version}}') with Compose $(docke
 
 # ------------------------------------------------------------------ gpu
 
+$GpuMemGb = $null
 $Stt = if ($NoStt) { 'none' } elseif ($Gpu) { 'gpu' } elseif ($Cpu) { 'cpu' } else { '' }
 if (-not $Stt) {
   Step 'Choosing what to download'
@@ -135,7 +137,11 @@ if (-not $Stt) {
   if (Test-Command nvidia-smi) {
     $gpuName = (& { $ErrorActionPreference = 'Continue'; nvidia-smi --query-gpu=name --format=csv,noheader 2>$null } | Select-Object -First 1)
   }
-  if ($gpuName) { Ok "NVIDIA GPU found: $gpuName (Docker Desktop uses it through WSL 2)" }
+  if ($gpuName) {
+    $mib = (& { $ErrorActionPreference = 'Continue'; nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>$null } | Select-Object -First 1)
+    if ($mib -match '^\s*(\d+)') { $GpuMemGb = [math]::Round([int]$Matches[1] / 1024, 1) }
+    Ok "NVIDIA GPU found: $gpuName$(if ($GpuMemGb) { ", $GpuMemGb GB" }) (Docker Desktop uses it through WSL 2)"
+  }
   else { Warn 'No NVIDIA GPU found; speech recognition here would run on the CPU (slower).' }
   $where = @()
   $values = @()
@@ -151,7 +157,8 @@ if ($Stt -ne 'none') {
     $known = $SttModels | Where-Object { $_.Name -eq $SttModel -or $_.Id -eq $SttModel } | Select-Object -First 1
     $SttChoice = if ($known) { $known } else { @{ Name = $SttModel; Id = $SttModel; Size = 0; Note = '' } }
   } else {
-    $labels = $SttModels | ForEach-Object { '{0} - about {1} GB, {2}' -f $_.Name, $_.Size, $_.Note }
+    $mem = if ($Stt -eq 'gpu') { 'video memory' } else { 'RAM' }
+    $labels = $SttModels | ForEach-Object { "$($_.Name) - download $($_.Size) GB, uses ~$($_.Vram) GB $mem, $($_.Note)" }
     $SttChoice = $SttModels[(Choose 'Speech recognition model (Whisper):' $labels $(if ($Stt -eq 'gpu') { 0 } else { 3 }))]
   }
 }
@@ -163,7 +170,11 @@ if ($NoLlm) {
   $UseLlm = $true
   if (-not $LlmModel) { $LlmModel = $LlmModels[0].Id }
 } else {
-  $labels = @($LlmModels | ForEach-Object { '{0} - about {1} GB, {2}' -f $_.Id, $_.Size, $_.Note })
+  $mem = if ($Stt -eq 'gpu') { 'video memory' } else { 'RAM' }
+  Write-Host "`nThe two models take turns: a recording is transcribed first, then summarized."
+  Write-Host 'Each stays loaded for about 5 minutes after use, so right after a recording both'
+  Write-Host "can sit in $mem at once. Plan for the sum of the two."
+  $labels = @($LlmModels | ForEach-Object { "$($_.Id) - download $($_.Size) GB, uses ~$($_.Vram) GB $mem, $($_.Note)" })
   $labels += 'None (use a cloud API in Settings, or no summaries)'
   $pick = Choose 'Local AI for summaries (Ollama):' $labels $(if ($Stt -eq 'gpu') { 0 } else { $LlmModels.Count })
   $UseLlm = $pick -lt $LlmModels.Count
@@ -175,14 +186,25 @@ Step 'You chose'
 Write-Host '  Homescribe app'
 if ($Stt -eq 'none') { Write-Host '  Speech recognition: not on this computer' }
 else {
-  $size = if ($SttChoice.Size) { " (model about $($SttChoice.Size) GB)" } else { '' }
+  $size = if ($SttChoice.Size) { " (download about $($SttChoice.Size) GB)" } else { '' }
   Write-Host "  Speech recognition on the $($Stt.ToUpper()): $($SttChoice.Name)$size"
 }
 if ($UseLlm) {
   $known = $LlmModels | Where-Object { $_.Id -eq $LlmModel } | Select-Object -First 1
-  $size = if ($known) { " (about $($known.Size) GB)" } else { '' }
+  $size = if ($known) { " (download about $($known.Size) GB)" } else { '' }
   Write-Host "  Summaries: Ollama with $LlmModel$size"
 } else { Write-Host '  Summaries: no local AI' }
+$memSum = 0
+if ($Stt -ne 'none' -and $SttChoice.Vram) { $memSum += $SttChoice.Vram }
+$llmKnown = if ($UseLlm) { $LlmModels | Where-Object { $_.Id -eq $LlmModel } | Select-Object -First 1 } else { $null }
+if ($llmKnown) { $memSum += $llmKnown.Vram }
+if ($memSum -gt 0) {
+  $mem = if ($Stt -eq 'gpu') { 'video memory' } else { 'RAM' }
+  Write-Host "  Memory: up to ~$memSum GB of $mem while both are loaded$(if ($Stt -eq 'gpu' -and $GpuMemGb) { " (this GPU has $GpuMemGb GB)" })"
+  if ($Stt -eq 'gpu' -and $GpuMemGb -and $memSum -gt $GpuMemGb) {
+    Warn 'More than this GPU has: Ollama then runs partly on the CPU and summaries get slower. Pick smaller models to avoid that.'
+  }
+}
 if (-not (Ask 'Download and start?' $true)) { Write-Host 'Nothing was downloaded.'; exit 0 }
 
 # ------------------------------------------------------------------ port
