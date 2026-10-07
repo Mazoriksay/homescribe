@@ -494,18 +494,27 @@ elif [ "$LLM" = yes ]; then
 fi
 
 if [ "$STT" != none ]; then
-  # speaches downloads the model when it starts and resumes unfinished files;
-  # it keeps going even if this window is closed.
+  # speaches downloads into the hf-hub-cache volume and resumes unfinished
+  # files; it keeps going even if this window is closed.
   if has "$STT_ID" ${HAVE_STT[@]+"${HAVE_STT[@]}"}; then
     step "Starting speech recognition ($STT_NAME is already downloaded)"
   else
     step "Downloading the speech model $STT_NAME${STT_SIZE:+ (about $STT_SIZE GB)}"
   fi
   stt_dir="$HF_DIR/models--${STT_ID//\//--}"
+  # Ask speaches to download it (POST /v1/models/{id}); not every image build
+  # honours PRELOAD_MODELS. Detached inside the container, with retries until
+  # the server listens, so it survives this window being closed.
+  if ! has "$STT_ID" ${HAVE_STT[@]+"${HAVE_STT[@]}"}; then
+    # shellcheck disable=SC2016  # expands in the container
+    $DOCKER compose exec -d "stt-$STT" sh -c 'i=0; while [ $i -lt 120 ]; do curl -fsS -X POST "http://localhost:8000/v1/models/$0" >/tmp/homescribe-download.log 2>&1 && exit 0; i=$((i+1)); sleep 5; done; exit 1' "$STT_ID" \
+      || warn "Could not ask the speech server to download $STT_ID."
+  fi
   waited=0
   until health | grep -q '"stt":"ok"'; do
     if [ "$waited" -ge 1800 ]; then
       echo; warn "Speech recognition is not ready yet; it keeps downloading in the background."
+      $DOCKER compose exec -T "stt-$STT" cat /tmp/homescribe-download.log 2>/dev/null | tail -5 || true
       break
     fi
     bytes="$($DOCKER compose exec -T "stt-$STT" du -sb "$stt_dir" 2>/dev/null | cut -f1 || true)"

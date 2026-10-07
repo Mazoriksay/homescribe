@@ -348,16 +348,28 @@ try {
   }
 
   if ($Stt -ne 'none') {
-    # speaches downloads the model when it starts and resumes unfinished files;
-    # it keeps going even if this window is closed.
+    # speaches downloads into the hf-hub-cache volume and resumes unfinished
+    # files; it keeps going even if this window is closed.
     $haveIt = $HaveStt -contains $SttChoice.Id
     if ($haveIt) { Step "Starting speech recognition ($($SttChoice.Name) is already downloaded)" }
     else { Step "Downloading the speech model $($SttChoice.Name)$(if ($SttChoice.Size) { " (about $($SttChoice.Size) GB)" })" }
     $sttDir = "$HfDir/models--$($SttChoice.Id.Replace('/', '--'))"
+    # Ask speaches to download it (POST /v1/models/{id}); not every image build
+    # honours PRELOAD_MODELS. Detached inside the container, with retries until
+    # the server listens, so it survives this window being closed. The id goes
+    # in as $0 so that no quotes have to cross into the native argument.
+    if (-not $haveIt) {
+      $kick = 'i=0; while [ $i -lt 120 ]; do curl -fsS -X POST http://localhost:8000/v1/models/$0 >/tmp/homescribe-download.log 2>&1 && exit 0; i=$((i+1)); sleep 5; done; exit 1'
+      if (-not (Test-Native { docker compose exec -d "stt-$Stt" sh -c $kick $SttChoice.Id })) { Warn "Could not ask the speech server to download $($SttChoice.Id)." }
+    }
     for ($i = 0; ; $i++) {
       $health = Get-Health
       if ($health -and $health.checks -and $health.checks.stt -eq 'ok') { break }
-      if ($i -ge 360) { Write-Host ''; Warn 'Speech recognition is not ready yet; it keeps downloading in the background.'; break }
+      if ($i -ge 360) {
+        Write-Host ''; Warn 'Speech recognition is not ready yet; it keeps downloading in the background.'
+        & { $ErrorActionPreference = 'Continue'; docker compose exec -T "stt-$Stt" cat /tmp/homescribe-download.log 2>$null } | Select-Object -Last 5
+        break
+      }
       $bytes = $null
       if (-not $haveIt) {
         $du = & { $ErrorActionPreference = 'Continue'; docker compose exec -T "stt-$Stt" du -sb $sttDir 2>$null } | Select-Object -First 1
