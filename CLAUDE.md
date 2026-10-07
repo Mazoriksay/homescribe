@@ -49,9 +49,11 @@ passed and what you could not run.
 - Web: React 19, TypeScript, Vite, Redux Toolkit + RTK Query, React Router 7,
   Ant Design 6 for form controls only; layout and lists are hand-written CSS
   modules.
-- Tests: Vitest. Lint: ESLint + typescript-eslint, Prettier.
+- Tests: Vitest (jsdom + Testing Library for UI). Lint: ESLint +
+  typescript-eslint + `eslint-plugin-react-hooks`, Prettier.
 - Allowed extra packages: `@fastify/multipart`, `@fastify/static`,
-  `react-markdown`. **Ask the maintainer before adding any other package**
+  `react-markdown`, and the dev packages `eslint-plugin-react-hooks`, `jsdom`,
+  `@testing-library/react`. **Ask the maintainer before adding any other package**
   and give the reason.
 - Speech-to-text: any OpenAI-compatible `POST /v1/audio/transcriptions`
   (speaches / faster-whisper-server), `response_format=verbose_json`, segment
@@ -59,6 +61,9 @@ passed and what you could not run.
 - LLM: any OpenAI-compatible `POST /v1/chat/completions`.
 - ffmpeg is a system binary; every upload is converted to 16 kHz mono before
   transcription; ffprobe reads the duration.
+- The UI is generic and may be embedded in another app's iframe
+  (`FRAME_ANCESTORS`, `?lang=`/`?theme=`, SPEC.md §11.1); no embedder-specific
+  code.
 - All URLs, model names, paths and the port come from environment variables,
   listed in `.env.example`. Data lives in `DATA_DIR` (git-ignored). No
   personal paths, names or hosts anywhere.

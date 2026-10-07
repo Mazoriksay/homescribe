@@ -17,3 +17,5 @@ source of truth for the version.
   for job progress.
 - Access limited to the networks in `ALLOWED_NETWORKS`.
 - English and Russian UI, light, dark and automatic themes.
+- The UI can be embedded in another app's iframe: allow the embedding origin
+  with `FRAME_ANCESTORS` and pass `?lang=` / `?theme=` in the iframe URL.

@@ -42,17 +42,17 @@ and have it transcribed once the phone is back on the home LAN.
 
 ## 3. Tech stack (fixed)
 
-| Area    | Choice                                                                                                    |
-| ------- | --------------------------------------------------------------------------------------------------------- |
-| Repo    | npm workspaces monorepo: `apps/server`, `apps/web`, `packages/shared`                                     |
-| Runtime | Node.js 24, TypeScript, `tsx` runs TS directly (no server build step)                                     |
-| Server  | Fastify 5, Zod 4, `node:sqlite`, `@fastify/multipart`, `@fastify/static`                                  |
-| Web     | React 19, Vite, Redux Toolkit + RTK Query, React Router 7, Ant Design 6 (form controls only), CSS modules |
-| Shared  | Zod schemas for every API payload; server and web types are inferred from them                            |
-| Media   | system `ffmpeg` and `ffprobe` binaries                                                                    |
-| STT     | any server with OpenAI-compatible `POST /v1/audio/transcriptions` (e.g. speaches / faster-whisper-server) |
-| LLM     | any server with OpenAI-compatible `POST /v1/chat/completions` (Ollama, LM Studio, vLLM)                   |
-| Quality | Vitest, ESLint + typescript-eslint, Prettier                                                              |
+| Area    | Choice                                                                                                           |
+| ------- | ---------------------------------------------------------------------------------------------------------------- |
+| Repo    | npm workspaces monorepo: `apps/server`, `apps/web`, `packages/shared`                                            |
+| Runtime | Node.js 24, TypeScript, `tsx` runs TS directly (no server build step)                                            |
+| Server  | Fastify 5, Zod 4, `node:sqlite`, `@fastify/multipart`, `@fastify/static`                                         |
+| Web     | React 19, Vite, Redux Toolkit + RTK Query, React Router 7, Ant Design 6 (form controls only), CSS modules        |
+| Shared  | Zod schemas for every API payload; server and web types are inferred from them                                   |
+| Media   | system `ffmpeg` and `ffprobe` binaries                                                                           |
+| STT     | any server with OpenAI-compatible `POST /v1/audio/transcriptions` (e.g. speaches / faster-whisper-server)        |
+| LLM     | any server with OpenAI-compatible `POST /v1/chat/completions` (Ollama, LM Studio, vLLM)                          |
+| Quality | Vitest, ESLint + typescript-eslint + `eslint-plugin-react-hooks`, Prettier; jsdom + Testing Library for UI tests |
 
 Extra npm packages beyond the list above (and the type/tooling packages the
 stack implies) require the maintainer's approval first.
@@ -362,26 +362,27 @@ All settings come from environment variables; `.env.example` lists them.
 exists (Node's `--env-file-if-exists`). Invalid values stop the server at
 startup with a message naming the variable.
 
-| Variable           | Default                                                                          | Stage | Meaning                                                              |
-| ------------------ | -------------------------------------------------------------------------------- | ----- | -------------------------------------------------------------------- |
-| `HOST`             | `0.0.0.0`                                                                        | 1     | Listen address                                                       |
-| `PORT`             | `8080`                                                                           | 1     | Listen port                                                          |
-| `DATA_DIR`         | `./data`                                                                         | 1     | SQLite file and media; created if missing                            |
-| `ALLOWED_NETWORKS` | `127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,fe80::/10` | 1     | Comma-separated CIDR list of allowed client addresses                |
-| `MAX_UPLOAD_MB`    | `2048`                                                                           | 1     | Largest accepted upload                                              |
-| `FFMPEG_PATH`      | `ffmpeg`                                                                         | 1     | ffmpeg binary                                                        |
-| `FFPROBE_PATH`     | `ffprobe`                                                                        | 1     | ffprobe binary                                                       |
-| `STT_BASE_URL`     | `http://localhost:8000`                                                          | 1     | Base URL; the server calls `${STT_BASE_URL}/v1/audio/transcriptions` |
-| `STT_MODEL`        | `Systran/faster-whisper-large-v3`                                                | 1     | `model` form field                                                   |
-| `STT_LANGUAGE`     | _(empty = auto-detect)_                                                          | 1     | ISO 639-1 code sent as `language`                                    |
-| `STT_API_KEY`      | _(empty)_                                                                        | 1     | Sent as `Authorization: Bearer …` when set                           |
-| `STT_TIMEOUT_MS`   | `3600000`                                                                        | 1     | Per-request timeout                                                  |
-| `LLM_BASE_URL`     | `http://localhost:11434`                                                         | 2     | Base URL; calls `${LLM_BASE_URL}/v1/chat/completions`                |
-| `LLM_MODEL`        | `llama3.1:8b`                                                                    | 2     | `model` field                                                        |
-| `LLM_API_KEY`      | _(empty)_                                                                        | 2     | Bearer token when set                                                |
-| `LLM_TIMEOUT_MS`   | `600000`                                                                         | 2     | Per-request timeout                                                  |
-| `WEB_DIST_DIR`     | `apps/web/dist` (resolved from the repo root)                                    | 1     | Built UI to serve; skipped if missing                                |
-| `LOG_LEVEL`        | `info`                                                                           | 1     | Fastify/pino log level                                               |
+| Variable           | Default                                                                          | Stage | Meaning                                                                             |
+| ------------------ | -------------------------------------------------------------------------------- | ----- | ----------------------------------------------------------------------------------- |
+| `HOST`             | `0.0.0.0`                                                                        | 1     | Listen address                                                                      |
+| `PORT`             | `8080`                                                                           | 1     | Listen port                                                                         |
+| `DATA_DIR`         | `./data`                                                                         | 1     | SQLite file and media; created if missing                                           |
+| `ALLOWED_NETWORKS` | `127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,fe80::/10` | 1     | Comma-separated CIDR list of allowed client addresses                               |
+| `MAX_UPLOAD_MB`    | `2048`                                                                           | 1     | Largest accepted upload                                                             |
+| `FFMPEG_PATH`      | `ffmpeg`                                                                         | 1     | ffmpeg binary                                                                       |
+| `FFPROBE_PATH`     | `ffprobe`                                                                        | 1     | ffprobe binary                                                                      |
+| `STT_BASE_URL`     | `http://localhost:8000`                                                          | 1     | Base URL; the server calls `${STT_BASE_URL}/v1/audio/transcriptions`                |
+| `STT_MODEL`        | `Systran/faster-whisper-large-v3`                                                | 1     | `model` form field                                                                  |
+| `STT_LANGUAGE`     | _(empty = auto-detect)_                                                          | 1     | ISO 639-1 code sent as `language`                                                   |
+| `STT_API_KEY`      | _(empty)_                                                                        | 1     | Sent as `Authorization: Bearer …` when set                                          |
+| `STT_TIMEOUT_MS`   | `3600000`                                                                        | 1     | Per-request timeout                                                                 |
+| `LLM_BASE_URL`     | `http://localhost:11434`                                                         | 2     | Base URL; calls `${LLM_BASE_URL}/v1/chat/completions`                               |
+| `LLM_MODEL`        | `llama3.1:8b`                                                                    | 2     | `model` field                                                                       |
+| `LLM_API_KEY`      | _(empty)_                                                                        | 2     | Bearer token when set                                                               |
+| `LLM_TIMEOUT_MS`   | `600000`                                                                         | 2     | Per-request timeout                                                                 |
+| `WEB_DIST_DIR`     | `apps/web/dist` (resolved from the repo root)                                    | 1     | Built UI to serve; skipped if missing                                               |
+| `FRAME_ANCESTORS`  | _(empty = only the app itself)_                                                  | 1     | Space-separated origins (`http://hub.lan:3000`) allowed to show the UI in an iframe |
+| `LOG_LEVEL`        | `info`                                                                           | 1     | Fastify/pino log level                                                              |
 
 STT request (verified against the speaches source, `src/speaches/routers/stt.py`,
 and the OpenAI types it returns, `openai.types.audio.TranscriptionVerbose`):
@@ -413,7 +414,12 @@ and treats the response as untrusted input (validated with Zod).
   ids from URLs are validated as UUIDs before touching the disk.
 - **Outbound calls:** only to `STT_BASE_URL` and `LLM_BASE_URL`; their
   responses are validated before use.
-- **Errors:** 500s return a generic message; details go to the log only.
+- **Errors:** 500s return a generic message; details go to the log only. Job
+  error messages never contain server paths.
+- **Headers:** `Content-Security-Policy` (`default-src 'self'`, inline styles
+  for Ant Design, `frame-ancestors 'self'` plus `FRAME_ANCESTORS`),
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`.
+  `FRAME_ANCESTORS` accepts bare http(s) origins only.
 - **UI:** transcript and summary text are rendered as text (summary Markdown
   through `react-markdown` without raw HTML in stage 2).
 
@@ -432,6 +438,21 @@ and treats the response as untrusted input (validated with Zod).
   segmented switches, inputs). Layout and lists are hand-written CSS modules.
 - Phone first: tap targets ≥ 44 px, no hover-only actions, readable at 320 px
   width, long transcripts render without layout jank.
+
+### 11.1 Embedding
+
+The same UI serves everyone: opened directly, installed as a PWA, or shown
+inside another app (for example a home dashboard) in an `<iframe>`. There is
+no embedder-specific code or build.
+
+- The embedding origin must be listed in `FRAME_ANCESTORS`; by default no
+  other site may frame the UI.
+- The embedder can match its own settings with query parameters on the iframe
+  URL: `?lang=en|ru` and `?theme=auto|light|dark`. They override saved
+  preferences; unknown values are ignored.
+- The iframe talks to the Homescribe server directly (same origin as the UI),
+  so no CORS is needed. Apps that call the API from their own origin should do
+  it server-side; CORS is not enabled.
 
 ## 12. Code style
 
@@ -464,7 +485,9 @@ export class AppError extends Error {
     `fastify.inject`; the STT client against a local fake HTTP server;
   - the real ffmpeg adapter has a test that runs only when ffmpeg is installed.
 - Web: pure logic (formatting, theme and locale resolution, dictionary
-  completeness, SSE cache updates) under Vitest; no browser tests in stage 1.
+  completeness, SSE cache updates) under Vitest in Node; pages under jsdom
+  with Testing Library against a stubbed `fetch` (empty, error, failed-job,
+  transcript and delete flows).
 - No test touches the network beyond `127.0.0.1` or needs a GPU.
 
 ## 14. Boundaries
@@ -517,11 +540,21 @@ export class AppError extends Error {
 - [ ] `README.md` with features, quick start, configuration, API overview, screenshot placeholders.
 - [ ] `LICENSE` (MIT), `CHANGELOG.md` entry, tag `v1.0.0`.
 
-## 16. Open questions
+## 16. Decisions log
 
-1. Default STT model name: `Systran/faster-whisper-large-v3` is a guess at a
-   sensible speaches default; set your own in `.env`.
-2. Should the original media be kept forever (needed for re-processing and the
-   stage 2 player) or deleted after transcription to save disk? Current
-   decision: keep it.
-3. Stage 2 search snippets: whole segment text or a highlighted fragment?
+Resolved with the maintainer:
+
+1. Default STT model: `Systran/faster-whisper-large-v3`, the most accurate
+   multilingual Whisper model (speaches maps its `whisper-1` alias to it).
+   A faster, slightly less accurate option is a `large-v3-turbo` build; set
+   `STT_MODEL` to switch.
+2. The original upload is kept until the recording is deleted (needed for
+   re-processing and the stage 2 player).
+3. The UI may be embedded in another app through an iframe (§11.1); the page
+   itself stays generic.
+4. Approved extra dev packages: `eslint-plugin-react-hooks`, `jsdom`,
+   `@testing-library/react`.
+
+## 17. Open questions
+
+1. Stage 2 search snippets: whole segment text or a highlighted fragment?
