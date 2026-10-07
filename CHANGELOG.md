@@ -27,6 +27,9 @@ source of truth for the version.
 - The speech model is now actually downloaded: the installer asks the speech
   server for it (`POST /v1/models/{id}`) instead of relying on
   `PRELOAD_MODELS`, which the image ignored, so it no longer waits forever.
+- The installer waits until the speech model has finished downloading.
+  speaches lists a model as soon as its first files arrive, so the installer
+  used to report "done" while the download was still running.
 - GPU speech recognition uses speaches' current `latest-cuda` image (CUDA
   12.9) instead of the older CUDA 12.6 build, for newer GPUs such as the
   RTX 50 series.

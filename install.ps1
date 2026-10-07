@@ -363,8 +363,14 @@ try {
       if (-not (Test-Native { docker compose exec -d "stt-$Stt" sh -c $kick $SttChoice.Id })) { Warn "Could not ask the speech server to download $($SttChoice.Id)." }
     }
     for ($i = 0; ; $i++) {
+      # speaches lists a model as soon as its first files are on disk, so a
+      # requested download is done only when its answer is in the log.
       $health = Get-Health
-      if ($health -and $health.checks -and $health.checks.stt -eq 'ok') { break }
+      if ($health -and $health.checks -and $health.checks.stt -eq 'ok') {
+        if ($haveIt) { break }
+        $log = & { $ErrorActionPreference = 'Continue'; docker compose exec -T "stt-$Stt" cat /tmp/homescribe-download.log 2>$null }
+        if ("$log" -match 'downloaded|already exists') { break }
+      }
       if ($i -ge 360) {
         Write-Host ''; Warn 'Speech recognition is not ready yet; it keeps downloading in the background.'
         & { $ErrorActionPreference = 'Continue'; docker compose exec -T "stt-$Stt" cat /tmp/homescribe-download.log 2>$null } | Select-Object -Last 5
