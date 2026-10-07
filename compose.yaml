@@ -1,0 +1,82 @@
+# Homescribe with Docker Compose (SPEC.md §15, stage 3).
+#
+#   docker compose --profile gpu up -d            # + speech-to-text on an NVIDIA GPU
+#   docker compose --profile cpu up -d            # + speech-to-text on the CPU (slow)
+#   docker compose --profile gpu --profile llm up -d   # + Ollama for summaries
+#   docker compose up -d                          # only Homescribe; AI servers elsewhere
+#
+# AI addresses below are defaults for the bundled services. Any other server
+# can be chosen in Settings in the UI, which overrides them.
+
+name: homescribe
+
+services:
+  homescribe:
+    build: .
+    image: homescribe:local
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    # Optional: BASE_PATH, ALLOWED_NETWORKS, FRAME_ANCESTORS, MAX_UPLOAD_MB, ...
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATA_DIR: /data
+      STT_BASE_URL: http://stt:8000
+      LLM_BASE_URL: http://ollama:11434
+      # Discovery in Settings looks at the bundled services and at the host.
+      AI_DISCOVERY_HOSTS: stt,ollama,host.docker.internal
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - homescribe-data:/data
+
+  # speaches (faster-whisper) on an NVIDIA GPU; needs the NVIDIA Container Toolkit.
+  stt-gpu:
+    profiles: [gpu]
+    image: ghcr.io/speaches-ai/speaches:latest-cuda-12.6.3
+    restart: unless-stopped
+    environment:
+      # Downloaded on first start so the first recording does not fail.
+      PRELOAD_MODELS: '["Systran/faster-whisper-large-v3"]'
+    volumes:
+      - hf-hub-cache:/home/ubuntu/.cache/huggingface/hub
+    networks:
+      default:
+        aliases: [stt]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # The same on the CPU: works anywhere, much slower for long recordings.
+  stt-cpu:
+    profiles: [cpu]
+    image: ghcr.io/speaches-ai/speaches:latest-cpu
+    restart: unless-stopped
+    environment:
+      PRELOAD_MODELS: '["Systran/faster-whisper-large-v3"]'
+    volumes:
+      - hf-hub-cache:/home/ubuntu/.cache/huggingface/hub
+    networks:
+      default:
+        aliases: [stt]
+
+  # Optional local LLM for summaries. Pull a model once:
+  #   docker compose exec ollama ollama pull llama3.1:8b
+  # Add the same `deploy` block as stt-gpu to run it on the GPU.
+  ollama:
+    profiles: [llm]
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama-models:/root/.ollama
+
+volumes:
+  homescribe-data:
+  hf-hub-cache:
+  ollama-models:

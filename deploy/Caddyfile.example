@@ -1,0 +1,25 @@
+# Hub and Homescribe on one origin, with a real certificate from Let's Encrypt
+# via the DNS challenge (works for a LAN-only server: no open ports needed).
+#
+# Caddy must be built with your DNS provider's plugin, e.g. for Cloudflare:
+#   xcaddy build --with github.com/caddy-dns/cloudflare
+# and the API token passed as CF_API_TOKEN. Point home.example.com at the
+# server's LAN address in DNS.
+#
+# Homescribe runs with BASE_PATH=/homescribe; the path is forwarded unchanged.
+
+home.example.com {
+	tls {
+		dns cloudflare {env.CF_API_TOKEN}
+	}
+
+	handle /homescribe/* {
+		reverse_proxy homescribe:8080
+	}
+	redir /homescribe /homescribe/
+
+	# Everything else is the hub.
+	handle {
+		reverse_proxy hub:3000
+	}
+}
