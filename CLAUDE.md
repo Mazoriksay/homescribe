@@ -37,7 +37,8 @@ passed and what you could not run.
 - `apps/server` — Fastify 5 API. `src/config.ts` (env), `src/network.ts`
   (allow-list), `src/db/` (node:sqlite + migrations + repositories),
   `src/media/` (ffmpeg behind `MediaTool`), `src/stt/` (speech-to-text behind
-  `Transcriber`), `src/jobs/` (single queue + runner), `src/events.ts` (SSE
+  `Transcriber`), `src/llm/` (summaries behind `Summarizer`), `src/ai/`
+  (backend settings, discovery, model lists), `src/jobs/` (single queue + runner), `src/events.ts` (SSE
   bus), `src/http/` (routes, errors).
 - `apps/web` — React 19 + Vite + RTK Query + React Router 7.
 
@@ -59,14 +60,19 @@ passed and what you could not run.
   (speaches / faster-whisper-server), `response_format=verbose_json`, segment
   timestamps. Check that project's docs/source before changing the client.
 - LLM: any OpenAI-compatible `POST /v1/chat/completions`.
+- Both AI backends can be chosen in the UI (local server found by discovery,
+  or a cloud API with a key); environment variables are only the defaults.
+  API keys never leave the server and only go to the address they were saved
+  for (SPEC.md §7.5).
 - ffmpeg is a system binary; every upload is converted to 16 kHz mono before
   transcription; ffprobe reads the duration.
 - The UI is generic and may be embedded in another app's iframe
   (`FRAME_ANCESTORS`, `?lang=`/`?theme=`, SPEC.md §11.1); no embedder-specific
   code.
-- All URLs, model names, paths and the port come from environment variables,
-  listed in `.env.example`. Data lives in `DATA_DIR` (git-ignored). No
-  personal paths, names or hosts anywhere.
+- All URLs, model names, paths and the port come from environment variables
+  (AI backends: defaults, overridable in the UI), listed in `.env.example`.
+  Data lives in `DATA_DIR` (git-ignored). No personal paths, names or hosts
+  anywhere.
 - No login. Only clients from `ALLOWED_NETWORKS` (CIDR list) are served;
   `X-Forwarded-For` is never trusted.
 - One job at a time (single in-process queue, shared GPU). Jobs running at
