@@ -677,11 +677,11 @@ export class AppError extends Error {
 
 ### Stage 3 — deployment and hub integration
 
-- [ ] `BASE_PATH`: UI, API, SSE and media under a path; same build for any path (§11.2).
-- [ ] Self-check at startup and in `GET /health` (§7.6); notice in the UI.
-- [ ] `postMessage` `ready`/`navigate` to the parent window when framed (§11.1).
-- [ ] `Dockerfile` (Node 24 + ffmpeg, non-root, `DATA_DIR` volume, health check) and `compose.yaml` as the main way to run: `homescribe` with `restart: unless-stopped`, speaches under the `gpu` or `cpu` profile with the default model preloaded, Ollama under the `llm` profile.
-- [ ] README: run with Docker Compose; HTTPS without a private CA (Tailscale `serve`, or an own domain with Let's Encrypt via the DNS challenge) with ready-made examples, including serving under the hub's origin.
+- [x] `BASE_PATH`: UI, API, SSE and media under a path; same build for any path (§11.2).
+- [x] Self-check at startup and in `GET /health` (§7.6); notice in the UI.
+- [x] `postMessage` `ready`/`navigate` to the parent window when framed (§11.1).
+- [x] `Dockerfile` (Node 24 + ffmpeg, non-root, `DATA_DIR` volume, health check) and `compose.yaml` as the main way to run: `homescribe` with `restart: unless-stopped`, speaches under the `gpu` or `cpu` profile with the default model preloaded, Ollama under the `llm` profile.
+- [x] README: run with Docker Compose; HTTPS without a private CA (Tailscale `serve`, or an own domain with Let's Encrypt via the DNS challenge) with ready-made examples, including serving under the hub's origin.
 
 ### Stage 4 — record in the browser, PWA, offline
 
