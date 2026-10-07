@@ -19,6 +19,7 @@ describe('loadConfig', () => {
       language: null,
       apiKey: null,
       timeoutMs: 3_600_000,
+      vadFilter: true,
     });
     expect(config.webDistDir).toBe(path.join(root, 'apps/web/dist'));
     expect(config.frameAncestors).toEqual([]);

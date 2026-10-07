@@ -224,7 +224,14 @@ export class JobRunner {
     this.update(job.id, { status: 'transcribing', progress: null });
     const result = await transcriber.transcribe(audio, signal);
     if (signal.aborted) throw signal.reason;
-    repo.saveTranscript(recordingId, { ...result, model: transcriber.model });
+    // Whisper can place its last segments past the end of the audio.
+    const segments =
+      duration === null
+        ? result.segments
+        : result.segments
+            .filter((s) => s.start < duration)
+            .map((s) => ({ ...s, end: Math.min(s.end, duration) }));
+    repo.saveTranscript(recordingId, { ...result, segments, model: transcriber.model });
   }
 
   /** summarizing; skipped when summaries are off or there is no speech. */

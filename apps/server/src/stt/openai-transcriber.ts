@@ -1,6 +1,6 @@
 import { openAsBlob } from 'node:fs';
 import { Readable } from 'node:stream';
-import { sttVerboseResponseSchema } from '@homescribe/shared';
+import { collapseRepeatedSegments, sttVerboseResponseSchema } from '@homescribe/shared';
 import { authHeaders, httpRequest, withTimeout } from '../ai/http';
 import { SttError, type TranscriptionResult, type Transcriber } from './transcriber';
 
@@ -10,6 +10,8 @@ export interface OpenAiTranscriberOptions {
   language: string | null;
   apiKey: string | null;
   timeoutMs: number;
+  /** Send speaches' `vad_filter=true` (skip silence, avoids Whisper loops). */
+  vadFilter?: boolean;
 }
 
 /**
@@ -39,6 +41,7 @@ export class OpenAiTranscriber implements Transcriber {
     form.append('response_format', 'verbose_json');
     form.append('timestamp_granularities[]', 'segment');
     if (this.options.language) form.append('language', this.options.language);
+    if (this.options.vadFilter) form.append('vad_filter', 'true');
 
     // Let the platform encode the multipart body, then stream it over node:http.
     const encoded = new Request('http://encoder.invalid', { method: 'POST', body: form });
@@ -80,13 +83,19 @@ export class OpenAiTranscriber implements Transcriber {
     if (!parsed.success) {
       throw new SttError('STT_FAILED', `Unexpected response shape: ${parsed.error.message}`);
     }
+    const segments = parsed.data.segments
+      .map((s) => ({ start: Math.max(0, s.start), end: Math.max(0, s.end), text: s.text.trim() }))
+      .filter((s) => s.text.length > 0)
+      .sort((a, b) => a.start - b.start);
+    const collapsed = collapseRepeatedSegments(segments);
     return {
       language: parsed.data.language ?? null,
-      text: parsed.data.text.trim(),
-      segments: parsed.data.segments
-        .map((s) => ({ start: Math.max(0, s.start), end: Math.max(0, s.end), text: s.text.trim() }))
-        .filter((s) => s.text.length > 0)
-        .sort((a, b) => a.start - b.start),
+      // Whisper's own text keeps the loop; rebuild it when repeats were dropped.
+      text:
+        collapsed.length === segments.length
+          ? parsed.data.text.trim()
+          : collapsed.map((s) => s.text).join(' '),
+      segments: collapsed,
     };
   }
 }
