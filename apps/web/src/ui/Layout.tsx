@@ -1,10 +1,12 @@
 import { NavLink, Outlet, Link } from 'react-router';
 import { useServerEvents } from '../api/server-events';
+import { useEmbedSignals } from '../app/embedding';
 import { useT } from '../i18n/useT';
 import styles from './Layout.module.css';
 
 export function Layout() {
   useServerEvents();
+  useEmbedSignals();
   const t = useT();
 
   return (
