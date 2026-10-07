@@ -7,6 +7,9 @@ export class ConfigError extends Error {}
 const DEFAULT_ALLOWED_NETWORKS =
   '127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,fe80::/10';
 
+/** A bare http(s) origin: scheme, host, optional port; nothing that could extend a CSP. */
+const ORIGIN = /^https?:\/\/[a-z0-9.-]+(?::\d{1,5})?$/i;
+
 /** Empty strings count as "not set", so `.env` files can list a key without a value. */
 const optional = <T extends z.ZodType>(schema: T) =>
   z.preprocess((value) => (value === '' ? undefined : value), schema);
@@ -45,6 +48,15 @@ const envSchema = z.object({
   STT_API_KEY: optional(z.string().optional()),
   STT_TIMEOUT_MS: optional(z.coerce.number().int().positive().default(3_600_000)),
   WEB_DIST_DIR: optional(z.string().optional()),
+  FRAME_ANCESTORS: optional(
+    z
+      .string()
+      .default('')
+      .transform((value) => value.split(/\s+/).filter(Boolean))
+      .refine((list) => list.every((item) => ORIGIN.test(item)), {
+        message: 'expected space-separated origins such as http://hub.lan:3000',
+      }),
+  ),
   LOG_LEVEL: optional(
     z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   ),
@@ -66,6 +78,8 @@ export interface Config {
     timeoutMs: number;
   };
   webDistDir: string;
+  /** Origins allowed to show the UI in an iframe, besides the app itself. */
+  frameAncestors: string[];
   logLevel: string;
 }
 
@@ -98,6 +112,7 @@ export function loadConfig(env: Record<string, string | undefined>, rootDir: str
       timeoutMs: e.STT_TIMEOUT_MS,
     },
     webDistDir: path.resolve(rootDir, e.WEB_DIST_DIR ?? 'apps/web/dist'),
+    frameAncestors: e.FRAME_ANCESTORS,
     logLevel: e.LOG_LEVEL,
   };
 }

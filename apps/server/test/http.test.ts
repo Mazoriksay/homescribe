@@ -36,6 +36,22 @@ describe('HTTP API', () => {
     expect(res.headers['content-security-policy']).toContain("default-src 'self'");
   });
 
+  describe('embedding', () => {
+    it('allows framing only by the app itself by default', async () => {
+      const res = await t.app.inject('/api/v1/health');
+      expect(res.headers['content-security-policy']).toContain("frame-ancestors 'self'");
+    });
+
+    it('allows framing by the configured origins', async () => {
+      await t.close();
+      t = await createTestApp({ FRAME_ANCESTORS: 'http://hub.lan:3000' });
+      const res = await t.app.inject('/api/v1/health');
+      expect(res.headers['content-security-policy']).toContain(
+        "frame-ancestors 'self' http://hub.lan:3000",
+      );
+    });
+  });
+
   describe('network allow-list', () => {
     it('refuses clients outside ALLOWED_NETWORKS with the error shape', async () => {
       const res = await t.app.inject({ url: '/api/v1/health', remoteAddress: '203.0.113.9' });

@@ -32,6 +32,17 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   const isAllowed = createNetworkAllowList(config.allowedNetworks);
+  // Everything is same-origin; Ant Design injects <style> tags, hence 'unsafe-inline' for
+  // styles. Only FRAME_ANCESTORS may embed the UI (e.g. a home dashboard), SPEC.md §10.
+  const csp = [
+    "default-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    ["frame-ancestors 'self'", ...config.frameAncestors].join(' '),
+  ].join('; ');
   app.addHook('onRequest', async (request, reply) => {
     if (!isAllowed(request.socket.remoteAddress)) {
       return reply
@@ -47,12 +58,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.addHook('onSend', async (_request, reply) => {
     reply.header('x-content-type-options', 'nosniff');
     reply.header('referrer-policy', 'no-referrer');
-    // Everything is same-origin; Ant Design injects <style> tags, hence 'unsafe-inline' for styles.
-    reply.header(
-      'content-security-policy',
-      "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
-        "object-src 'none'; base-uri 'self'; form-action 'self'",
-    );
+    reply.header('content-security-policy', csp);
   });
 
   app.setErrorHandler(errorHandler);

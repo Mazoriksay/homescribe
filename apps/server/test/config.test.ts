@@ -20,6 +20,27 @@ describe('loadConfig', () => {
       timeoutMs: 3_600_000,
     });
     expect(config.webDistDir).toBe(path.join(root, 'apps/web/dist'));
+    expect(config.frameAncestors).toEqual([]);
+  });
+
+  it('reads the origins allowed to embed the UI', () => {
+    const config = loadConfig(
+      { FRAME_ANCESTORS: 'http://hub.lan:3000  https://home.example' },
+      root,
+    );
+    expect(config.frameAncestors).toEqual(['http://hub.lan:3000', 'https://home.example']);
+  });
+
+  it('rejects anything in FRAME_ANCESTORS that is not a bare origin', () => {
+    for (const value of [
+      '*',
+      'hub.lan',
+      'http://hub.lan/path',
+      "http://hub.lan; script-src 'unsafe-inline'",
+      'javascript:alert(1)',
+    ]) {
+      expect(() => loadConfig({ FRAME_ANCESTORS: value }, root), value).toThrow(/FRAME_ANCESTORS/);
+    }
   });
 
   it('reads values from the environment and treats empty strings as unset', () => {
