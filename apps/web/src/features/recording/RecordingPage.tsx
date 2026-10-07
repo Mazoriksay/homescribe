@@ -1,18 +1,13 @@
-import { formatTimestamp, type Recording } from '@homescribe/shared';
-import { Button } from 'antd';
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
-import {
-  errorCode,
-  useCreateJobMutation,
-  useDeleteRecordingMutation,
-  useGetRecordingQuery,
-} from '../../api/api';
-import { formatBytes, formatDate } from '../../i18n/format';
-import { errorMessageKey, useLocale, useT } from '../../i18n/useT';
-import { ProgressBar } from '../../ui/ProgressBar';
-import { StatusBadge } from '../../ui/StatusBadge';
+import type { Recording } from '@homescribe/shared';
+import { useRef, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router';
+import { errorCode, useGetRecordingQuery } from '../../api/api';
+import { useT } from '../../i18n/useT';
+import { MediaPlayer } from './MediaPlayer';
+import { RecordingHeader } from './RecordingHeader';
 import styles from './RecordingPage.module.css';
+import { StatusPanel } from './StatusPanel';
+import { SummaryView } from './SummaryView';
 import { TranscriptView } from './TranscriptView';
 
 export function RecordingPage() {
@@ -39,100 +34,35 @@ export function RecordingPage() {
 }
 
 function RecordingDetails({ recording }: { recording: Recording }) {
-  const t = useT();
-  const locale = useLocale();
-  const { job } = recording;
-  const isFinal = job.status === 'done' || job.status === 'failed';
+  const media = useRef<HTMLMediaElement | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [params] = useSearchParams();
+  // `?t=<seconds>` (from search results) starts playback position there.
+  const startAt = Math.max(0, Number(params.get('t')) || 0);
+
+  const seek = (seconds: number) => {
+    if (!media.current) return;
+    media.current.currentTime = seconds;
+    Promise.resolve(media.current.play()).catch(() => undefined);
+  };
 
   return (
     <>
-      <header className={styles.header}>
-        <h1 className={styles.title}>{recording.title}</h1>
-        <p className={styles.meta}>
-          {formatDate(recording.createdAt, locale)}
-          {recording.durationSeconds !== null && ` · ${formatTimestamp(recording.durationSeconds)}`}
-          {` · ${formatBytes(recording.sizeBytes, locale)}`}
-        </p>
-        <p className={styles.filename} title={recording.originalFilename}>
-          {recording.originalFilename}
-        </p>
-      </header>
-
-      <section className={styles.status} aria-live="polite">
-        <div className={styles.statusRow}>
-          <StatusBadge job={job} />
-          <div className={styles.actions}>
-            {job.status === 'failed' && <RetryButton recordingId={recording.id} />}
-            <DeleteButton
-              recordingId={recording.id}
-              disabled={!isFinal && job.status !== 'queued'}
-            />
-          </div>
-        </div>
-        {job.status === 'converting' && (
-          <ProgressBar value={job.progress} label={t('status.converting')} />
-        )}
-        {job.status === 'transcribing' && (
-          <>
-            <ProgressBar value={null} label={t('status.transcribing')} />
-            <p className={styles.hint}>{t('recording.transcribingHint')}</p>
-          </>
-        )}
-        {job.status === 'queued' && <p className={styles.hint}>{t('recording.queuedHint')}</p>}
-        {job.status === 'failed' && job.error && (
-          <p className={styles.error} role="alert">
-            {t(errorMessageKey(job.error.code))}
-            <span className={styles.errorDetail}>{job.error.message}</span>
-          </p>
-        )}
-      </section>
-
-      <TranscriptView recording={recording} />
+      <RecordingHeader recording={recording} />
+      <StatusPanel recording={recording} />
+      <MediaPlayer
+        recording={recording}
+        mediaRef={media}
+        startAt={startAt}
+        onTime={setCurrentTime}
+      />
+      <SummaryView recording={recording} />
+      <TranscriptView
+        recording={recording}
+        currentTime={currentTime}
+        focusTime={startAt || null}
+        onSeek={seek}
+      />
     </>
-  );
-}
-
-function RetryButton({ recordingId }: { recordingId: string }) {
-  const t = useT();
-  const [createJob, { isLoading }] = useCreateJobMutation();
-  return (
-    <Button
-      type="primary"
-      loading={isLoading}
-      onClick={() => void createJob({ recordingId, kind: 'process' })}
-    >
-      {t('recording.retry')}
-    </Button>
-  );
-}
-
-/** Two taps instead of a modal: easy on a phone, hard to trigger by accident. */
-function DeleteButton({ recordingId, disabled }: { recordingId: string; disabled: boolean }) {
-  const t = useT();
-  const navigate = useNavigate();
-  const [armed, setArmed] = useState(false);
-  const [deleteRecording, { isLoading }] = useDeleteRecordingMutation();
-
-  useEffect(() => {
-    if (!armed) return;
-    const timer = setTimeout(() => setArmed(false), 4000);
-    return () => clearTimeout(timer);
-  }, [armed]);
-
-  return (
-    <Button
-      danger
-      type={armed ? 'primary' : 'default'}
-      disabled={disabled}
-      title={disabled ? t('recording.deleteBlocked') : undefined}
-      loading={isLoading}
-      onClick={async () => {
-        if (!armed) return setArmed(true);
-        const result = await deleteRecording(recordingId);
-        if (!result.error) void navigate('/');
-      }}
-    >
-      {armed ? t('recording.deleteConfirm') : t('recording.delete')}
-    </Button>
   );
 }

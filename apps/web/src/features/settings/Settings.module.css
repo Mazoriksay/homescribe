@@ -1,0 +1,170 @@
+.page {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.title {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.section {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.heading {
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.current {
+  display: grid;
+  gap: 2px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.source {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.field {
+  display: grid;
+  gap: var(--space-2);
+  font-size: 14px;
+  font-weight: 550;
+}
+
+.field small {
+  font-weight: 400;
+}
+
+.keyLink {
+  margin-left: var(--space-3);
+  font-weight: 400;
+  color: var(--accent);
+}
+
+.modelRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.grow {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.servers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.server {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--surface-sunken);
+}
+
+.serverHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
+.serverName {
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.models {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.model {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap);
+}
+
+.modelId {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.model > :global(.ant-btn) {
+  flex-shrink: 0;
+}
+
+.notice {
+  display: grid;
+  gap: var(--space-1);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.error {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.errorDetail {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.ok {
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

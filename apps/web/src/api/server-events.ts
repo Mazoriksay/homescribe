@@ -37,11 +37,14 @@ export function useServerEvents(): void {
         );
       }
       if (job.status === 'queued' && !listed) dispatch(api.util.invalidateTags(['RecordingList']));
-      if (job.status === 'done') {
+      // A failed summary still leaves a fresh transcript behind.
+      if (job.status === 'done' || job.status === 'failed') {
         dispatch(
           api.util.invalidateTags([
             { type: 'Transcript', id: job.recordingId },
+            { type: 'Summary', id: job.recordingId },
             { type: 'Recording', id: job.recordingId },
+            'Search',
           ]),
         );
       }
@@ -49,13 +52,23 @@ export function useServerEvents(): void {
 
     const onDeleted = (message: MessageEvent<string>) => {
       const { id } = JSON.parse(message.data) as { id: string };
-      store.dispatch(api.util.invalidateTags(['RecordingList', { type: 'Recording', id }]));
+      store.dispatch(
+        api.util.invalidateTags(['RecordingList', 'Search', { type: 'Recording', id }]),
+      );
     };
 
     // Events are not replayed, so refetch everything after a reconnect.
     const onOpen = () => {
       if (hadError)
-        store.dispatch(api.util.invalidateTags(['RecordingList', 'Recording', 'Transcript']));
+        store.dispatch(
+          api.util.invalidateTags([
+            'RecordingList',
+            'Recording',
+            'Transcript',
+            'Summary',
+            'Search',
+          ]),
+        );
       hadError = false;
     };
     const onError = () => {

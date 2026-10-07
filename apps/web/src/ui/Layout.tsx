@@ -1,18 +1,11 @@
-import { Segmented } from 'antd';
-import { Link, Outlet } from 'react-router';
+import { NavLink, Outlet, Link } from 'react-router';
 import { useServerEvents } from '../api/server-events';
-import { useAppDispatch, useAppSelector } from '../app/hooks';
-import { setLocale, setTheme } from '../app/prefs';
 import { useT } from '../i18n/useT';
-import type { Locale } from '../i18n/format';
-import type { ThemePreference } from '../theme/theme';
 import styles from './Layout.module.css';
 
 export function Layout() {
   useServerEvents();
   const t = useT();
-  const dispatch = useAppDispatch();
-  const { locale, theme } = useAppSelector((state) => state.prefs);
 
   return (
     <div className={styles.shell}>
@@ -29,27 +22,16 @@ export function Layout() {
           </svg>
           {t('app.name')}
         </Link>
-        <div className={styles.settings}>
-          <Segmented<Locale>
-            aria-label={t('settings.language')}
-            value={locale}
-            onChange={(value) => dispatch(setLocale(value))}
-            options={[
-              { label: 'EN', value: 'en' },
-              { label: 'RU', value: 'ru' },
-            ]}
-          />
-          <Segmented<ThemePreference>
-            aria-label={t('settings.theme')}
-            value={theme}
-            onChange={(value) => dispatch(setTheme(value))}
-            options={[
-              { label: t('theme.auto'), value: 'auto' },
-              { label: t('theme.light'), value: 'light' },
-              { label: t('theme.dark'), value: 'dark' },
-            ]}
-          />
-        </div>
+        <nav className={styles.nav}>
+          <NavLink to="/settings" className={styles.navLink}>
+            <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.navIcon}>
+              <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
+              <circle cx="16" cy="7" r="2" />
+              <circle cx="8" cy="17" r="2" />
+            </svg>
+            {t('nav.settings')}
+          </NavLink>
+        </nav>
       </header>
       <main className={styles.main}>
         <Outlet />

@@ -32,23 +32,51 @@
 
 .segment {
   display: grid;
-  grid-template-columns: 4.5em minmax(0, 1fr);
-  gap: var(--space-3);
-  padding: var(--space-2) 0;
+  grid-template-columns: 5em minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1);
+  border-radius: var(--radius-control);
+  transition: background-color 160ms var(--ease-out);
   /* Long transcripts: let the browser skip layout for off-screen rows. */
   content-visibility: auto;
   contain-intrinsic-size: auto 48px;
 }
 
+.segment[aria-current='true'] {
+  background: var(--accent-soft);
+}
+
 .time {
-  padding-top: 2px;
-  font-size: 13px;
+  align-self: start;
+  min-height: var(--tap);
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font: 13px var(--font-mono);
   font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+}
+
+.time:active {
+  color: var(--accent);
+  background: var(--surface-sunken);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .time:hover {
+    color: var(--accent);
+  }
+}
+
+.segment[aria-current='true'] .time {
+  color: var(--accent);
 }
 
 .text {
+  padding-top: calc((var(--tap) - 1.6em) / 2);
   font-size: 17px;
   line-height: 1.6;
   overflow-wrap: anywhere;

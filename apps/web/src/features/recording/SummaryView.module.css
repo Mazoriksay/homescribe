@@ -1,0 +1,64 @@
+.section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.heading {
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.subheading {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.placeholder {
+  color: var(--text-muted);
+}
+
+.markdown {
+  font-size: 16px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.markdown > * + * {
+  margin-top: var(--space-2);
+}
+
+.markdown :is(h1, h2, h3, h4) {
+  font-size: 16px;
+  font-weight: 650;
+  margin: var(--space-3) 0 0;
+}
+
+.markdown :is(ul, ol) {
+  margin: 0;
+  padding-left: 1.25em;
+}
+
+.markdown a {
+  color: var(--accent);
+}
+
+.items {
+  margin: 0;
+  padding-left: 1.25em;
+  display: grid;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.model {
+  font-size: 13px;
+  color: var(--text-muted);
+}

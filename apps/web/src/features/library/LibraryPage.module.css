@@ -104,3 +104,16 @@
   justify-content: space-between;
   gap: var(--space-3);
 }
+
+.snippet {
+  font-size: 14px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.snippet mark {
+  color: var(--text);
+  background: var(--accent-soft);
+  border-radius: 3px;
+  padding: 0 2px;
+}
