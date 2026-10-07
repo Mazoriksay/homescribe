@@ -1,0 +1,55 @@
+.section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.heading {
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.placeholder {
+  color: var(--text-muted);
+}
+
+.language {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.segments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.segment {
+  display: grid;
+  grid-template-columns: 4.5em minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  /* Long transcripts: let the browser skip layout for off-screen rows. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 48px;
+}
+
+.time {
+  padding-top: 2px;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.text {
+  font-size: 17px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}

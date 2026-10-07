@@ -1,0 +1,57 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+}
+
+.badge[data-status='done'] {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.badge[data-status='failed'] {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.badge[data-status='queued'] .dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+.badge[data-status='failed'] .dot {
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dot[data-running] {
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.percent {
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,86 @@
+.zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  text-align: center;
+  transition:
+    border-color 160ms var(--ease-out),
+    background-color 160ms var(--ease-out);
+}
+
+.zone[data-dragging] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.drop {
+  font-weight: 600;
+}
+
+.or {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.hint {
+  margin-top: var(--space-1);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* Phones have no drag and drop; lead with the button. */
+@media (pointer: coarse) {
+  .drop,
+  .or {
+    display: none;
+  }
+}
+
+.uploads {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.upload {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.uploadRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.percent {
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.error {
+  font-size: 14px;
+  color: var(--danger);
+}
