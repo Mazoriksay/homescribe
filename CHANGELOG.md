@@ -7,6 +7,20 @@ source of truth for the version.
 
 ## [Unreleased]
 
+### Added
+
+- The installer asks what to download before pulling anything: speech
+  recognition on the GPU, the CPU or not on this computer, the Whisper model
+  (`large-v3`, `large-v3-turbo`, `medium`, `small`) and the local summary
+  model (`qwen2.5:7b`, `llama3.1:8b`, `qwen2.5:3b` or none), with sizes and a
+  summary to confirm. New options `--stt-model`/`--llm-model`
+  (`-SttModel`/`-LlmModel` on Windows).
+
+### Fixed
+
+- The Windows installer no longer stops right after installing Docker
+  Desktop; it starts Docker Desktop and waits for it.
+
 ## [0.3.0] - 2026-10-07
 
 ### Added

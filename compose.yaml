@@ -42,7 +42,7 @@ services:
     restart: unless-stopped
     environment:
       # Downloaded on first start so the first recording does not fail.
-      PRELOAD_MODELS: '["Systran/faster-whisper-large-v3"]'
+      PRELOAD_MODELS: '["${STT_MODEL:-Systran/faster-whisper-large-v3}"]'
     volumes:
       - hf-hub-cache:/home/ubuntu/.cache/huggingface/hub
     networks:
@@ -62,7 +62,7 @@ services:
     image: ghcr.io/speaches-ai/speaches:latest-cpu
     restart: unless-stopped
     environment:
-      PRELOAD_MODELS: '["Systran/faster-whisper-large-v3"]'
+      PRELOAD_MODELS: '["${STT_MODEL:-Systran/faster-whisper-large-v3}"]'
     volumes:
       - hf-hub-cache:/home/ubuntu/.cache/huggingface/hub
     networks:
