@@ -42,10 +42,11 @@ export function SearchResults({
         {t('search.results', { count: data.pagination.totalItems })}
       </p>
       <ul className={styles.list}>
+        {/* `t` rounded up to a tenth, so it still falls inside the matching segment. */}
         {data.data.map(({ recording, snippet, segment }) => (
           <li key={recording.id}>
             <Link
-              to={`/recordings/${recording.id}${segment ? `?t=${segment.start}` : ''}`}
+              to={`/recordings/${recording.id}${segment ? `?t=${Math.ceil(segment.start * 10) / 10}` : ''}`}
               className={styles.row}
             >
               <div className={styles.rowMain}>

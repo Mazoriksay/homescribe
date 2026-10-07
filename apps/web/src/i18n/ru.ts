@@ -46,6 +46,7 @@ export const ru: Record<MessageKey, string> = {
   'recording.transcript': 'Расшифровка',
   'recording.copy': 'Копировать текст',
   'recording.copied': 'Скопировано',
+  'recording.errorDetails': 'Подробности',
   'recording.noSpeech': 'В этой записи не распознано речи.',
   'recording.transcriptPending': 'Расшифровка появится здесь после обработки.',
   'recording.language': 'Язык: {language}',

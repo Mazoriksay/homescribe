@@ -42,14 +42,16 @@ export function antdTheme(resolved: ResolvedTheme): ThemeConfig {
       fontFamily: bodyFontStack,
       fontSize: 15,
       borderRadius: 8,
-      // Phone first: 40–44 px controls (SPEC.md §11).
-      controlHeight: 40,
-      controlHeightLG: 44,
+      // Phone first: tap targets of at least 44 px (SPEC.md §11).
+      controlHeight: 44,
+      controlHeightLG: 48,
       boxShadow: 'none',
       boxShadowSecondary: 'none',
     },
     components: {
       Button: { primaryShadow: 'none', defaultShadow: 'none', dangerShadow: 'none' },
+      // Segment items are the control height minus the track padding.
+      Segmented: { controlHeight: 48 },
     },
   };
 }

@@ -1,7 +1,8 @@
 import { formatTimestamp, type Recording, type Segment } from '@homescribe/shared';
 import { useEffect, useRef, useState } from 'react';
 import { useGetTranscriptQuery } from '../../api/api';
-import { useT } from '../../i18n/useT';
+import { useLocale, useT } from '../../i18n/useT';
+import { languageName } from './recording-text';
 import styles from './TranscriptView.module.css';
 
 /** Index of the segment playing at `time`: the last one that started. */
@@ -31,6 +32,7 @@ interface Props {
 
 export function TranscriptView({ recording, currentTime, focusTime, onSeek }: Props) {
   const t = useT();
+  const locale = useLocale();
   // Always ask: a retry keeps the previous transcript readable. Until one exists the
   // server answers 409 TRANSCRIPT_NOT_READY; the SSE 'done' event triggers a refetch.
   const { data: transcript } = useGetTranscriptQuery(recording.id);
@@ -51,7 +53,9 @@ export function TranscriptView({ recording, currentTime, focusTime, onSeek }: Pr
   const copy = async () => {
     if (!transcript) return;
     try {
-      await navigator.clipboard.writeText(transcript.text);
+      // One line per segment reads better than Whisper's single run-on paragraph.
+      const text = segments.length > 0 ? segments.map((s) => s.text).join('\n') : transcript.text;
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -84,7 +88,7 @@ export function TranscriptView({ recording, currentTime, focusTime, onSeek }: Pr
         <>
           {transcript.language && (
             <p className={styles.language}>
-              {t('recording.language', { language: transcript.language })}
+              {t('recording.language', { language: languageName(transcript.language, locale) })}
             </p>
           )}
           <ol ref={list} className={styles.segments} lang={transcript.language ?? undefined}>
