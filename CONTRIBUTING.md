@@ -85,11 +85,11 @@ Semantic versioning, `MAJOR.MINOR.PATCH`. The HTTP API counts as the public
 interface: a breaking API change is a major bump (and a new `/api/vN` path).
 
 - While the stages in `SPEC.md` are being built, versions stay below 1.0:
-  stage 1 → `v0.1.0`, stage 2 → `v0.2.0`, stage 3 → `v0.3.0`; stage 4 ships
-  `v1.0.0`. Fixes between stages bump the patch number.
+  stage 1 → `v0.1.0`, stage 2 → `v0.2.0`, stage 3 → `v0.3.0`, stage 4 →
+  `v0.4.0`; stage 5 ships `v1.0.0`. Fixes between stages bump the patch number.
 - **The git tag is the source of truth for the version.** `package.json`
   files stay at `0.0.0` and are never edited for a release; build tooling
-  (stage 4) reads the version from the tag.
+  (stage 5) reads the version from the tag.
 - A release is cut by a maintainer from `main`, by hand:
 
   ```sh

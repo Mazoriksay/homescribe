@@ -69,6 +69,7 @@ npm run typecheck           # tsc --noEmit in every workspace
 npm run lint                # ESLint + Prettier check
 npm run format              # Prettier write
 npm test                    # Vitest, all workspaces, no GPU/network needed
+docker compose --profile gpu up -d   # app + speaches on an NVIDIA GPU (or --profile cpu)
 ```
 
 No npm script commits, pushes, tags or bumps a version.
@@ -308,7 +309,7 @@ interface Page<T> {
 
 | Method & path                           | Stage | Request                                                                                                      | Success                                                                 | Errors                                                              |
 | --------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `GET /api/v1/health`                    | 1     | —                                                                                                            | `200 { status: 'ok', search: 'fts5' \| 'like' }`                        |                                                                     |
+| `GET /api/v1/health`                    | 1     | —                                                                                                            | `200 Health` (§7.6)                                                     |                                                                     |
 | `POST /api/v1/recordings`               | 1     | `multipart/form-data`: `file` (required), `title` (optional text field, sent **before** `file`, 1–200 chars) | `201 Recording`, `Location` header                                      | 400, 413, 415                                                       |
 | `GET /api/v1/recordings`                | 1     | query `page` (≥1, default 1), `pageSize` (1–100, default 20)                                                 | `200 Page<Recording>`, newest first                                     | 400                                                                 |
 | `GET /api/v1/recordings/:id`            | 1     | —                                                                                                            | `200 Recording`                                                         | 404                                                                 |
@@ -403,6 +404,31 @@ interface UpdateAiSettings {
   changing `baseUrl` without a new key drops it, and `POST /ai/models` with
   `useSavedKeyFor` uses it only when `baseUrl` matches.
 
+### 7.6 Health and self-check
+
+The server checks what it depends on at startup, logs every problem with a
+hint, repeats the check every 60 s and right after AI settings change, and
+reports the latest result:
+
+```ts
+interface Health {
+  status: 'ok'; // the server answers; see checks for readiness
+  search: 'fts5' | 'like';
+  checks: {
+    ffmpeg: 'ok' | 'missing'; // ffmpeg and ffprobe run
+    stt: 'ok' | 'model_missing' | 'unreachable'; // GET /v1/models; model listed?
+    llm: 'ok' | 'model_missing' | 'unreachable' | 'off';
+    embedding: 'same_origin' | 'origins'; // FRAME_ANCESTORS empty or set
+  } | null; // null until the first check finished
+  checkedAt: string | null;
+}
+```
+
+`model_missing` means the server answers but does not list the model (speaches
+downloads models only on request; `PRELOAD_MODELS` in the compose file does
+it at startup). The UI shows a notice with a link to Settings when `ffmpeg`,
+`stt` or `llm` is not `ok`/`off`.
+
 ## 8. Job lifecycle
 
 ```
@@ -465,6 +491,7 @@ startup with a message naming the variable.
 | `LLM_TIMEOUT_MS`     | `600000`                                                                         | 2     | Per-request timeout                                                                 |
 | `LLM_CHUNK_CHARS`    | `12000`                                                                          | 2     | Longer transcripts are summarized in parts, then merged                             |
 | `AI_DISCOVERY_HOSTS` | `localhost,host.docker.internal`                                                 | 2     | Hosts probed for local AI servers (names or IPs, no ports)                          |
+| `BASE_PATH`          | _(empty = root)_                                                                 | 3     | Serve UI and API under this path, e.g. `/homescribe` (§11.2)                        |
 | `WEB_DIST_DIR`       | `apps/web/dist` (resolved from the repo root)                                    | 1     | Built UI to serve; skipped if missing                                               |
 | `FRAME_ANCESTORS`    | _(empty = only the app itself)_                                                  | 1     | Space-separated origins (`http://hub.lan:3000`) allowed to show the UI in an iframe |
 | `LOG_LEVEL`          | `info`                                                                           | 1     | Fastify/pino log level                                                              |
@@ -543,14 +570,38 @@ The same UI serves everyone: opened directly, installed as a PWA, or shown
 inside another app (for example a home dashboard) in an `<iframe>`. There is
 no embedder-specific code or build.
 
-- The embedding origin must be listed in `FRAME_ANCESTORS`; by default no
-  other site may frame the UI.
+- Preferred: serve Homescribe under a path of the embedding app's own origin
+  (`BASE_PATH=/homescribe`, one reverse proxy in front of both, §11.2). Same
+  origin means no `FRAME_ANCESTORS`, no mixed `http`/`https`, no second port
+  or certificate.
+- Otherwise the embedding origin must be listed in `FRAME_ANCESTORS`; by
+  default no other site may frame the UI.
 - The embedder can match its own settings with query parameters on the iframe
   URL: `?lang=en|ru` and `?theme=auto|light|dark`. They override saved
   preferences; unknown values are ignored.
 - The iframe talks to the Homescribe server directly (same origin as the UI),
   so no CORS is needed. Apps that call the API from their own origin should do
   it server-side; CORS is not enabled.
+- When framed, the page tells its parent with `postMessage` (any target
+  origin; the payload holds nothing private):
+  - `{ source: 'homescribe', type: 'ready', path }` once the app has rendered;
+  - `{ source: 'homescribe', type: 'navigate', path }` on every route change.
+    `path` is relative to the base path (e.g. `/recordings/<id>`), so the
+    parent can deep-link back with `<base>/<path>`.
+
+### 11.2 Base path
+
+`BASE_PATH` (e.g. `/homescribe`, default empty) moves everything under that
+path: the UI at `<BASE_PATH>/`, the API at `<BASE_PATH>/api/v1`, events,
+media. The proxy forwards the path unchanged (no prefix stripping). One build
+serves any base path: the server injects `<base href="<BASE_PATH>/">` into
+`index.html`, and the web app derives its router basename and API URLs from
+`document.baseURI`. With a base path set, `GET /` redirects to
+`<BASE_PATH>/`.
+
+Behind a proxy every request comes from the proxy's address, so
+`ALLOWED_NETWORKS` then only says "the proxy may talk to me"; who may reach
+the proxy (LAN only, or a tailnet) is the proxy's job.
 
 ## 12. Code style
 
@@ -624,17 +675,23 @@ export class AppError extends Error {
 - [x] Summary rendered with `react-markdown`, no raw HTML.
 - [x] AI backends chosen in the UI (§7.5): local servers found by discovery, cloud presets with a key, or summaries off.
 
-### Stage 3 — record in the browser, PWA, offline
+### Stage 3 — deployment and hub integration
+
+- [ ] `BASE_PATH`: UI, API, SSE and media under a path; same build for any path (§11.2).
+- [ ] Self-check at startup and in `GET /health` (§7.6); notice in the UI.
+- [ ] `postMessage` `ready`/`navigate` to the parent window when framed (§11.1).
+- [ ] `Dockerfile` (Node 24 + ffmpeg, non-root, `DATA_DIR` volume, health check) and `compose.yaml` as the main way to run: `homescribe` with `restart: unless-stopped`, speaches under the `gpu` or `cpu` profile with the default model preloaded, Ollama under the `llm` profile.
+- [ ] README: run with Docker Compose; HTTPS without a private CA (Tailscale `serve`, or an own domain with Let's Encrypt via the DNS challenge) with ready-made examples, including serving under the hub's origin.
+
+### Stage 4 — record in the browser, PWA, offline
 
 - [ ] Record screen using `MediaRecorder`; pick the first supported of `audio/webm;codecs=opus`, `audio/mp4`, `audio/webm` via `MediaRecorder.isTypeSupported`, upload with the matching extension (Chrome → webm, Safari → mp4).
 - [ ] Web app manifest, icons, service worker caching the app shell; installable on Android and iOS.
 - [ ] Recordings made while the server is unreachable are stored in IndexedDB and uploaded automatically (on `online`, on app start, on a timer) with visible pending state; a successful upload removes them from IndexedDB.
 - [ ] Handles: microphone permission denied, recording interrupted by a call/lock screen, storage quota errors.
 
-### Stage 4 — packaging and release
+### Stage 5 — release
 
-- [ ] `Dockerfile` (Node 24 + ffmpeg, non-root, `DATA_DIR` volume).
-- [ ] `docker-compose.yml`: `app` service; optional `stt` service (speaches) under the `gpu` profile.
 - [ ] GitHub Actions CI: install, lint, typecheck, test on pull requests and `main`.
 - [ ] `README.md` with features, quick start, configuration, API overview, screenshot placeholders.
 - [ ] `LICENSE` (MIT), `CHANGELOG.md` entry, tag `v1.0.0`.
@@ -657,6 +714,10 @@ Resolved with the maintainer:
    machine and `AI_DISCOVERY_HOSTS`, no network scan) or a cloud API (OpenAI,
    Groq, OpenRouter presets or any OpenAI-compatible address) (§7.5).
 6. Search snippets are a highlighted fragment around the first match.
+7. Deployment comes before in-browser recording: Docker Compose is the main
+   way to run (stage 3), and the preferred embedding is the same origin via
+   `BASE_PATH` behind one proxy. HTTPS is documented, not built in: Tailscale
+   `serve` or Let's Encrypt with the DNS challenge, never a private CA.
 
 ## 17. Open questions
 
