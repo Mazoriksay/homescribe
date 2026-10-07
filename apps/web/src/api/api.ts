@@ -6,6 +6,7 @@ import {
   type AiSettingsPair,
   type CreateJobBody,
   type Discovery,
+  type Health,
   type Job,
   type ListModelsBody,
   type ModelList,
@@ -21,7 +22,15 @@ export const api = createApi({
   reducerPath: 'api',
   // Absolute URL: works the same in the browser, inside an embedding page and in tests.
   baseQuery: fetchBaseQuery({ baseUrl: new URL(apiBase, window.location.origin).href }),
-  tagTypes: ['Recording', 'RecordingList', 'Transcript', 'Summary', 'Search', 'AiSettings'],
+  tagTypes: [
+    'Recording',
+    'RecordingList',
+    'Transcript',
+    'Summary',
+    'Search',
+    'AiSettings',
+    'Health',
+  ],
   endpoints: (build) => ({
     listRecordings: build.query<RecordingPage, { page: number; pageSize: number }>({
       query: ({ page, pageSize }) => ({ url: '/recordings', params: { page, pageSize } }),
@@ -37,6 +46,10 @@ export const api = createApi({
     getTranscript: build.query<Transcript, string>({
       query: (id) => `/recordings/${id}/transcript`,
       providesTags: (_result, _error, id) => [{ type: 'Transcript', id }],
+    }),
+    getHealth: build.query<Health, void>({
+      query: () => '/health',
+      providesTags: ['Health'],
     }),
     getSummary: build.query<Summary, string>({
       query: (id) => `/recordings/${id}/summary`,
@@ -60,11 +73,11 @@ export const api = createApi({
     }),
     updateAiSettings: build.mutation<AiSettings, { kind: AiKind } & UpdateAiSettingsBody>({
       query: ({ kind, ...body }) => ({ url: `/settings/ai/${kind}`, method: 'PUT', body }),
-      invalidatesTags: ['AiSettings'],
+      invalidatesTags: ['AiSettings', 'Health'],
     }),
     resetAiSettings: build.mutation<AiSettings, AiKind>({
       query: (kind) => ({ url: `/settings/ai/${kind}`, method: 'DELETE' }),
-      invalidatesTags: ['AiSettings'],
+      invalidatesTags: ['AiSettings', 'Health'],
     }),
     discoverAi: build.query<Discovery, void>({
       query: () => '/ai/discovery',
@@ -98,6 +111,7 @@ export const {
   useListRecordingsQuery,
   useGetRecordingQuery,
   useGetTranscriptQuery,
+  useGetHealthQuery,
   useGetSummaryQuery,
   useRenameRecordingMutation,
   useSearchQuery,

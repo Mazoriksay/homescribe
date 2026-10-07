@@ -2,6 +2,7 @@ import { NavLink, Outlet, Link } from 'react-router';
 import { useServerEvents } from '../api/server-events';
 import { useEmbedSignals } from '../app/embedding';
 import { useT } from '../i18n/useT';
+import { HealthNotice } from './HealthNotice';
 import styles from './Layout.module.css';
 
 export function Layout() {
@@ -36,6 +37,7 @@ export function Layout() {
         </nav>
       </header>
       <main className={styles.main}>
+        <HealthNotice />
         <Outlet />
       </main>
     </div>

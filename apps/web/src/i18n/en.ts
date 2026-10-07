@@ -61,6 +61,14 @@ export const en = {
 
   'notFound.title': 'Page not found',
 
+  'health.title': 'Some things need attention',
+  'health.ffmpeg.missing': 'ffmpeg is not installed on the server, so uploads cannot be processed.',
+  'health.stt.unreachable': 'The speech recognition server does not answer.',
+  'health.stt.model_missing': 'The speech recognition server does not have the selected model.',
+  'health.llm.unreachable': 'The summary model server does not answer.',
+  'health.llm.model_missing': 'The summary server does not have the selected model.',
+  'health.openSettings': 'Open settings',
+
   'nav.settings': 'Settings',
 
   'search.label': 'Search recordings',

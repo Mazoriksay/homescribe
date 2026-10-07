@@ -64,6 +64,14 @@ export const ru: Record<MessageKey, string> = {
 
   'notFound.title': 'Страница не найдена',
 
+  'health.title': 'Требует внимания',
+  'health.ffmpeg.missing': 'На сервере не установлен ffmpeg, поэтому записи не обрабатываются.',
+  'health.stt.unreachable': 'Сервер распознавания речи не отвечает.',
+  'health.stt.model_missing': 'На сервере распознавания речи нет выбранной модели.',
+  'health.llm.unreachable': 'Сервер модели для итогов не отвечает.',
+  'health.llm.model_missing': 'На сервере для итогов нет выбранной модели.',
+  'health.openSettings': 'Открыть настройки',
+
   'nav.settings': 'Настройки',
 
   'search.label': 'Поиск по записям',
