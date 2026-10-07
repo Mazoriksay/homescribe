@@ -13,10 +13,20 @@ import { AiSettingsService } from '../../src/ai/settings';
 import { FakeMediaTool, FakeSummarizer, FakeTranscriber, silentLogger } from './fakes';
 
 /** A fully wired app with fake ffmpeg/STT and a temporary DATA_DIR. */
-export async function createTestApp(env: Record<string, string> = {}) {
+export async function createTestApp(
+  env: Record<string, string> = {},
+  prepare?: (dataDir: string) => Promise<Record<string, string>>,
+) {
   const dataDir = await mkdtemp(path.join(os.tmpdir(), 'homescribe-app-'));
+  const prepared = prepare ? await prepare(dataDir) : {};
   const config: Config = loadConfig(
-    { DATA_DIR: dataDir, WEB_DIST_DIR: path.join(dataDir, 'no-web'), LOG_LEVEL: 'silent', ...env },
+    {
+      DATA_DIR: dataDir,
+      WEB_DIST_DIR: path.join(dataDir, 'no-web'),
+      LOG_LEVEL: 'silent',
+      ...prepared,
+      ...env,
+    },
     dataDir,
   );
   const repo = new Repository(openDatabase(':memory:'));

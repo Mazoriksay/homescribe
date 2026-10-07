@@ -31,6 +31,16 @@ describe('loadConfig', () => {
       chunkChars: 12_000,
     });
     expect(config.discoveryHosts).toEqual(['localhost', 'host.docker.internal']);
+    expect(config.basePath).toBe('');
+  });
+
+  it('normalises BASE_PATH and rejects odd values', () => {
+    expect(loadConfig({ BASE_PATH: '/homescribe/' }, root).basePath).toBe('/homescribe');
+    expect(loadConfig({ BASE_PATH: '/apps/notes' }, root).basePath).toBe('/apps/notes');
+    expect(loadConfig({ BASE_PATH: '/' }, root).basePath).toBe('');
+    for (const bad of ['homescribe', '/a b', '/x?y=1', '/<script>', '//double']) {
+      expect(() => loadConfig({ BASE_PATH: bad }, root), bad).toThrow(/BASE_PATH/);
+    }
   });
 
   it('reads LLM and discovery settings', () => {

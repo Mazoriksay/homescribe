@@ -81,7 +81,10 @@ export function registerRecordingRoutes(app: FastifyInstance, deps: AppDeps): vo
     });
     events.emit({ event: 'job', data: recording.job });
     runner.kick();
-    return reply.status(201).header('location', `${API_PREFIX}/recordings/${id}`).send(recording);
+    return reply
+      .status(201)
+      .header('location', `${config.basePath}${API_PREFIX}/recordings/${id}`)
+      .send(recording);
   });
 
   app.get(`${API_PREFIX}/recordings`, async (request) => {

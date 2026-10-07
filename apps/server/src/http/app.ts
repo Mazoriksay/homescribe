@@ -1,10 +1,10 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import { API_PREFIX } from '@homescribe/shared';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify';
 import type { Config } from '../config';
 import type { Repository } from '../db/repository';
 import type { EventBus } from '../events';
@@ -69,19 +69,35 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   await app.register(fastifyMultipart);
 
-  app.get(`${API_PREFIX}/health`, async () => ({
-    status: 'ok' as const,
-    search: deps.repo.search.mode,
-  }));
-  registerRecordingRoutes(app, deps);
-  registerSearchRoutes(app, deps.repo);
-  registerAiRoutes(app, deps);
-  registerEventRoutes(app, deps.events);
+  // Everything lives under BASE_PATH (SPEC.md §11.2); hooks above apply to all of it.
+  const base = config.basePath;
+  await app.register(
+    async (scope) => {
+      scope.get(`${API_PREFIX}/health`, async () => ({
+        status: 'ok' as const,
+        search: deps.repo.search.mode,
+      }));
+      registerRecordingRoutes(scope, deps);
+      registerSearchRoutes(scope, deps.repo);
+      registerAiRoutes(scope, deps);
+      registerEventRoutes(scope, deps.events);
+    },
+    { prefix: base },
+  );
 
-  const hasWeb = existsSync(path.join(config.webDistDir, 'index.html'));
+  const indexFile = path.join(config.webDistDir, 'index.html');
+  const hasWeb = existsSync(indexFile);
+  // One build serves any base path: relative asset URLs resolve against <base href>.
+  const indexHtml = hasWeb ? withBaseHref(readFileSync(indexFile, 'utf8'), `${base}/`) : '';
+  const sendIndex = (reply: FastifyReply) =>
+    reply.type('text/html; charset=utf-8').header('cache-control', 'no-cache').send(indexHtml);
+
   if (hasWeb) {
     await app.register(fastifyStatic, {
       root: config.webDistDir,
+      prefix: `${base}/`,
+      // index.html is served by sendIndex, with the base path filled in.
+      index: false,
       setHeaders: (reply, filePath) => {
         // Vite fingerprints everything under assets/; the shell must revalidate.
         reply.header(
@@ -99,14 +115,32 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     await app.register(fastifyStatic, { root: deps.store.root, serve: false });
   }
 
+  if (hasWeb) {
+    app.get(`${base}/`, (_request, reply) => sendIndex(reply));
+  }
+  if (base) {
+    app.get(base, (_request, reply) => reply.redirect(`${base}/`));
+    app.get('/', (_request, reply) => reply.redirect(`${base}/`));
+  }
+
   app.setNotFoundHandler((request, reply) => {
-    const isApi = request.url === '/api' || request.url.startsWith('/api/');
-    if (hasWeb && request.method === 'GET' && !isApi) {
+    const url = request.url.split('?')[0]!;
+    const inApp = url.startsWith(`${base}/`);
+    const isApi = url === `${base}/api` || url.startsWith(`${base}/api/`);
+    if (hasWeb && request.method === 'GET' && inApp && !isApi) {
       // Client-side routes: let the SPA handle them.
-      return reply.header('cache-control', 'no-cache').sendFile('index.html');
+      return sendIndex(reply);
     }
     return reply.status(404).send(errorBody('NOT_FOUND', 'Route not found'));
   });
 
   return app;
+}
+
+/** Sets <base href> in the built index.html (inserted if the template has none). */
+export function withBaseHref(html: string, href: string): string {
+  const tag = `<base href="${href}" />`;
+  return /<base\s[^>]*>/i.test(html)
+    ? html.replace(/<base\s[^>]*>/i, tag)
+    : html.replace(/<head>/i, `<head>${tag}`);
 }

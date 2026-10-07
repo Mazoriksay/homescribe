@@ -72,6 +72,15 @@ const envSchema = z.object({
       }),
   ),
   WEB_DIST_DIR: optional(z.string().optional()),
+  BASE_PATH: optional(
+    z
+      .string()
+      .default('')
+      .transform((value) => value.trim().replace(/\/+$/, ''))
+      .refine((value) => /^(?:\/[A-Za-z0-9._~-]+)*$/.test(value), {
+        message: 'expected a path such as /homescribe (letters, digits, . _ ~ -)',
+      }),
+  ),
   FRAME_ANCESTORS: optional(
     z
       .string()
@@ -115,6 +124,8 @@ export interface Config {
   /** Hosts probed for local AI servers. */
   discoveryHosts: string[];
   webDistDir: string;
+  /** Path everything is served under, e.g. "/homescribe"; "" for the root. */
+  basePath: string;
   /** Origins allowed to show the UI in an iframe, besides the app itself. */
   frameAncestors: string[];
   logLevel: string;
@@ -159,6 +170,7 @@ export function loadConfig(env: Record<string, string | undefined>, rootDir: str
     },
     discoveryHosts: e.AI_DISCOVERY_HOSTS,
     webDistDir: path.resolve(rootDir, e.WEB_DIST_DIR ?? 'apps/web/dist'),
+    basePath: e.BASE_PATH,
     frameAncestors: e.FRAME_ANCESTORS,
     logLevel: e.LOG_LEVEL,
   };
