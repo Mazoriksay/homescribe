@@ -10,7 +10,8 @@ import {
 
 export const api = createApi({
   reducerPath: 'api',
-  baseQuery: fetchBaseQuery({ baseUrl: API_PREFIX }),
+  // Absolute URL: works the same in the browser, inside an embedding page and in tests.
+  baseQuery: fetchBaseQuery({ baseUrl: new URL(API_PREFIX, window.location.origin).href }),
   tagTypes: ['Recording', 'RecordingList', 'Transcript'],
   endpoints: (build) => ({
     listRecordings: build.query<RecordingPage, { page: number; pageSize: number }>({

@@ -1,8 +1,8 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { api } from '../api/api';
-import { loadPrefs, prefsSlice, savePrefs } from './prefs';
+import { loadPrefs, prefsSlice, savePrefs, type PrefsState } from './prefs';
 
-export function createStore() {
+export function createStore(initialPrefs?: PrefsState) {
   const storage = typeof localStorage === 'undefined' ? undefined : localStorage;
   const store = configureStore({
     reducer: {
@@ -10,7 +10,9 @@ export function createStore() {
       prefs: prefsSlice.reducer,
     },
     preloadedState: {
-      prefs: loadPrefs(storage, typeof navigator === 'undefined' ? [] : navigator.languages),
+      prefs:
+        initialPrefs ??
+        loadPrefs(storage, typeof navigator === 'undefined' ? [] : navigator.languages),
     },
     middleware: (getDefault) => getDefault().concat(api.middleware),
   });
