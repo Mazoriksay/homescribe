@@ -1,9 +1,13 @@
-# Homescribe with Docker Compose (SPEC.md §15, stage 3).
+# Homescribe with Docker Compose. The installer (install.sh / install.ps1)
+# writes a .env next to this file; by hand:
 #
-#   docker compose --profile gpu up -d            # + speech-to-text on an NVIDIA GPU
-#   docker compose --profile cpu up -d            # + speech-to-text on the CPU (slow)
-#   docker compose --profile gpu --profile llm up -d   # + Ollama for summaries
-#   docker compose up -d                          # only Homescribe; AI servers elsewhere
+#   docker compose --profile gpu up -d                     # + speech-to-text on an NVIDIA GPU
+#   docker compose --profile cpu up -d                     # + speech-to-text on the CPU (slow)
+#   docker compose --profile gpu --profile llm-gpu up -d   # + Ollama for summaries on the GPU
+#   docker compose up -d                                   # only Homescribe; AI servers elsewhere
+#
+# Profiles can also be set once in .env: COMPOSE_PROFILES=gpu,llm-gpu
+# To build the image from source instead: add -f compose.dev.yaml (see that file).
 #
 # AI addresses below are defaults for the bundled services. Any other server
 # can be chosen in Settings in the UI, which overrides them.
@@ -12,12 +16,11 @@ name: homescribe
 
 services:
   homescribe:
-    build: .
-    image: homescribe:local
+    image: ${HOMESCRIBE_IMAGE:-ghcr.io/mazoriksay/homescribe:latest}
     restart: unless-stopped
     ports:
-      - '8080:8080'
-    # Optional: BASE_PATH, ALLOWED_NETWORKS, FRAME_ANCESTORS, MAX_UPLOAD_MB, ...
+      - '${HOMESCRIBE_PORT:-8080}:8080'
+    # Optional: BASE_PATH, ALLOWED_NETWORKS, FRAME_ANCESTORS, LLM_MODE, ...
     env_file:
       - path: .env
         required: false
@@ -67,14 +70,33 @@ services:
         aliases: [stt]
 
   # Optional local LLM for summaries. Pull a model once:
-  #   docker compose exec ollama ollama pull llama3.1:8b
-  # Add the same `deploy` block as stt-gpu to run it on the GPU.
-  ollama:
-    profiles: [llm]
+  #   docker compose exec ollama-gpu ollama pull llama3.1:8b   (or ollama-cpu)
+  ollama-gpu:
+    profiles: [llm-gpu]
     image: ollama/ollama:latest
     restart: unless-stopped
     volumes:
       - ollama-models:/root/.ollama
+    networks:
+      default:
+        aliases: [ollama]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  ollama-cpu:
+    profiles: [llm-cpu]
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      default:
+        aliases: [ollama]
 
 volumes:
   homescribe-data:
