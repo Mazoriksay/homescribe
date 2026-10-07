@@ -1,5 +1,6 @@
-import { API_PREFIX, type Recording } from '@homescribe/shared';
+import type { Recording } from '@homescribe/shared';
 import { useState, type RefObject } from 'react';
+import { apiBase } from '../../app/base';
 import { useT } from '../../i18n/useT';
 import styles from './RecordingPage.module.css';
 
@@ -17,7 +18,7 @@ export function MediaPlayer({ recording, mediaRef, startAt, onTime }: Props) {
   const [unsupported, setUnsupported] = useState(false);
   const isVideo = recording.mediaType.startsWith('video/');
   const shared = {
-    src: `${API_PREFIX}/recordings/${recording.id}/media`,
+    src: `${apiBase}/recordings/${recording.id}/media`,
     controls: true,
     preload: 'metadata' as const,
     className: isVideo ? styles.video : styles.audio,

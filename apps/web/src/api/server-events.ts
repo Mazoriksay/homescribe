@@ -1,4 +1,5 @@
-import { API_PREFIX, type Job } from '@homescribe/shared';
+import type { Job } from '@homescribe/shared';
+import { apiBase } from '../app/base';
 import { useEffect } from 'react';
 import { useStore } from 'react-redux';
 import type { AppStore } from '../app/store';
@@ -14,7 +15,7 @@ export function useServerEvents(): void {
   const store = useStore() as AppStore;
 
   useEffect(() => {
-    const source = new EventSource(`${API_PREFIX}/events`);
+    const source = new EventSource(`${apiBase}/events`);
     let hadError = false;
 
     const onJob = (message: MessageEvent<string>) => {

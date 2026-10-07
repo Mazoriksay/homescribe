@@ -1,4 +1,5 @@
-import { API_PREFIX, type Recording } from '@homescribe/shared';
+import type { Recording } from '@homescribe/shared';
+import { apiBase } from '../app/base';
 
 export class UploadError extends Error {
   constructor(readonly code: string) {
@@ -17,7 +18,7 @@ export function uploadRecording(
 ): Promise<Recording> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${API_PREFIX}/recordings`);
+    xhr.open('POST', `${apiBase}/recordings`);
     xhr.responseType = 'json';
     xhr.upload.addEventListener('progress', (event) => {
       if (event.lengthComputable) onProgress(event.loaded / event.total);

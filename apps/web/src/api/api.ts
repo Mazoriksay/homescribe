@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { apiBase } from '../app/base';
 import {
-  API_PREFIX,
   type AiKind,
   type AiSettings,
   type AiSettingsPair,
@@ -20,7 +20,7 @@ import {
 export const api = createApi({
   reducerPath: 'api',
   // Absolute URL: works the same in the browser, inside an embedding page and in tests.
-  baseQuery: fetchBaseQuery({ baseUrl: new URL(API_PREFIX, window.location.origin).href }),
+  baseQuery: fetchBaseQuery({ baseUrl: new URL(apiBase, window.location.origin).href }),
   tagTypes: ['Recording', 'RecordingList', 'Transcript', 'Summary', 'Search', 'AiSettings'],
   endpoints: (build) => ({
     listRecordings: build.query<RecordingPage, { page: number; pageSize: number }>({
