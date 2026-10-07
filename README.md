@@ -30,6 +30,13 @@ plan for both at once: for example `large-v3` (~4.5 GB) plus `qwen2.5:7b`
 (~6 GB) need about 10.5 GB. The summary before downloading adds this up and
 warns when it is more than the GPU has (Ollama then runs partly on the CPU).
 
+Models you already have are marked as downloaded and are not fetched again.
+Downloads show their progress and resume where they stopped if the
+connection drops; the speech model keeps downloading in Docker even if you
+close the window, so running the installer again simply continues. Old image
+versions are removed after an update, and models you no longer use (or
+downloads you abandoned) are offered for deletion, so nothing piles up.
+
 Then it finds a free port, starts everything and waits until it works.
 
 **Linux / macOS**
