@@ -6,6 +6,7 @@ export function healthProblems(checks: HealthChecks | null | undefined): Message
   if (!checks) return [];
   const problems: MessageKey[] = [];
   if (checks.ffmpeg === 'missing') problems.push('health.ffmpeg.missing');
+  if (checks.ytdlp === 'missing') problems.push('health.ytdlp.missing');
   if (checks.stt !== 'ok') problems.push(`health.stt.${checks.stt}`);
   if (checks.llm === 'unreachable' || checks.llm === 'model_missing') {
     problems.push(`health.llm.${checks.llm}`);

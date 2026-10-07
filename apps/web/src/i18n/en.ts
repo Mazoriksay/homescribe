@@ -15,6 +15,10 @@ export const en = {
   'library.upload.uploading': 'Uploading {percent}%',
   'library.upload.failed': 'Upload failed',
   'library.upload.dismiss': 'Dismiss',
+  'library.link.label': 'Or paste a link to a video or audio',
+  'library.link.placeholder': 'https://www.youtube.com/watch?v=…',
+  'library.link.submit': 'Transcribe',
+  'library.link.hint': 'YouTube and most video sites, or a direct link to a media file.',
   'library.empty.title': 'No recordings yet',
   'library.empty.body':
     'Upload a voice note or a meeting recording. It will be transcribed on this server.',
@@ -26,6 +30,7 @@ export const en = {
   'library.page': 'Page {page} of {pages}',
 
   'status.queued': 'Waiting',
+  'status.downloading': 'Downloading',
   'status.converting': 'Converting',
   'status.transcribing': 'Transcribing',
   'status.summarizing': 'Summarizing',
@@ -63,6 +68,7 @@ export const en = {
 
   'health.title': 'Some things need attention',
   'health.ffmpeg.missing': 'ffmpeg is not installed on the server, so uploads cannot be processed.',
+  'health.ytdlp.missing': 'yt-dlp is not installed on the server, so links cannot be transcribed.',
   'health.stt.unreachable': 'The speech recognition server does not answer.',
   'health.stt.model_missing': 'The speech recognition server does not have the selected model.',
   'health.llm.unreachable': 'The summary model server does not answer.',
@@ -91,6 +97,8 @@ export const en = {
   'recording.summarizingHint': 'The language model is reading the transcript.',
   'recording.summaryModel': 'Made by {model}',
   'recording.player': 'Recording',
+  'recording.source': 'Source: {host}',
+  'recording.downloadingHint': 'Fetching the media from the link.',
   'recording.playerUnsupported': 'This browser cannot play this file format.',
   'recording.seek': 'Play from {time}',
 
@@ -132,6 +140,9 @@ export const en = {
   'settings.cloudNote':
     'Audio or transcripts are sent to this provider. Recordings are compressed to fit its upload limit.',
   'settings.keyNote': 'The key is stored on this server and never shown again.',
+  'error.DOWNLOAD_FAILED': 'The link could not be downloaded.',
+  'error.URL_NOT_ALLOWED':
+    'This link cannot be used: it points to this server or the local network.',
   'error.AI_UNREACHABLE': 'The AI server could not be reached.',
   'error.LLM_UNAVAILABLE': 'The language model server is unreachable.',
   'error.LLM_TIMEOUT': 'The language model took too long to answer.',

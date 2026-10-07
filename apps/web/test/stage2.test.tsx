@@ -254,3 +254,51 @@ describe('activeSegmentIndex', () => {
     expect(activeSegmentIndex([], 3)).toBe(-1);
   });
 });
+
+describe('LibraryPage link import', () => {
+  it('sends the link and opens the new recording', async () => {
+    const fetchMock = mockApi([
+      {
+        path: `${API_PREFIX}/recordings`,
+        body: { data: [], pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 } },
+      },
+      {
+        method: 'POST',
+        path: `${API_PREFIX}/recordings/from-url`,
+        status: 201,
+        body: recording({ sourceUrl: 'https://www.youtube.com/watch?v=x' }),
+      },
+    ]);
+    renderPage(<LibraryPage />);
+    fireEvent.change(await screen.findByLabelText('Or paste a link to a video or audio'), {
+      target: { value: ' https://www.youtube.com/watch?v=x ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Transcribe' }));
+    await waitFor(async () => {
+      const post = fetchMock.mock.calls.map(([r]) => r as Request).find((r) => r.method === 'POST');
+      expect(await post?.clone().json()).toEqual({ url: 'https://www.youtube.com/watch?v=x' });
+    });
+  });
+
+  it('explains a refused link', async () => {
+    mockApi([
+      {
+        path: `${API_PREFIX}/recordings`,
+        body: { data: [], pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 } },
+      },
+      {
+        method: 'POST',
+        path: `${API_PREFIX}/recordings/from-url`,
+        status: 400,
+        body: { error: { code: 'URL_NOT_ALLOWED', message: 'no' } },
+      },
+    ]);
+    renderPage(<LibraryPage />, { prefs: { locale: 'ru', theme: 'auto' } });
+    fireEvent.change(await screen.findByLabelText('Или вставьте ссылку на видео или аудио'), {
+      target: { value: 'http://nas.lan/a.mp4' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Расшифровать' }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('локальную сеть');
+  });
+});

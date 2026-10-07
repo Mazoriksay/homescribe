@@ -2,6 +2,7 @@ import { Button } from 'antd';
 import { useRef, useState, type DragEvent } from 'react';
 import { errorMessageKey, useT } from '../../i18n/useT';
 import { ProgressBar } from '../../ui/ProgressBar';
+import { LinkImport } from './LinkImport';
 import styles from './UploadZone.module.css';
 import { useUploads } from './useUploads';
 
@@ -47,6 +48,8 @@ export function UploadZone() {
           }}
         />
       </div>
+
+      <LinkImport />
 
       {items.length > 0 && (
         <ul className={styles.uploads}>

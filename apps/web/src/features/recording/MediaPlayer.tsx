@@ -31,6 +31,8 @@ export function MediaPlayer({ recording, mediaRef, startAt, onTime }: Props) {
     onError: () => setUnsupported(true),
   };
 
+  // A link that is not downloaded yet has nothing to play.
+  if (recording.sizeBytes === 0) return null;
   if (unsupported) return <p className={styles.hint}>{t('recording.playerUnsupported')}</p>;
   return isVideo ? (
     <video ref={mediaRef as RefObject<HTMLVideoElement | null>} playsInline {...shared} />

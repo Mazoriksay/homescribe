@@ -4,6 +4,7 @@ import {
   type AiKind,
   type AiSettings,
   type AiSettingsPair,
+  type CreateFromUrlBody,
   type CreateJobBody,
   type Discovery,
   type Health,
@@ -86,6 +87,10 @@ export const api = createApi({
     listModels: build.mutation<ModelList, ListModelsBody>({
       query: (body) => ({ url: '/ai/models', method: 'POST', body }),
     }),
+    createFromUrl: build.mutation<Recording, CreateFromUrlBody>({
+      query: (body) => ({ url: '/recordings/from-url', method: 'POST', body }),
+      invalidatesTags: ['RecordingList'],
+    }),
     deleteRecording: build.mutation<void, string>({
       query: (id) => ({ url: `/recordings/${id}`, method: 'DELETE' }),
       invalidatesTags: (_result, _error, id) => [
@@ -120,6 +125,7 @@ export const {
   useResetAiSettingsMutation,
   useLazyDiscoverAiQuery,
   useListModelsMutation,
+  useCreateFromUrlMutation,
   useDeleteRecordingMutation,
   useCreateJobMutation,
 } = api;

@@ -26,7 +26,9 @@ export function StatusPanel({ recording }: { recording: Recording }) {
           <DeleteButton recordingId={recording.id} disabled={!isFinal && job.status !== 'queued'} />
         </div>
       </div>
-      {(job.status === 'converting' || job.status === 'summarizing') && (
+      {(job.status === 'downloading' ||
+        job.status === 'converting' ||
+        job.status === 'summarizing') && (
         <ProgressBar value={job.progress} label={t(`status.${job.status}`)} />
       )}
       {job.status === 'transcribing' && (
@@ -39,6 +41,9 @@ export function StatusPanel({ recording }: { recording: Recording }) {
         <p className={styles.hint}>{t('recording.summarizingHint')}</p>
       )}
       {job.status === 'queued' && <p className={styles.hint}>{t('recording.queuedHint')}</p>}
+      {job.status === 'downloading' && (
+        <p className={styles.hint}>{t('recording.downloadingHint')}</p>
+      )}
       {job.status === 'failed' && job.error && (
         <p className={styles.error} role="alert">
           {t(errorMessageKey(job.error.code))}

@@ -17,6 +17,10 @@ export const ru: Record<MessageKey, string> = {
   'library.upload.uploading': 'Загрузка {percent}%',
   'library.upload.failed': 'Не удалось загрузить',
   'library.upload.dismiss': 'Скрыть',
+  'library.link.label': 'Или вставьте ссылку на видео или аудио',
+  'library.link.placeholder': 'https://www.youtube.com/watch?v=…',
+  'library.link.submit': 'Расшифровать',
+  'library.link.hint': 'YouTube и большинство видеосайтов или прямая ссылка на медиафайл.',
   'library.empty.title': 'Пока нет записей',
   'library.empty.body':
     'Загрузите голосовую заметку или запись встречи. Расшифровка выполняется на этом сервере.',
@@ -29,6 +33,7 @@ export const ru: Record<MessageKey, string> = {
   'library.page': 'Страница {page} из {pages}',
 
   'status.queued': 'В очереди',
+  'status.downloading': 'Скачивание',
   'status.converting': 'Конвертация',
   'status.transcribing': 'Расшифровка',
   'status.summarizing': 'Итоги',
@@ -66,6 +71,7 @@ export const ru: Record<MessageKey, string> = {
 
   'health.title': 'Требует внимания',
   'health.ffmpeg.missing': 'На сервере не установлен ffmpeg, поэтому записи не обрабатываются.',
+  'health.ytdlp.missing': 'На сервере не установлен yt-dlp, поэтому ссылки не расшифровываются.',
   'health.stt.unreachable': 'Сервер распознавания речи не отвечает.',
   'health.stt.model_missing': 'На сервере распознавания речи нет выбранной модели.',
   'health.llm.unreachable': 'Сервер модели для итогов не отвечает.',
@@ -95,6 +101,8 @@ export const ru: Record<MessageKey, string> = {
   'recording.summarizingHint': 'Языковая модель читает расшифровку.',
   'recording.summaryModel': 'Модель: {model}',
   'recording.player': 'Запись',
+  'recording.source': 'Источник: {host}',
+  'recording.downloadingHint': 'Скачиваю медиа по ссылке.',
   'recording.playerUnsupported': 'Этот браузер не умеет воспроизводить такой формат.',
   'recording.seek': 'Воспроизвести с {time}',
 
@@ -137,6 +145,9 @@ export const ru: Record<MessageKey, string> = {
   'settings.cloudNote':
     'Звук или расшифровки отправляются этому провайдеру. Записи сжимаются, чтобы уложиться в его лимит.',
   'settings.keyNote': 'Ключ хранится на этом сервере и больше не показывается.',
+  'error.DOWNLOAD_FAILED': 'Не удалось скачать по ссылке.',
+  'error.URL_NOT_ALLOWED':
+    'Эту ссылку нельзя использовать: она ведёт на этот сервер или в локальную сеть.',
   'error.AI_UNREACHABLE': 'Не удалось связаться с ИИ-сервером.',
   'error.LLM_UNAVAILABLE': 'Сервер языковой модели недоступен.',
   'error.LLM_TIMEOUT': 'Языковая модель слишком долго не отвечала.',

@@ -7,7 +7,9 @@ export function StatusBadge({ job }: { job: Job }) {
   const t = useT();
   const running = job.status !== 'done' && job.status !== 'failed' && job.status !== 'queued';
   const percent =
-    job.status === 'converting' && job.progress !== null ? Math.round(job.progress * 100) : null;
+    (job.status === 'converting' || job.status === 'downloading') && job.progress !== null
+      ? Math.round(job.progress * 100)
+      : null;
   return (
     <span className={styles.badge} data-status={job.status}>
       <span className={styles.dot} data-running={running || undefined} aria-hidden="true" />

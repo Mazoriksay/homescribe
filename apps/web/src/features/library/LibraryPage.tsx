@@ -92,7 +92,8 @@ export function LibraryPage() {
                     </span>
                   </div>
                   <StatusBadge job={recording.job} />
-                  {recording.job.status === 'converting' && (
+                  {(recording.job.status === 'converting' ||
+                    recording.job.status === 'downloading') && (
                     <div className={styles.rowProgress}>
                       <ProgressBar value={recording.job.progress} label={recording.title} />
                     </div>

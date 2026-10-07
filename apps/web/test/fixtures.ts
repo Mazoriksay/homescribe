@@ -25,6 +25,7 @@ export function recording(overrides: Partial<Recording> = {}): Recording {
     mediaType: 'audio/mp4',
     sizeBytes: 12_345_678,
     durationSeconds: 3725,
+    sourceUrl: null,
     createdAt: '2026-01-01T10:00:00.000Z',
     updatedAt: '2026-01-01T10:05:00.000Z',
     job: job(),

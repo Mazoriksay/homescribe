@@ -57,9 +57,25 @@ export function RecordingHeader({ recording }: { recording: Recording }) {
         {recording.durationSeconds !== null && ` · ${formatTimestamp(recording.durationSeconds)}`}
         {` · ${formatBytes(recording.sizeBytes, locale)}`}
       </p>
-      <p className={styles.filename} title={recording.originalFilename}>
-        {recording.originalFilename}
-      </p>
+      {recording.sourceUrl ? (
+        <p className={styles.filename}>
+          <a href={recording.sourceUrl} target="_blank" rel="noopener noreferrer">
+            {t('recording.source', { host: hostOf(recording.sourceUrl) })}
+          </a>
+        </p>
+      ) : (
+        <p className={styles.filename} title={recording.originalFilename}>
+          {recording.originalFilename}
+        </p>
+      )}
     </header>
   );
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
 }

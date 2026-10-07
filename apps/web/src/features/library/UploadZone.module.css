@@ -84,3 +84,29 @@
   font-size: 14px;
   color: var(--danger);
 }
+
+.link {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.linkLabel {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.linkRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.linkRow > :global(.ant-input) {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.linkRow > :global(.ant-btn) {
+  flex-shrink: 0;
+}
