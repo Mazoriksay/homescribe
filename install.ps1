@@ -45,7 +45,15 @@ function Ask([string]$Question, [bool]$Default) {
 }
 
 function Test-Command($name) { [bool](Get-Command $name -ErrorAction SilentlyContinue) }
-function Test-Docker { docker info *> $null; return $LASTEXITCODE -eq 0 }
+# Runs a native command quietly and reports success. Windows PowerShell 5.1 turns
+# a native command's stderr into a terminating error under
+# $ErrorActionPreference = 'Stop', so relax it for the call.
+function Test-Native([scriptblock]$Command) {
+  $ErrorActionPreference = 'Continue'
+  & $Command *> $null
+  return $LASTEXITCODE -eq 0
+}
+function Test-Docker { Test-Native { docker info } }
 
 function Wait-Docker {
   Write-Host -NoNewline 'Waiting for Docker Desktop to start'
@@ -79,8 +87,7 @@ if (-not (Test-Docker)) {
   if (Test-Path $desktop) { Start-Process $desktop }
   Wait-Docker
 }
-docker compose version *> $null
-if ($LASTEXITCODE -ne 0) { Fail 'Docker Compose v2 is missing. Update Docker Desktop.' }
+if (-not (Test-Native { docker compose version })) { Fail 'Docker Compose v2 is missing. Update Docker Desktop.' }
 Ok "Docker $(docker version --format '{{.Server.Version}}') with Compose $(docker compose version --short)"
 
 # ------------------------------------------------------------------ gpu
@@ -90,7 +97,7 @@ if (-not $Stt) {
   Step 'Choosing where speech recognition runs'
   $gpuName = $null
   if (Test-Command nvidia-smi) {
-    $gpuName = (& nvidia-smi --query-gpu=name --format=csv,noheader 2>$null | Select-Object -First 1)
+    $gpuName = (& { $ErrorActionPreference = 'Continue'; nvidia-smi --query-gpu=name --format=csv,noheader 2>$null } | Select-Object -First 1)
   }
   if ($gpuName) {
     Ok "NVIDIA GPU found: $gpuName (Docker Desktop uses it through WSL 2)"
@@ -157,8 +164,7 @@ try {
   Step 'Downloading images (the first time this takes a while)'
   docker compose pull
   if ($LASTEXITCODE -ne 0) {
-    docker image inspect $Image *> $null
-    if ($LASTEXITCODE -ne 0) { Fail 'Could not download the images. Check the internet connection and run the installer again.' }
+    if (-not (Test-Native { docker image inspect $Image })) { Fail 'Could not download the images. Check the internet connection and run the installer again.' }
     Warn "Could not pull everything; using the local image $Image."
   }
 
