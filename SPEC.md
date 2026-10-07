@@ -734,10 +734,10 @@ export class AppError extends Error {
 
 ### Stage 3b — transcribe a link
 
-- [ ] `POST /recordings/from-url`, `sourceUrl` on recordings, `downloading` step with progress, `DOWNLOAD_FAILED`.
-- [ ] yt-dlp behind a `MediaDownloader` interface; tests with a fake yt-dlp executable; the real one only when installed.
-- [ ] Private-address guard; `yt-dlp -U` at startup and daily; `ytdlp` in the self-check.
-- [ ] Docker image with yt-dlp and deno; UI: paste a link next to the upload, source link on the recording page.
+- [x] `POST /recordings/from-url`, `sourceUrl` on recordings, `downloading` step with progress, `DOWNLOAD_FAILED`.
+- [x] yt-dlp behind a `MediaDownloader` interface; tests with a fake yt-dlp executable; the real one only when installed.
+- [x] Private-address guard; `yt-dlp -U` at startup and daily; `ytdlp` in the self-check.
+- [x] Docker image with yt-dlp and deno; UI: paste a link next to the upload, source link on the recording page.
 
 ### Stage 4 — record in the browser, PWA, offline
 

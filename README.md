@@ -38,6 +38,18 @@ Settings that are not about AI go into an optional `.env` file next to
 `compose.yaml` (see [`.env.example`](.env.example)), for example
 `BASE_PATH=/homescribe` or `MAX_UPLOAD_MB=4096`.
 
+## Transcribe a link
+
+Paste a link under the upload area: YouTube and most video sites (via
+[yt-dlp](https://github.com/yt-dlp/yt-dlp)), or a direct link to an audio or
+video file. Only the audio is downloaded. The Docker image includes yt-dlp and
+deno (the JavaScript runtime yt-dlp needs for YouTube) and keeps yt-dlp up to
+date by itself; without Docker, install both and keep yt-dlp current.
+
+Links to this server or the local network are refused unless
+`URL_IMPORT_ALLOW_PRIVATE=true` (for example to import from a NAS). Respect the
+terms of the sites you download from.
+
 ## Put it in your home hub
 
 Serve Homescribe under a path of the hub's own address, for example

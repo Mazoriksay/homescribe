@@ -22,6 +22,9 @@ source of truth for the version.
 - Audio and video player on the recording page; the transcript follows
   playback and tapping a timestamp seeks.
 - Rename recordings.
+- Transcribe a link: paste a YouTube (or other video site) link or a direct
+  media link; the audio is downloaded with yt-dlp and processed like an
+  upload. Links into the local network are refused by default.
 - Docker image with ffmpeg and a Compose file that runs Homescribe with
   speech-to-text (GPU or CPU) and optionally Ollama, restarting with the
   machine.

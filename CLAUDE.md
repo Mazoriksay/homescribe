@@ -65,6 +65,9 @@ passed and what you could not run.
   or a cloud API with a key); environment variables are only the defaults.
   API keys never leave the server and only go to the address they were saved
   for (SPEC.md §7.5).
+- Links are downloaded with yt-dlp (a system binary behind `MediaDownloader`,
+  self-updating, deno as its JS runtime in the image); links to internal
+  addresses are refused unless `URL_IMPORT_ALLOW_PRIVATE` (SPEC.md §7.7).
 - ffmpeg is a system binary; every upload is converted to 16 kHz mono before
   transcription; ffprobe reads the duration.
 - The UI is generic and may be embedded in another app's iframe
