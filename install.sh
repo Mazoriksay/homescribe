@@ -229,6 +229,56 @@ install_nvidia_toolkit() {
 
 [ -n "$LLM_MODEL" ] && [ "$LLM" != no ] && LLM=yes
 
+# ---------------------------------------------------------------- downloads
+
+# Models live in Compose volumes (project "homescribe"). A throwaway container
+# from an image that is already here reads them, so nothing is downloaded
+# just to look.
+VOL_HF="homescribe_hf-hub-cache"
+VOL_OL="homescribe_ollama-models"
+HF_DIR="/home/ubuntu/.cache/huggingface/hub"
+HAVE_STT=()      # complete Whisper models
+PARTIAL_STT=()   # Whisper downloads that never finished
+HAVE_LLM=()      # Ollama models
+
+volumes_shell() { # script: runs in a helper container with the model volumes at /hf and /ol
+  local args=()
+  $DOCKER image inspect "$IMAGE" >/dev/null 2>&1 || return 1
+  $DOCKER volume inspect "$VOL_HF" >/dev/null 2>&1 && args+=(-v "$VOL_HF:/hf")
+  $DOCKER volume inspect "$VOL_OL" >/dev/null 2>&1 && args+=(-v "$VOL_OL:/ol")
+  [ ${#args[@]} -gt 0 ] || return 1
+  $DOCKER run --rm --user 0 "${args[@]}" --entrypoint sh "$IMAGE" -c "$1"
+}
+
+# shellcheck disable=SC2016  # runs in the helper container
+SCAN='
+for d in /hf/models--*; do
+  [ -d "$d" ] || continue
+  id="${d#/hf/models--}"
+  case "$id" in *whisper*) ;; *) continue ;; esac  # speaches keeps other helper models here
+  if ls "$d"/snapshots/*/model.bin >/dev/null 2>&1 && [ -e "$(ls -d "$d"/snapshots/*/model.bin | head -1)" ]; then
+    echo "stt $id"
+  else
+    echo "partial $id"
+  fi
+done
+lib=/ol/models/manifests/registry.ollama.ai/library
+[ -d "$lib" ] && cd "$lib" && for f in */*; do [ -f "$f" ] && echo "llm ${f%%/*}:${f#*/}"; done
+true'
+while read -r kind id; do
+  case "$kind" in
+    stt) HAVE_STT+=("${id/--//}") ;;
+    partial) PARTIAL_STT+=("${id/--//}") ;;
+    llm) HAVE_LLM+=("$id") ;;
+  esac
+done < <(volumes_shell "$SCAN" 2>/dev/null || true)
+
+has() { # needle haystack...
+  local needle="$1" item; shift
+  for item in "$@"; do [ "$item" = "$needle" ] && return 0; done
+  return 1
+}
+
 GPU_MEM=""
 if [ -z "$STT" ]; then
   step "Choosing what to download"
@@ -271,7 +321,12 @@ if [ "$STT" != none ]; then
     labels=()
     for entry in "${STT_MODELS[@]}"; do
       IFS='|' read -r name _ size inuse note <<<"$entry"
-      labels+=("$name - download $size GB, uses ~$inuse GB $MEM, $note")
+      id="$(printf '%s' "$entry" | cut -d'|' -f2)"
+      if has "$id" ${HAVE_STT[@]+"${HAVE_STT[@]}"}; then
+        labels+=("$name - downloaded, uses ~$inuse GB $MEM, $note")
+      else
+        labels+=("$name - download $size GB, uses ~$inuse GB $MEM, $note")
+      fi
     done
     if [ "$STT" = gpu ]; then default_stt=0; else default_stt=3; fi
     IFS='|' read -r STT_NAME STT_ID STT_SIZE STT_MEM _ <<<"${STT_MODELS[$(choose "Speech recognition model (Whisper):" "$default_stt" "${labels[@]}")]}"
@@ -293,7 +348,11 @@ elif [ -z "$LLM" ]; then
   labels=()
   for entry in "${LLM_MODELS[@]}"; do
     IFS='|' read -r id size inuse note <<<"$entry"
-    labels+=("$id - download $size GB, uses ~$inuse GB $MEM, $note")
+    if has "$id" ${HAVE_LLM[@]+"${HAVE_LLM[@]}"}; then
+      labels+=("$id - downloaded, uses ~$inuse GB $MEM, $note")
+    else
+      labels+=("$id - download $size GB, uses ~$inuse GB $MEM, $note")
+    fi
   done
   labels+=("None (use a cloud API in Settings, or no summaries)")
   if [ "$STT" = gpu ]; then default_llm=0; else default_llm=${#LLM_MODELS[@]}; fi
@@ -305,7 +364,12 @@ fi
 step "You chose"
 echo "  Homescribe app"
 if [ "$STT" = none ]; then echo "  Speech recognition: not on this computer"
-else echo "  Speech recognition on the $(echo "$STT" | tr '[:lower:]' '[:upper:]'): $STT_NAME${STT_SIZE:+ (download about $STT_SIZE GB)}"; fi
+else
+  if has "$STT_ID" ${HAVE_STT[@]+"${HAVE_STT[@]}"}; then stt_note=" (already downloaded)"
+  elif has "$STT_ID" ${PARTIAL_STT[@]+"${PARTIAL_STT[@]}"}; then stt_note=" (continues the unfinished download${STT_SIZE:+ of about $STT_SIZE GB})"
+  else stt_note="${STT_SIZE:+ (download about $STT_SIZE GB)}"; fi
+  echo "  Speech recognition on the $(echo "$STT" | tr '[:lower:]' '[:upper:]'): $STT_NAME$stt_note"
+fi
 llm_mem=""
 if [ "$LLM" = yes ]; then
   llm_size=""
@@ -313,7 +377,8 @@ if [ "$LLM" = yes ]; then
     IFS='|' read -r id size inuse _ <<<"$entry"
     if [ "$id" = "$LLM_MODEL" ]; then llm_size="$size" llm_mem="$inuse"; fi
   done
-  echo "  Summaries: Ollama with $LLM_MODEL${llm_size:+ (download about $llm_size GB)}"
+  if has "$LLM_MODEL" ${HAVE_LLM[@]+"${HAVE_LLM[@]}"}; then llm_note=" (already downloaded)"; else llm_note="${llm_size:+ (download about $llm_size GB)}"; fi
+  echo "  Summaries: Ollama with $LLM_MODEL$llm_note"
 else
   echo "  Summaries: no local AI"
 fi
@@ -381,6 +446,18 @@ ok "compose.yaml and .env written (profiles: ${profiles:-none})"
 # ---------------------------------------------------------------- start
 
 cd "$DIR"
+
+# Services from an earlier choice that are not wanted now (GPU <-> CPU, no LLM).
+unused_services=()
+for svc in stt-gpu:gpu stt-cpu:cpu ollama-gpu:llm-gpu ollama-cpu:llm-cpu; do
+  case ",$profiles," in *",${svc#*:},"*) ;; *) unused_services+=("${svc%%:*}") ;; esac
+done
+$DOCKER compose --profile '*' rm --stop --force "${unused_services[@]}" >/dev/null 2>&1 || true
+
+# Image versions before the update, to remove the replaced ones afterwards.
+image_ids() { $DOCKER compose config --images 2>/dev/null | while read -r ref; do $DOCKER image inspect -f '{{.Id}}' "$ref" 2>/dev/null || true; done; }
+old_images="$(image_ids)"
+
 step "Downloading images (the first time this takes a while)"
 if ! $DOCKER compose pull; then
   if $DOCKER image inspect "$IMAGE" >/dev/null 2>&1; then
@@ -402,25 +479,79 @@ until [ -n "$(health)" ]; do
 done
 echo; ok "Homescribe is running"
 
-if [ "$LLM" = yes ]; then
+llm_service="ollama-$([ "$STT" = gpu ] && echo gpu || echo cpu)"
+if [ "$LLM" = yes ] && has "$LLM_MODEL" ${HAVE_LLM[@]+"${HAVE_LLM[@]}"}; then
+  ok "Summary model $LLM_MODEL is already downloaded"
+elif [ "$LLM" = yes ]; then
+  # Ollama resumes an interrupted download the next time it is asked for it.
   step "Downloading the summary model $LLM_MODEL"
-  llm_service="ollama-$([ "$STT" = gpu ] && echo gpu || echo cpu)"
-  $DOCKER compose exec -T "$llm_service" ollama pull "$LLM_MODEL" \
-    || warn "Could not download $LLM_MODEL now; Homescribe will tell you in the UI. Retry: docker compose exec $llm_service ollama pull $LLM_MODEL"
+  if { : </dev/tty; } 2>/dev/null; then
+    pull_ok() { $DOCKER compose exec "$llm_service" ollama pull "$LLM_MODEL" </dev/tty; }  # with a progress bar
+  else
+    pull_ok() { $DOCKER compose exec -T "$llm_service" ollama pull "$LLM_MODEL"; }
+  fi
+  pull_ok || warn "Could not download $LLM_MODEL now; run the installer again to continue where it stopped."
 fi
 
 if [ "$STT" != none ]; then
-  if [ -n "$STT_SIZE" ]; then stt_download="about $STT_SIZE GB"; else stt_download="the model"; fi
-  step "Waiting for the speech model (first start downloads $stt_download)"
+  # speaches downloads the model when it starts and resumes unfinished files;
+  # it keeps going even if this window is closed.
+  if has "$STT_ID" ${HAVE_STT[@]+"${HAVE_STT[@]}"}; then
+    step "Starting speech recognition ($STT_NAME is already downloaded)"
+  else
+    step "Downloading the speech model $STT_NAME${STT_SIZE:+ (about $STT_SIZE GB)}"
+  fi
+  stt_dir="$HF_DIR/models--${STT_ID//\//--}"
   waited=0
   until health | grep -q '"stt":"ok"'; do
     if [ "$waited" -ge 1800 ]; then
-      warn "Speech recognition is not ready yet; it keeps downloading in the background."
+      echo; warn "Speech recognition is not ready yet; it keeps downloading in the background."
       break
     fi
-    printf '.'; sleep 10; waited=$((waited + 10))
+    bytes="$($DOCKER compose exec -T "stt-$STT" du -sb "$stt_dir" 2>/dev/null | cut -f1 || true)"
+    if [ -n "$bytes" ] && ! has "$STT_ID" ${HAVE_STT[@]+"${HAVE_STT[@]}"}; then
+      printf '\r  %s GB%s downloaded ' "$(awk -v b="$bytes" 'BEGIN { printf "%.2f", b / 1e9 }')" "${STT_SIZE:+ of ~$STT_SIZE}"
+    else
+      printf '.'
+    fi
+    sleep 5; waited=$((waited + 5))
   done
   echo
+fi
+
+# ---------------------------------------------------------------- clean up
+
+# Replaced image versions are removed without asking (they are not used).
+current_images="$(image_ids)"
+for id in $old_images; do
+  case "$current_images" in *"$id"*) ;; *) $DOCKER image rm "$id" >/dev/null 2>&1 || true ;; esac
+done
+
+# Models that are not used any more, and unfinished downloads of them.
+unused_stt=() unused_llm=()
+for id in ${HAVE_STT[@]+"${HAVE_STT[@]}"} ${PARTIAL_STT[@]+"${PARTIAL_STT[@]}"}; do
+  [ "$STT" != none ] && [ "$id" = "$STT_ID" ] || unused_stt+=("$id")
+done
+for id in ${HAVE_LLM[@]+"${HAVE_LLM[@]}"}; do
+  [ "$LLM" = yes ] && [ "$id" = "$LLM_MODEL" ] || unused_llm+=("$id")
+done
+if [ $((${#unused_stt[@]} + ${#unused_llm[@]})) -gt 0 ] && [ "$ASSUME_YES" != 1 ] && { : </dev/tty; } 2>/dev/null; then
+  step "Models you no longer use"
+  for id in ${unused_stt[@]+"${unused_stt[@]}"}; do echo "  speech: $id"; done
+  for id in ${unused_llm[@]+"${unused_llm[@]}"}; do echo "  summaries: $id"; done
+  if ask_yes_no "Delete them to free disk space?" y; then
+    script=""
+    for id in ${unused_stt[@]+"${unused_stt[@]}"}; do script="$script rm -rf '/hf/models--${id//\//--}';"; done
+    [ -n "$script" ] && { volumes_shell "$script" >/dev/null || warn "Could not delete the speech models."; }
+    if [ ${#unused_llm[@]} -gt 0 ]; then
+      if [ "$LLM" = yes ]; then
+        for id in ${unused_llm[@]+"${unused_llm[@]}"}; do $DOCKER compose exec -T "$llm_service" ollama rm "$id" >/dev/null || warn "Could not delete $id."; done
+      else
+        $DOCKER volume rm "$VOL_OL" >/dev/null || warn "Could not delete the summary models."
+      fi
+    fi
+    ok "Deleted"
+  fi
 fi
 
 # ---------------------------------------------------------------- done

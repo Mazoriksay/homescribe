@@ -17,6 +17,10 @@ source of truth for the version.
   (`-SttModel`/`-LlmModel` on Windows). Each option shows how much video
   memory (or RAM) it uses, and the summary adds up both models and warns when
   that is more than the GPU has.
+- The installer recognises models that are already downloaded (and
+  unfinished downloads it can continue), shows download progress for the
+  speech and summary models, removes image versions an update replaced, and
+  offers to delete models that are no longer used.
 
 ### Fixed
 
