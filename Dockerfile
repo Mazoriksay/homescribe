@@ -1,5 +1,17 @@
 # syntax=docker/dockerfile:1
 
+# deno is the JavaScript runtime yt-dlp recommends for YouTube (it sandboxes the code).
+ARG DENO_VERSION=2.9.7
+ARG TARGETARCH
+FROM ghcr.io/denoland/deno:bin-${DENO_VERSION} AS deno
+
+# yt-dlp's standalone build (bundles Python), one stage per architecture.
+FROM scratch AS ytdlp-amd64
+ADD --chmod=755 https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux /yt-dlp
+FROM scratch AS ytdlp-arm64
+ADD --chmod=755 https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux_aarch64 /yt-dlp
+FROM ytdlp-${TARGETARCH} AS ytdlp
+
 # ---- build the web UI ------------------------------------------------------
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
@@ -13,11 +25,16 @@ COPY packages/shared packages/shared
 COPY apps/web apps/web
 RUN npm run build
 
-# ---- runtime: Node 24 + ffmpeg, server dependencies only ------------------
+# ---- runtime: Node 24 + ffmpeg + yt-dlp + deno, server dependencies only ----
 FROM node:24-bookworm-slim
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg \
+  && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
   && rm -rf /var/lib/apt/lists/*
+COPY --from=deno /deno /usr/local/bin/deno
+# Owned by the app user so that `yt-dlp -U` (YTDLP_AUTO_UPDATE) can replace it.
+COPY --from=ytdlp --chown=node:node /yt-dlp /opt/yt-dlp/yt-dlp
+RUN chown node:node /opt/yt-dlp
+ENV PATH=/opt/yt-dlp:$PATH
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
