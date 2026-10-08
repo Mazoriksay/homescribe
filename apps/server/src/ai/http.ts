@@ -7,6 +7,7 @@ const DEFAULT_RESPONSE_LIMIT = 64 * 1024 * 1024;
 export interface HttpResult {
   status: number;
   body: string;
+  headers: http.IncomingHttpHeaders;
 }
 
 export interface HttpOptions {
@@ -42,7 +43,11 @@ export function httpRequest(url: URL, options: HttpOptions = {}): Promise<HttpRe
           chunks.push(chunk);
         });
         res.on('end', () =>
-          resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') }),
+          resolve({
+            status: res.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString('utf8'),
+            headers: res.headers,
+          }),
         );
         res.on('error', reject);
       },

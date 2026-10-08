@@ -9,7 +9,38 @@ export interface OpenAiSummarizerOptions {
   timeoutMs: number;
   /** Transcripts longer than this are summarized in parts first. */
   chunkChars: number;
+  /** Waits before the 2nd and 3rd try on HTTP 429/503 without Retry-After. */
+  busyRetryDelaysMs?: number[];
 }
+
+const BUSY_RETRY_DELAYS_MS = [5_000, 15_000];
+const MAX_RETRY_AFTER_MS = 60_000;
+
+/** `Retry-After` in seconds or as an HTTP date, capped; null when absent or unreadable. */
+export function retryAfterMs(
+  header: string | string[] | undefined,
+  now = Date.now(),
+): number | null {
+  const value = Array.isArray(header) ? header[0] : header;
+  if (!value) return null;
+  const seconds = Number(value);
+  const ms = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(value) - now;
+  return Number.isFinite(ms) ? Math.min(Math.max(ms, 0), MAX_RETRY_AFTER_MS) : null;
+}
+
+const pause = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason as Error);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal!.reason as Error);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -61,6 +92,16 @@ const MIN_PART_CHARS = 1000;
 
 /** The reply was cut off by the context window (`finish_reason: "length"`). */
 class CutOff extends Error {}
+
+/** HTTP 429/503: worth trying again after a pause. */
+class Busy extends Error {
+  constructor(
+    message: string,
+    readonly retryAfterMs: number | null,
+  ) {
+    super(message);
+  }
+}
 
 function contextExceeded(chars: number): LlmError {
   return new LlmError(
@@ -290,16 +331,41 @@ export class OpenAiSummarizer implements Summarizer {
     if (second.finishReason === 'length') throw new CutOff();
     const retried = parseSummaryReply(second.content);
     if (retried) return retried;
-    throw new LlmError('LLM_FAILED', 'The model did not return the requested JSON');
+    throw new LlmError(
+      'LLM_BAD_REPLY',
+      `The model did not return the requested JSON: ${second.content.slice(0, 300)}`,
+    );
   }
 
+  /** One chat request; HTTP 429/503 is tried again twice (SPEC.md §8). */
   private async chat(
+    messages: ChatMessage[],
+    signal?: AbortSignal,
+  ): Promise<{ content: string; finishReason: string | null }> {
+    const delays = this.options.busyRetryDelaysMs ?? BUSY_RETRY_DELAYS_MS;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.chatOnce(messages, signal);
+      } catch (error) {
+        if (!(error instanceof Busy)) throw error;
+        if (attempt >= delays.length) {
+          throw new LlmError(
+            'LLM_BUSY',
+            `The AI server is overloaded or rate-limited after ${attempt + 1} tries: ${error.message}`,
+          );
+        }
+        await pause(error.retryAfterMs ?? delays[attempt]!, signal);
+      }
+    }
+  }
+
+  private async chatOnce(
     messages: ChatMessage[],
     signal?: AbortSignal,
   ): Promise<{ content: string; finishReason: string | null }> {
     const url = new URL(`${this.options.baseUrl}/v1/chat/completions`);
     const timer = withTimeout(this.options.timeoutMs, signal);
-    const { status, body } = await httpRequest(url, {
+    const { status, body, headers } = await httpRequest(url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -328,6 +394,12 @@ export class OpenAiSummarizer implements Summarizer {
     if (status < 200 || status >= 300) {
       if (status >= 500 && MODEL_LOAD_FAILED.test(body)) {
         throw new LlmError('LLM_OUT_OF_MEMORY', `HTTP ${status}: ${body.slice(0, 500)}`);
+      }
+      if (status === 429 || status === 503) {
+        throw new Busy(
+          `HTTP ${status}: ${body.slice(0, 300)}`,
+          retryAfterMs(headers['retry-after']),
+        );
       }
       throw new LlmError('LLM_FAILED', `HTTP ${status}: ${body.slice(0, 500)}`);
     }

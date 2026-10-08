@@ -197,6 +197,10 @@ export const en = {
     "The model's context window is too small: its reply was cut off even for short parts. Lower LLM_CHUNK_CHARS or raise the window on the AI server.",
   'error.LLM_OUT_OF_MEMORY':
     'The summary model did not fit in video memory next to speech recognition, even on a second try. Turn on "Take turns on the GPU" in Settings or choose a smaller model.',
+  'error.LLM_BAD_REPLY':
+    'The model answered, but not in the format Homescribe needs, even when asked again. Try "Summarize again" or choose another model: small models (3B and below) often get the format wrong.',
+  'error.LLM_BUSY':
+    'The summary server is overloaded or hit its request limit and did not answer after three tries. Try "Summarize again" later.',
   'error.SUMMARIES_OFF': 'Summaries are turned off in the settings.',
   'error.VALIDATION_ERROR': 'Check the entered values.',
 } as const;
