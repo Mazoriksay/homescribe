@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { API_PREFIX, type AiSettingsPair } from '@homescribe/shared';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { LibraryPage } from '../src/features/library/LibraryPage';
 import { activeSegmentIndex } from '../src/features/recording/TranscriptView';
 import { RecordingPage } from '../src/features/recording/RecordingPage';
 import { SettingsPage } from '../src/features/settings/SettingsPage';
+import { extensionsPage } from '../src/features/settings/YouTubeSection';
 import { job, RECORDING_ID, recording, transcript } from './fixtures';
 import { mockApi, renderPage } from './render';
 
@@ -184,6 +185,11 @@ describe('SettingsPage', () => {
       ),
     ).toBeTruthy();
 
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    onTestFinished(() => {
+      delete (navigator as { clipboard?: unknown }).clipboard;
+    });
     // The settings probe the extension's icon; first it is missing, then installed.
     let installed = false;
     vi.stubGlobal(
@@ -211,6 +217,11 @@ describe('SettingsPage', () => {
     expect(
       within(section).getByRole('link', { name: 'Download the extension' }).getAttribute('href'),
     ).toBe('/api/v1/extension.zip');
+    // The extensions page cannot be linked to, so its address is there to copy.
+    expect(within(section).getByText('chrome://extensions')).toBeTruthy();
+    fireEvent.click(within(section).getByRole('button', { name: 'Copy' }));
+    expect(await within(section).findByRole('button', { name: 'Copied' })).toBeTruthy();
+    expect(writeText).toHaveBeenCalledWith('chrome://extensions');
 
     const input = section.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(['nothing'], 'cookies.txt')] } });
@@ -493,5 +504,24 @@ describe('LibraryPage link import', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Расшифровать' }));
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.getByRole('alert').textContent).toContain('локальную сеть');
+  });
+});
+
+describe('extensionsPage', () => {
+  const chrome =
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
+  it.each([
+    [chrome, false, 'chrome://extensions'],
+    [`${chrome} Edg/140.0.0.0`, false, 'edge://extensions'],
+    [`${chrome} OPR/124.0.0.0`, false, 'opera://extensions'],
+    [`${chrome} YaBrowser/25.8.0.0`, false, 'browser://extensions'],
+    [chrome, true, 'brave://extensions'],
+    [
+      'Mozilla/5.0 (X11; Linux x86_64; rv:143.0) Gecko/20100101 Firefox/143.0',
+      false,
+      'about:debugging#/runtime/this-firefox',
+    ],
+  ])('finds the page for %s', (userAgent, brave, address) => {
+    expect(extensionsPage(userAgent, brave).address).toBe(address);
   });
 });
