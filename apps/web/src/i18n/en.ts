@@ -169,6 +169,8 @@ export const en = {
   'settings.finding': 'Looking…',
   'settings.found': 'Found',
   'settings.foundNone': 'No AI servers found. Checked: {list}',
+  'settings.noModels':
+    'Running, but no models downloaded yet. For Ollama run the installer again or: ollama pull <model>.',
   'settings.noSuitable': 'No suitable models here ({count} other).',
   'settings.use': 'Use',
   'settings.address': 'Server address',

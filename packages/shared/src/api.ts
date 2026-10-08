@@ -297,7 +297,11 @@ export type ServerEvent =
 
 /** `GET /v1/models` of an OpenAI-compatible server; speaches adds `task`. */
 export const upstreamModelListSchema = z.object({
-  data: z.array(z.object({ id: z.string(), task: z.string().nullish() })),
+  // Ollama without models answers { "data": null }.
+  data: z
+    .array(z.object({ id: z.string(), task: z.string().nullish() }))
+    .nullish()
+    .transform((data) => data ?? []),
 });
 
 /** Subset of an OpenAI-compatible chat completion response. */

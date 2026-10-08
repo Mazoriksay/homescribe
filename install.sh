@@ -536,7 +536,23 @@ elif [ "$LLM" = yes ]; then
   else
     pull_ok() { $DOCKER compose exec -T "$llm_service" ollama pull "$LLM_MODEL"; }
   fi
-  pull_ok || warn "Could not download $LLM_MODEL now; run the installer again to continue where it stopped."
+  if ! pull_ok; then
+    # Again without a console, to read Ollama's reason.
+    pull_output="$($DOCKER compose exec -T "$llm_service" ollama pull "$LLM_MODEL" 2>&1)" || {
+      echo "$pull_output" | tail -3
+      LLM_MISSING=1
+      case "$pull_output" in
+        *non-public* | *"redirect target not allowed"*)
+          hint="A VPN or DNS filter answers with private addresses (198.18.x.x), and Ollama refuses to download from them. Turn the VPN off for the download (or exclude Docker from it) and run the installer again." ;;
+        *"file does not exist"* | *"manifest unknown"* | *"not found"*)
+          hint="Ollama has no model called $LLM_MODEL; check the name." ;;
+        *"no such host"* | *"dial tcp"* | *"i/o timeout"* | *"connection refused"* | *"TLS handshake"*)
+          hint="Ollama cannot reach its registry; check the internet connection and run the installer again." ;;
+        *) hint="Run the installer again to continue where it stopped." ;;
+      esac
+      warn "Could not download $LLM_MODEL. $hint"
+    }
+  fi
 fi
 
 if [ "$STT" != none ]; then
@@ -626,6 +642,18 @@ done
 checks="$(health | sed -n 's/.*"checks":{\([^}]*\)}.*/\1/p' | tr -d '"' | tr ',' ' ')"
 step "Done"
 echo "Self-check: ${checks:-not available yet}"
+[ "${LLM_MISSING:-0}" = 1 ] && warn "Summaries with $LLM_MODEL will not work until it is downloaded (see above)."
+# A summary server saved in Settings wins over this install's choice (SPEC.md §7.5).
+if [ "$LLM" = yes ]; then
+  saved="$(curl -fsS --max-time 5 "http://127.0.0.1:$PORT/api/v1/settings/ai" 2>/dev/null | sed -n 's/.*"llm":{\([^}]*\)}.*/\1/p')"
+  if printf '%s' "$saved" | grep -q '"source":"saved"'; then
+    saved_url="$(printf '%s' "$saved" | sed -n 's/.*"baseUrl":"\([^"]*\)".*/\1/p')"
+    saved_model="$(printf '%s' "$saved" | sed -n 's/.*"model":"\([^"]*\)".*/\1/p')"
+    if [ "$saved_url" != "http://ollama:11434" ] || [ "$saved_model" != "$LLM_MODEL" ]; then
+      warn "Summaries still use $saved_model at $saved_url, chosen earlier in Settings. To use $LLM_MODEL from this install, open Settings -> Summaries and press \"Back to defaults\"."
+    fi
+  fi
+fi
 echo
 echo "Open Homescribe:"
 echo "  http://localhost:$PORT"

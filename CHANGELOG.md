@@ -41,6 +41,15 @@ source of truth for the version.
 
 ### Fixed
 
+- An Ollama with no models yet (it answers `data: null`) is no longer hidden
+  from "Find AI on this computer" and no longer reported as unreachable; it
+  is listed with how to download a model.
+- The installer says why the summary model did not download instead of
+  "run the installer again": a VPN or DNS filter that answers with private
+  addresses (Ollama's "resolves to non-public"), an unknown model name or no
+  connection; the final summary repeats that summaries will not work yet.
+  When Settings keep a different summary server, the installer says so and
+  how to switch ("Back to defaults").
 - Summary errors say what to do. A model that keeps answering in the wrong
   format fails with `LLM_BAD_REPLY` and suggests regenerating or another
   model; an overloaded or rate-limited server (HTTP 429/503) is tried again

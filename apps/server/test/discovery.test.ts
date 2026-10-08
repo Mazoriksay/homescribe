@@ -119,6 +119,23 @@ describe('listModels', () => {
     expect(fake.received[0]).toMatchObject({ url: '/v1/models', authorization: 'Bearer secret' });
   });
 
+  it('lists no models for an Ollama that has none yet', async () => {
+    // Ollama 0.40 without models answers data: null, not an empty array.
+    const empty = await startFakeOpenAi((_, res) =>
+      res.end(JSON.stringify({ object: 'list', data: null })),
+    );
+    closers.push(empty.close);
+    await expect(listModels(empty.baseUrl, null)).resolves.toEqual([]);
+    const found = await discoverServers({
+      hosts: ['127.0.0.1'],
+      selfPort: 1,
+      ports: [{ port: empty.port, product: 'Ollama' }],
+    });
+    expect(found.servers).toEqual([
+      { baseUrl: `http://127.0.0.1:${empty.port}`, product: 'Ollama', models: [] },
+    ]);
+  });
+
   it('explains refused keys, odd answers and dead servers', async () => {
     const denied = await startFakeOpenAi((_, res) => res.writeHead(401).end('{}'));
     closers.push(denied.close);

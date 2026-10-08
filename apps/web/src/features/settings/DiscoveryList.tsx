@@ -32,7 +32,9 @@ export function DiscoveryList({ kind, discovery, selected, onPick }: Props) {
               <span className={styles.serverName}>{server.product ?? server.baseUrl}</span>
               <span className={styles.mono}>{server.baseUrl}</span>
             </div>
-            {fitting.length === 0 ? (
+            {server.models.length === 0 ? (
+              <p className={styles.muted}>{t('settings.noModels')}</p>
+            ) : fitting.length === 0 ? (
               <p className={styles.muted}>
                 {t('settings.noSuitable', { count: server.models.length })}
               </p>
