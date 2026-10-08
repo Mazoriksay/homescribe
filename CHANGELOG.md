@@ -34,6 +34,13 @@ source of truth for the version.
   speech and summary models, removes image versions an update replaced, and
   offers to delete models that are no longer used.
 
+### Changed
+
+- speaches images are pinned (`0.8.1-cuda`, `0.8.3-cpu`; override with
+  `SPEACHES_CUDA_IMAGE`/`SPEACHES_CPU_IMAGE`) instead of following `latest`,
+  and log at `info` instead of `debug`. Health checks are no longer written
+  to Homescribe's request log.
+
 ### Fixed
 
 - "Find AI on this computer" finds Ollama running on the Docker host. Each
@@ -61,9 +68,9 @@ source of truth for the version.
 - The installer waits until the speech model has finished downloading.
   speaches lists a model as soon as its first files arrive, so the installer
   used to report "done" while the download was still running.
-- GPU speech recognition uses speaches' current `latest-cuda` image (CUDA
-  12.9) instead of the older CUDA 12.6 build, for newer GPUs such as the
-  RTX 50 series.
+- GPU speech recognition uses speaches' `0.8.1-cuda` image (what
+  `latest-cuda` points to) instead of the older CUDA 12.6 build, for newer
+  GPUs such as the RTX 50 series.
 - The Windows installer no longer stops right after installing Docker
   Desktop; it starts Docker Desktop and waits for it.
 
