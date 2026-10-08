@@ -9,6 +9,9 @@ source of truth for the version.
 
 ### Added
 
+- Transcription shows an estimated progress bar instead of an endless one,
+  based on how fast the same model was on earlier recordings (from the
+  second recording on).
 - Links from sites that ask to sign in (YouTube's "confirm you're not a
   bot") end with a clear `DOWNLOAD_BLOCKED` error, and browser cookies in
   `cookies.txt` in the data folder (`YTDLP_COOKIES_FILE`) are passed to

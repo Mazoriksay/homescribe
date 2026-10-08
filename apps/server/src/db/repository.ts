@@ -250,6 +250,25 @@ export class Repository {
       .run(durationSeconds, this.timestamp(), id);
   }
 
+  /** Seconds of transcription per second of audio last seen for this model. */
+  getSttSpeed(model: string): number | null {
+    const row = this.db.prepare('SELECT ratio FROM stt_speed WHERE model = ?').get(model) as
+      { ratio: number } | undefined;
+    return row?.ratio ?? null;
+  }
+
+  /** Blends a new measurement into the stored speed (half old, half new). */
+  recordSttSpeed(model: string, ratio: number): void {
+    const previous = this.getSttSpeed(model);
+    const blended = previous === null ? ratio : (previous + ratio) / 2;
+    this.db
+      .prepare(
+        `INSERT INTO stt_speed (model, ratio, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(model) DO UPDATE SET ratio = excluded.ratio, updated_at = excluded.updated_at`,
+      )
+      .run(model, blended, this.timestamp());
+  }
+
   renameRecording(id: string, title: string): Recording | null {
     transaction(this.db, () => {
       this.db
