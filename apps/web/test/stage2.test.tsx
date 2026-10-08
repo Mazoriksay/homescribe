@@ -61,6 +61,7 @@ describe('SettingsPage', () => {
                 { id: 'text-embedding-nomic', kind: null },
               ],
             },
+            { baseUrl: 'http://ollama:11434', product: 'Ollama', models: [] },
           ],
         },
       },
@@ -76,6 +77,9 @@ describe('SettingsPage', () => {
     );
     expect(await within(summaries).findByText('LM Studio')).toBeTruthy();
     expect(within(summaries).queryByText('text-embedding-nomic')).toBeNull();
+    // A server without models is still listed, with how to get one.
+    expect(within(summaries).getByText('http://ollama:11434')).toBeTruthy();
+    expect(within(summaries).getByText(/Running, but no models downloaded yet/)).toBeTruthy();
 
     fireEvent.click(within(summaries).getByRole('button', { name: 'Use' }));
     fireEvent.click(within(summaries).getByRole('button', { name: 'Save' }));

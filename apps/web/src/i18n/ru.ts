@@ -173,6 +173,8 @@ export const ru: Record<MessageKey, string> = {
   'settings.finding': 'Ищу…',
   'settings.found': 'Найдено',
   'settings.foundNone': 'ИИ-серверы не найдены. Проверено: {list}',
+  'settings.noModels':
+    'Работает, но моделей пока нет. Для Ollama запустите установщик ещё раз или выполните ollama pull <модель>.',
   'settings.noSuitable': 'Подходящих моделей нет (других: {count}).',
   'settings.use': 'Выбрать',
   'settings.address': 'Адрес сервера',

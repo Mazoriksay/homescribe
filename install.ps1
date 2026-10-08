@@ -97,6 +97,16 @@ function Test-Native([scriptblock]$Command) {
 }
 function Test-Docker { Test-Native { docker info } }
 
+# What a failed `ollama pull` most likely means, from its own message.
+function Get-PullHint([string]$text) {
+  if ($text -match 'non-public|redirect target not allowed') {
+    return 'A VPN or DNS filter answers with private addresses (198.18.x.x), and Ollama refuses to download from them. Turn the VPN off for the download (or exclude Docker from it) and run the installer again.'
+  }
+  if ($text -match 'file does not exist|manifest unknown|not found') { return "Ollama has no model called $LlmModel; check the name." }
+  if ($text -match 'no such host|dial tcp|i/o timeout|connection refused|TLS handshake') { return 'Ollama cannot reach its registry; check the internet connection and run the installer again.' }
+  return 'Run the installer again to continue where it stopped.'
+}
+
 function Wait-Docker {
   Write-Host -NoNewline 'Waiting for Docker Desktop to start'
   for ($i = 0; $i -lt 120; $i++) {
@@ -243,6 +253,7 @@ if ($UseLlm) {
 } else { Write-Host '  Summaries: no local AI' }
 $memSum = 0
 $TakeTurns = $false
+$LlmMissing = $false
 if ($Stt -ne 'none' -and $SttChoice.Vram) { $memSum += $SttChoice.Vram }
 $llmKnown = if ($UseLlm) { $LlmModels | Where-Object { $_.Id -eq $LlmModel } | Select-Object -First 1 } else { $null }
 if ($llmKnown) { $memSum += $llmKnown.Vram }
@@ -396,8 +407,15 @@ try {
     # Ollama resumes an interrupted download the next time it is asked for it.
     Step "Downloading the summary model $LlmModel"
     docker compose exec $service ollama pull $LlmModel                     # with a progress bar
-    if ($LASTEXITCODE -ne 0) { docker compose exec -T $service ollama pull $LlmModel }  # no console attached
-    if ($LASTEXITCODE -ne 0) { Warn "Could not download $LlmModel now; run the installer again to continue where it stopped." }
+    if ($LASTEXITCODE -ne 0) {
+      # Again without a console, to read Ollama's reason (or when none is attached).
+      $pullOutput = & { $ErrorActionPreference = 'Continue'; docker compose exec -T $service ollama pull $LlmModel 2>&1 } | Out-String
+      if ($LASTEXITCODE -ne 0) {
+        Write-Host $pullOutput.Trim()
+        $LlmMissing = $true
+        Warn "Could not download $LlmModel. $(Get-PullHint $pullOutput)"
+      }
+    }
   }
 
   if ($Stt -ne 'none') {
@@ -484,6 +502,14 @@ try {
   if ($health -and $health.checks) {
     $c = $health.checks
     Write-Host "Self-check: ffmpeg:$($c.ffmpeg) ytdlp:$($c.ytdlp) stt:$($c.stt) llm:$($c.llm)"
+  }
+  if ($LlmMissing) { Warn "Summaries with $LlmModel will not work until it is downloaded (see above)." }
+  # A summary server saved in Settings wins over this install's choice (SPEC.md §7.5).
+  if ($UseLlm) {
+    $saved = try { (Invoke-RestMethod -TimeoutSec 5 "http://127.0.0.1:$Port/api/v1/settings/ai").llm } catch { $null }
+    if ($saved -and $saved.source -eq 'saved' -and ($saved.baseUrl -ne 'http://ollama:11434' -or $saved.model -ne $LlmModel)) {
+      Warn "Summaries still use $($saved.model) at $($saved.baseUrl), chosen earlier in Settings. To use $LlmModel from this install, open Settings -> Summaries and press `"Back to defaults`"."
+    }
   }
   Write-Host "`nOpen Homescribe:"
   Write-Host "  http://localhost:$Port"
