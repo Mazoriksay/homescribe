@@ -37,6 +37,8 @@ source of truth for the version.
 
 ### Fixed
 
+- The extension zip unpacks with Windows Explorer: its files carried no valid
+  date, which only 7-Zip and similar tools accepted.
 - "Free video memory" no longer breaks speech recognition: speaches 0.8.1
   stopped taking work after being asked to unload, so it is left to unload by
   itself after 5 idle minutes (shown as such); the button now unloads Ollama.

@@ -200,5 +200,10 @@ describe('YouTube cookies API', () => {
     expect(res.headers['content-type']).toBe('application/zip');
     expect(res.rawPayload.subarray(0, 4).toString('hex')).toBe('504b0304');
     expect(res.rawPayload.toString('latin1')).toContain('"version": "0.0.0"');
+    // A real modification date: Windows Explorer will not unpack a zero one.
+    const date = res.rawPayload.readUInt16LE(12);
+    expect(date >> 9).toBeGreaterThan(40);
+    expect((date >> 5) & 0x0f).toBeGreaterThanOrEqual(1);
+    expect(date & 0x1f).toBeGreaterThanOrEqual(1);
   });
 });
