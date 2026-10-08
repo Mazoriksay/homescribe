@@ -7,6 +7,7 @@ import type { Locale } from '../../i18n/format';
 import { useT } from '../../i18n/useT';
 import type { ThemePreference } from '../../theme/theme';
 import { AiBackendForm } from './AiBackendForm';
+import { MemorySection } from './MemorySection';
 import styles from './Settings.module.css';
 
 export function SettingsPage() {
@@ -28,6 +29,8 @@ export function SettingsPage() {
           {isError && <Button onClick={() => void refetch()}>{t('library.retry')}</Button>}
         </section>
       ))}
+
+      <MemorySection />
 
       <section className={styles.section} aria-labelledby="settings-appearance">
         <h2 id="settings-appearance" className={styles.heading}>

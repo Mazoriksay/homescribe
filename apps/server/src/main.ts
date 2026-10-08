@@ -11,6 +11,7 @@ import { FfmpegMediaTool } from './media/ffmpeg';
 import { YtDlpDownloader } from './media/ytdlp';
 import { MediaStore } from './storage';
 import { createAiBackends } from './ai/backends';
+import { AiMemoryService } from './ai/memory';
 import { discoverServers } from './ai/discovery';
 import { listModels } from './ai/models';
 import { AiSettingsService } from './ai/settings';
@@ -62,6 +63,7 @@ async function main(): Promise<void> {
     events,
     aiSettings,
     discover: () => discoverServers({ hosts: config.discoveryHosts, selfPort: config.port }),
+    memory: new AiMemoryService(aiSettings, () => runner.busy),
     listModels: (baseUrl, apiKey) => listModels(baseUrl, apiKey),
   });
   app.log.info({ search: repo.search.mode }, 'search index ready');

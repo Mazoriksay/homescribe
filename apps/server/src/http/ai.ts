@@ -7,6 +7,7 @@ import {
   type Discovery,
 } from '@homescribe/shared';
 import type { FastifyInstance } from 'fastify';
+import type { AiMemoryService } from '../ai/memory';
 import { AiUnreachableError } from '../ai/models';
 import { AiSettingsError, type AiSettingsService } from '../ai/settings';
 import { AppError, parseInput } from './errors';
@@ -16,6 +17,7 @@ export interface AiRouteDeps {
   discover: () => Promise<Discovery>;
   listModels: (baseUrl: string, apiKey: string | null) => Promise<AiModel[]>;
   onSettingsChanged?: () => void;
+  memory: AiMemoryService;
 }
 
 /** Choosing speech-to-text and LLM backends (SPEC.md §7.5). */
@@ -50,6 +52,18 @@ export function registerAiRoutes(app: FastifyInstance, deps: AiRouteDeps): void 
   });
 
   app.get(`${API_PREFIX}/ai/discovery`, async () => deps.discover());
+
+  app.get(`${API_PREFIX}/ai/memory`, async () => deps.memory.status());
+
+  app.post(`${API_PREFIX}/ai/unload`, async () => {
+    const status = await deps.memory.status();
+    if (status.busy) {
+      // speaches refuses to unload a model in use (409), and it would load again anyway.
+      throw new AppError(409, 'JOB_ACTIVE', 'Wait for the current job or cancel it first');
+    }
+    const { memory, failed } = await deps.memory.unload();
+    return { ...memory, failed };
+  });
 
   app.post(`${API_PREFIX}/ai/models`, async (request) => {
     const body = parseInput(listModelsBodySchema, request.body ?? {}, 'body');

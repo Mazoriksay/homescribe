@@ -7,6 +7,13 @@ source of truth for the version.
 
 ## [Unreleased]
 
+### Added
+
+- "Free video memory" in the settings: shows which models the local speaches
+  and Ollama hold and unloads them at once instead of after about 5 minutes
+  (`GET /api/v1/ai/memory`, `POST /api/v1/ai/unload`). Servers without that
+  API, such as LM Studio, are named as such.
+
 ## [0.3.1] - 2026-10-08
 
 ### Added

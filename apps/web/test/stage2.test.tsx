@@ -93,6 +93,60 @@ describe('SettingsPage', () => {
     expect(await within(summaries).findByText('Saved. New jobs use this choice.')).toBeTruthy();
   });
 
+  it('frees video memory and says when it cannot', async () => {
+    const loaded = {
+      busy: false,
+      stt: {
+        state: 'ok',
+        server: 'speaches',
+        loaded: [{ model: 'Systran/faster-whisper-large-v3', vramBytes: null }],
+      },
+      llm: { state: 'unsupported', server: null, loaded: [] },
+    };
+    const fetchMock = mockApi([
+      { path: `${API_PREFIX}/settings/ai`, body: settings },
+      { path: `${API_PREFIX}/ai/memory`, body: loaded },
+      {
+        method: 'POST',
+        path: `${API_PREFIX}/ai/unload`,
+        body: { ...loaded, stt: { ...loaded.stt, loaded: [] }, failed: [] },
+      },
+    ]);
+    renderPage(<SettingsPage />);
+    const section = (await screen.findByRole('heading', { name: 'Video memory' })).closest(
+      'section',
+    )!;
+    expect(within(section).getByText('Systran/faster-whisper-large-v3')).toBeTruthy();
+    expect(within(section).getByText('this server cannot unload models on request')).toBeTruthy();
+    fireEvent.click(within(section).getByRole('button', { name: 'Free video memory' }));
+    expect(await within(section).findByText('Models are unloaded.')).toBeTruthy();
+    expect(
+      fetchMock.mock.calls.some(([r]) => (r as Request).url.endsWith('/api/v1/ai/unload')),
+    ).toBe(true);
+  });
+
+  it('keeps the button off while a recording is being processed', async () => {
+    mockApi([
+      { path: `${API_PREFIX}/settings/ai`, body: settings },
+      {
+        path: `${API_PREFIX}/ai/memory`,
+        body: {
+          busy: true,
+          stt: { state: 'ok', server: 'speaches', loaded: [{ model: 'w', vramBytes: null }] },
+          llm: { state: 'ok', server: 'ollama', loaded: [{ model: 'q', vramBytes: 4.7e9 }] },
+        },
+      },
+    ]);
+    renderPage(<SettingsPage />);
+    expect(await screen.findByText('q · 4.7 GB')).toBeTruthy();
+    expect(
+      (screen.getByRole('button', { name: 'Free video memory' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      screen.getByText('A recording is being processed. Wait for it or cancel it first.'),
+    ).toBeTruthy();
+  });
+
   it('says where it looked when nothing is running', async () => {
     mockApi([
       { path: `${API_PREFIX}/settings/ai`, body: settings },

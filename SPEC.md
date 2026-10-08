@@ -345,6 +345,8 @@ interface Page<T> {
 | `DELETE /api/v1/settings/ai/:kind`      | 2     | —                                                                                                                      | `200 AiSettings` (back to the environment defaults)                     | 400                                                                 |
 | `GET /api/v1/ai/discovery`              | 2     | —                                                                                                                      | `200 { servers: DiscoveredServer[], probed: string[] }`                 |                                                                     |
 | `POST /api/v1/ai/models`                | 2     | `{ baseUrl, apiKey?, useSavedKeyFor?: 'stt' \| 'llm' }`                                                                | `200 { models: { id, kind: 'stt' \| 'llm' \| null }[] }`                | 400, 502 `AI_UNREACHABLE`                                           |
+| `GET /api/v1/ai/memory`                 | 3     | —                                                                                                                      | `200 AiMemory`                                                          |                                                                     |
+| `POST /api/v1/ai/unload`                | 3     | —                                                                                                                      | `200 AiMemory & { failed: string[] }`                                   | 409 `JOB_ACTIVE`                                                    |
 
 `SearchHit` is `{ recording, snippet: { text, match }[], segment: { index, start } | null }`:
 a fragment around the first match split into highlighted parts, and the first
@@ -421,6 +423,36 @@ interface UpdateAiSettings {
 - **Keys:** a saved key is only ever sent to the address it was saved for:
   changing `baseUrl` without a new key drops it, and `POST /ai/models` with
   `useSavedKeyFor` uses it only when `baseUrl` matches.
+
+**Freeing video memory.** speaches and Ollama keep a model loaded for about
+5 minutes after use. `GET /ai/memory` asks each local backend
+`GET {baseUrl}/api/ps`: speaches (`routers/misc.py`) answers
+`{ models: string[] }`, Ollama (`docs/api.md`) `{ models: [{ name,
+size_vram, … }] }`; the shape tells them apart. Any other answer means the
+server cannot unload on request (`unsupported`); cloud APIs are `remote`,
+summaries turned off `off`:
+
+```ts
+interface AiMemory {
+  stt: BackendMemory;
+  llm: BackendMemory;
+  busy: boolean; // a job is running
+}
+interface BackendMemory {
+  state: 'ok' | 'unsupported' | 'unreachable' | 'remote' | 'off';
+  server: 'speaches' | 'ollama' | null;
+  loaded: { model: string; vramBytes: number | null }[];
+}
+```
+
+`POST /ai/unload` unloads every loaded model: speaches
+`DELETE /api/ps/{model_id}`, Ollama `POST /api/generate { model,
+keep_alive: 0 }`. While a job runs it answers `409 JOB_ACTIVE`: speaches
+refuses to unload a model in use, and the job would load it again; the UI
+disables the button with that reason (the job can be cancelled next to it).
+Models the server refused are listed in `failed`. The next job loads the
+model again by itself. The settings page shows the section only when a
+backend is local.
 
 ### 7.6 Health and self-check
 

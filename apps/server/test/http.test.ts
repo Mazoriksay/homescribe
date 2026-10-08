@@ -312,6 +312,16 @@ describe('HTTP API', () => {
       expect(retry.statusCode).toBe(202);
     });
 
+    it('does not unload models while a job is running', async () => {
+      t.transcriber.gate = deferred().promise;
+      await upload();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const res = await t.app.inject({ method: 'POST', url: '/api/v1/ai/unload' });
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('JOB_ACTIVE');
+      t.transcriber.gate = null;
+    });
+
     it('returns 404 for an unknown job', async () => {
       const res = await t.app.inject('/api/v1/jobs/0b9f1a8e-3c6d-4f7a-8e2b-5d4c3b2a1f00');
       expect(res.statusCode).toBe(404);
