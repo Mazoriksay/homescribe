@@ -78,7 +78,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const base = config.basePath;
   await app.register(
     async (scope) => {
-      scope.get(`${API_PREFIX}/health`, async () => ({
+      // Polled by the Docker healthcheck every 30 s: keep it out of the request log.
+      scope.get(`${API_PREFIX}/health`, { logLevel: 'warn' }, async () => ({
         status: 'ok' as const,
         search: deps.repo.search.mode,
         checks: deps.selfCheck.latest?.checks ?? null,
