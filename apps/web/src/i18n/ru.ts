@@ -195,6 +195,8 @@ export const ru: Record<MessageKey, string> = {
   'error.LLM_UNAVAILABLE': 'Сервер языковой модели недоступен.',
   'error.LLM_TIMEOUT': 'Языковая модель слишком долго не отвечала.',
   'error.LLM_FAILED': 'Языковая модель не выдала пригодных итогов.',
+  'error.LLM_CONTEXT_EXCEEDED':
+    'Модели не хватило контекста: ответ обрезался даже на коротких частях. Уменьшите LLM_CHUNK_CHARS или увеличьте окно на сервере ИИ.',
   'error.SUMMARIES_OFF': 'Итоги выключены в настройках.',
   'error.VALIDATION_ERROR': 'Проверьте введённые значения.',
 };

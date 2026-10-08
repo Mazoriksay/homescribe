@@ -190,6 +190,8 @@ export const en = {
   'error.LLM_UNAVAILABLE': 'The language model server is unreachable.',
   'error.LLM_TIMEOUT': 'The language model took too long to answer.',
   'error.LLM_FAILED': 'The language model did not produce a usable summary.',
+  'error.LLM_CONTEXT_EXCEEDED':
+    "The model's context window is too small: its reply was cut off even for short parts. Lower LLM_CHUNK_CHARS or raise the window on the AI server.",
   'error.SUMMARIES_OFF': 'Summaries are turned off in the settings.',
   'error.VALIDATION_ERROR': 'Check the entered values.',
 } as const;

@@ -62,7 +62,7 @@ const envSchema = z.object({
   LLM_MODEL: optional(z.string().default('llama3.1:8b')),
   LLM_API_KEY: optional(z.string().optional()),
   LLM_TIMEOUT_MS: optional(z.coerce.number().int().positive().default(600_000)),
-  LLM_CHUNK_CHARS: optional(z.coerce.number().int().min(1000).default(12_000)),
+  LLM_CHUNK_CHARS: optional(z.coerce.number().int().min(1000).default(4_000)),
   AI_DISCOVERY_HOSTS: optional(
     z
       .string()

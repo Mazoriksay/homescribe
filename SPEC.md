@@ -253,19 +253,20 @@ on `code` only.
 
 Job failures are not HTTP errors; they live on the job (`error.code`):
 
-| `code`                                           | Meaning                                                     |
-| ------------------------------------------------ | ----------------------------------------------------------- |
-| `INTERRUPTED`                                    | Server stopped while the job was running                    |
-| `CANCELLED`                                      | Cancelled from the UI or `POST …/jobs/:id/cancel`           |
-| `DOWNLOAD_FAILED`                                | yt-dlp could not fetch the link; the message has its reason |
-| `DOWNLOAD_BLOCKED`                               | The site wants a signed-in visitor; add cookies (§7.8)      |
-| `DOWNLOAD_COOKIES_EXPIRED`                       | The YouTube cookies are no longer valid; renew them (§7.8)  |
-| `MEDIA_UNREADABLE`                               | ffprobe/ffmpeg could not read or convert the upload         |
-| `STT_UNAVAILABLE`                                | Speech-to-text server unreachable                           |
-| `STT_TIMEOUT`                                    | No answer within `STT_TIMEOUT_MS`                           |
-| `STT_FAILED`                                     | Non-2xx answer or a response that does not match the schema |
-| `LLM_UNAVAILABLE` / `LLM_TIMEOUT` / `LLM_FAILED` | Same for the LLM; the transcript is kept                    |
-| `INTERNAL_ERROR`                                 | Bug; details in the server log                              |
+| `code`                                           | Meaning                                                                  |
+| ------------------------------------------------ | ------------------------------------------------------------------------ |
+| `INTERRUPTED`                                    | Server stopped while the job was running                                 |
+| `CANCELLED`                                      | Cancelled from the UI or `POST …/jobs/:id/cancel`                        |
+| `DOWNLOAD_FAILED`                                | yt-dlp could not fetch the link; the message has its reason              |
+| `DOWNLOAD_BLOCKED`                               | The site wants a signed-in visitor; add cookies (§7.8)                   |
+| `DOWNLOAD_COOKIES_EXPIRED`                       | The YouTube cookies are no longer valid; renew them (§7.8)               |
+| `MEDIA_UNREADABLE`                               | ffprobe/ffmpeg could not read or convert the upload                      |
+| `STT_UNAVAILABLE`                                | Speech-to-text server unreachable                                        |
+| `STT_TIMEOUT`                                    | No answer within `STT_TIMEOUT_MS`                                        |
+| `STT_FAILED`                                     | Non-2xx answer or a response that does not match the schema              |
+| `LLM_UNAVAILABLE` / `LLM_TIMEOUT` / `LLM_FAILED` | Same for the LLM; the transcript is kept                                 |
+| `LLM_CONTEXT_EXCEEDED`                           | Replies stayed cut off even for small parts (§8); the transcript is kept |
+| `INTERNAL_ERROR`                                 | Bug; details in the server log                                           |
 
 ### 7.2 Types
 
@@ -657,11 +658,26 @@ summarizing → done`; `downloading` only for a recording made from a link
   capped at 95 % of the chunk. A single chunk without a stored speed or a
   duration has progress `null`.
 - `summarizing`: one request to the LLM, or for transcripts longer than
-  `LLM_CHUNK_CHARS` one per part plus one to merge (local servers often run
-  with a small context window that the OpenAI API cannot raise). Progress =
-  requests done / requests needed. The model gets the transcript as tagged
-  data with a fixed JSON reply format `{ summary, actionItems }` in the
-  transcript's language; the reply is validated, with one retry.
+  `LLM_CHUNK_CHARS` one per part plus merging (local servers often run
+  with a small context window that the OpenAI API cannot raise: Ollama
+  defaults to 4096 tokens). The model gets the transcript as tagged data
+  with a fixed JSON reply format `{ summary, actionItems }` in the
+  transcript's language. Reasoning stays on (it makes summaries more
+  accurate), so a part must leave room for it: the default of 4000
+  characters is about 1100 tokens of Russian and fits a 4096-token window
+  with the system prompt, reasoning and the reply (measured with
+  `gemma4:26b`: 2400 tokens in all; 12 000 characters ran out).
+  - A reply with `finish_reason: "length"` was cut off by the window: that
+    part is halved and each half summarized, down to 1000 characters, and
+    only then the job fails with `LLM_CONTEXT_EXCEEDED` (lower
+    `LLM_CHUNK_CHARS` or raise the server's window). A cut-off reply is
+    never answered with "that was not valid", which only adds text.
+  - A complete reply that is not the requested JSON is asked once more.
+  - Merging: the part summaries are grouped so each group's notes stay
+    within `LLM_CHUNK_CHARS`, each group is merged, and that repeats until
+    one summary is left (at least two notes per group, so it always ends).
+  - Progress = requests done / requests expected; halving and further
+    merge rounds add to the expected count, and progress never goes back.
 - Exactly one job runs at a time across the whole server (FIFO by
   `created_at`). A recording has at most one job in a non-final state.
 - On startup, jobs in `converting`, `transcribing` or `summarizing` are set to
@@ -702,7 +718,7 @@ startup with a message naming the variable.
 | `LLM_MODEL`                | `llama3.1:8b`                                                                    | 2     | `model` field                                                                            |
 | `LLM_API_KEY`              | _(empty)_                                                                        | 2     | Bearer token when set                                                                    |
 | `LLM_TIMEOUT_MS`           | `600000`                                                                         | 2     | Per-request timeout                                                                      |
-| `LLM_CHUNK_CHARS`          | `12000`                                                                          | 2     | Longer transcripts are summarized in parts, then merged                                  |
+| `LLM_CHUNK_CHARS`          | `4000`                                                                           | 2     | Longer transcripts are summarized in parts, then merged; fits a 4096-token window (§8)   |
 | `AI_DISCOVERY_HOSTS`       | `localhost,host.docker.internal`                                                 | 2     | Hosts probed for local AI servers (names or IPs, no ports)                               |
 | `BASE_PATH`                | _(empty = root)_                                                                 | 3     | Serve UI and API under this path, e.g. `/homescribe` (§11.2)                             |
 | `WEB_DIST_DIR`             | `apps/web/dist` (resolved from the repo root)                                    | 1     | Built UI to serve; skipped if missing                                                    |

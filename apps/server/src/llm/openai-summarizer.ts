@@ -49,6 +49,45 @@ export function splitText(text: string, maxChars: number): string[] {
   return parts;
 }
 
+/** Below this a part is not halved any further (SPEC.md §8). */
+const MIN_PART_CHARS = 1000;
+
+/** The reply was cut off by the context window (`finish_reason: "length"`). */
+class CutOff extends Error {}
+
+function contextExceeded(chars: number): LlmError {
+  return new LlmError(
+    'LLM_CONTEXT_EXCEEDED',
+    `The model's reply was cut off even for ${chars} characters: its context window is too small. Lower LLM_CHUNK_CHARS or raise the context window on the AI server.`,
+  );
+}
+
+function notesOf(result: SummaryResult): string {
+  return `${result.summary}\nAction items:\n${result.actionItems.map((a) => `- ${a}`).join('\n') || '- none'}`;
+}
+
+/**
+ * Groups consecutive notes (by index) so each group's text stays within
+ * `maxChars`, with at least two notes per group so merging always shrinks.
+ */
+export function groupNotes(notes: string[], maxChars: number): number[][] {
+  const groups: number[][] = [];
+  let group: number[] = [];
+  let size = 0;
+  for (const [index, note] of notes.entries()) {
+    if (group.length >= 2 && size + note.length > maxChars) {
+      groups.push(group);
+      group = [];
+      size = 0;
+    }
+    group.push(index);
+    size += note.length;
+  }
+  if (group.length === 1 && groups.length > 0) groups.at(-1)!.push(group[0]!);
+  else if (group.length > 0) groups.push(group);
+  return groups;
+}
+
 /** Extracts the JSON object from a model reply (code fences, reasoning, chatter around it). */
 export function parseSummaryReply(content: string): SummaryResult | null {
   const withoutThinking = content.replace(/<think>[\s\S]*?<\/think>/gi, '');
@@ -92,64 +131,148 @@ export class OpenAiSummarizer implements Summarizer {
       ].join('\n'),
     };
 
+    // Requests done and expected; halving and merge rounds add to `expected`.
     const parts = splitText(transcript.text, this.options.chunkChars);
-    if (parts.length <= 1) {
-      const result = await this.ask(
-        [system, { role: 'user', content: `<transcript>\n${parts[0] ?? ''}\n</transcript>` }],
-        signal,
-      );
-      onProgress?.(1);
-      return result;
-    }
+    const steps = { done: 0, expected: parts.length > 1 ? parts.length + 1 : 1, reported: 0 };
+    const step = () => {
+      steps.done += 1;
+      const ratio = Math.min(1, steps.done / Math.max(steps.expected, steps.done));
+      if (ratio > steps.reported) {
+        steps.reported = ratio;
+        onProgress?.(ratio);
+      }
+    };
 
-    const steps = parts.length + 1;
+    if (parts.length <= 1) {
+      const whole = await this.summarizePart(system, parts[0] ?? '', null, steps, step, signal);
+      if (whole.length === 1) return this.finish(whole[0]!, steps, onProgress);
+      return this.finish(await this.merge(system, whole, steps, step, signal), steps, onProgress);
+    }
     const partials: SummaryResult[] = [];
     for (const [i, part] of parts.entries()) {
       partials.push(
-        await this.ask(
-          [
-            system,
-            {
-              role: 'user',
-              content: `Part ${i + 1} of ${parts.length} of a longer transcript:\n<transcript>\n${part}\n</transcript>`,
-            },
-          ],
-          signal,
-        ),
+        ...(await this.summarizePart(system, part, [i + 1, parts.length], steps, step, signal)),
       );
-      onProgress?.((i + 1) / steps);
     }
-
-    const notes = partials
-      .map(
-        (p, i) =>
-          `Part ${i + 1}:\n${p.summary}\nAction items:\n${p.actionItems.map((a) => `- ${a}`).join('\n') || '- none'}`,
-      )
-      .join('\n\n');
-    const merged = await this.ask(
-      [
-        system,
-        {
-          role: 'user',
-          content: `These are summaries of consecutive parts of one transcript. Merge them into one summary of the whole recording and one de-duplicated list of action items.\n<notes>\n${notes}\n</notes>`,
-        },
-      ],
-      signal,
-    );
-    onProgress?.(1);
-    return merged;
+    return this.finish(await this.merge(system, partials, steps, step, signal), steps, onProgress);
   }
 
-  /** One chat call; one retry if the reply is not the requested JSON. */
+  private finish(
+    result: SummaryResult,
+    steps: { reported: number },
+    onProgress?: (ratio: number) => void,
+  ): SummaryResult {
+    if (steps.reported < 1) onProgress?.(1);
+    return result;
+  }
+
+  /**
+   * One part; a reply cut off by the context window halves the part and
+   * summarizes each half, down to MIN_PART_CHARS (SPEC.md §8).
+   */
+  private async summarizePart(
+    system: ChatMessage,
+    text: string,
+    position: [number, number] | null,
+    steps: { expected: number },
+    step: () => void,
+    signal?: AbortSignal,
+  ): Promise<SummaryResult[]> {
+    const intro = position ? `Part ${position[0]} of ${position[1]} of a longer transcript:\n` : '';
+    try {
+      const result = await this.ask(
+        [system, { role: 'user', content: `${intro}<transcript>\n${text}\n</transcript>` }],
+        signal,
+      );
+      step();
+      return [result];
+    } catch (error) {
+      if (!(error instanceof CutOff)) throw error;
+      step();
+      if (text.length <= MIN_PART_CHARS) throw contextExceeded(text.length);
+      // splitText cuts at the last boundary in the window: 60 % gives two halves.
+      const halves = splitText(text, Math.ceil(text.length * 0.6));
+      steps.expected += halves.length + (position ? 0 : 1);
+      const results: SummaryResult[] = [];
+      for (const [i, half] of halves.entries()) {
+        results.push(
+          ...(await this.summarizePart(
+            system,
+            half,
+            position ?? [i + 1, halves.length],
+            steps,
+            step,
+            signal,
+          )),
+        );
+      }
+      return results;
+    }
+  }
+
+  /**
+   * Merges part summaries in rounds: notes are grouped to stay within
+   * `chunkChars` (at least two per group), until one summary is left.
+   */
+  private async merge(
+    system: ChatMessage,
+    partials: SummaryResult[],
+    steps: { expected: number },
+    step: () => void,
+    signal?: AbortSignal,
+  ): Promise<SummaryResult> {
+    let current = partials;
+    let firstRound = true;
+    while (current.length > 1) {
+      const groups = groupNotes(current.map(notesOf), this.options.chunkChars);
+      // The first round's request is already counted once in `expected`.
+      steps.expected += groups.length - (firstRound ? 1 : 0);
+      firstRound = false;
+      const next: SummaryResult[] = [];
+      for (const group of groups) {
+        if (group.length === 1) {
+          next.push(current[group[0]!]!);
+          step();
+          continue;
+        }
+        const notes = group
+          .map((index, i) => `Part ${i + 1}:\n${notesOf(current[index]!)}`)
+          .join('\n\n');
+        try {
+          next.push(
+            await this.ask(
+              [
+                system,
+                {
+                  role: 'user',
+                  content: `These are summaries of consecutive parts of one transcript. Merge them into one summary of the whole recording and one de-duplicated list of action items.\n<notes>\n${notes}\n</notes>`,
+                },
+              ],
+              signal,
+            ),
+          );
+        } catch (error) {
+          if (error instanceof CutOff) throw contextExceeded(notes.length);
+          throw error;
+        }
+        step();
+      }
+      current = next;
+    }
+    return current[0]!;
+  }
+
+  /** One chat call; one retry if a complete reply is not the requested JSON. */
   private async ask(messages: ChatMessage[], signal?: AbortSignal): Promise<SummaryResult> {
     const first = await this.chat(messages, signal);
-    const parsed = parseSummaryReply(first);
+    if (first.finishReason === 'length') throw new CutOff();
+    const parsed = parseSummaryReply(first.content);
     if (parsed) return parsed;
 
     const second = await this.chat(
       [
         ...messages,
-        { role: 'assistant', content: first.slice(0, 4000) },
+        { role: 'assistant', content: first.content.slice(0, 4000) },
         {
           role: 'user',
           content: `That was not valid. ${FORMAT}`,
@@ -157,12 +280,16 @@ export class OpenAiSummarizer implements Summarizer {
       ],
       signal,
     );
-    const retried = parseSummaryReply(second);
+    if (second.finishReason === 'length') throw new CutOff();
+    const retried = parseSummaryReply(second.content);
     if (retried) return retried;
     throw new LlmError('LLM_FAILED', 'The model did not return the requested JSON');
   }
 
-  private async chat(messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
+  private async chat(
+    messages: ChatMessage[],
+    signal?: AbortSignal,
+  ): Promise<{ content: string; finishReason: string | null }> {
     const url = new URL(`${this.options.baseUrl}/v1/chat/completions`);
     const timer = withTimeout(this.options.timeoutMs, signal);
     const { status, body } = await httpRequest(url, {
@@ -202,6 +329,7 @@ export class OpenAiSummarizer implements Summarizer {
     }
     const parsed = chatCompletionSchema.safeParse(json);
     if (!parsed.success) throw new LlmError('LLM_FAILED', 'Unexpected response shape');
-    return parsed.data.choices[0]!.message.content ?? '';
+    const [choice] = parsed.data.choices;
+    return { content: choice!.message.content ?? '', finishReason: choice!.finish_reason ?? null };
   }
 }

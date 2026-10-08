@@ -49,6 +49,7 @@ export const jobErrorCodes = [
   'LLM_UNAVAILABLE',
   'LLM_TIMEOUT',
   'LLM_FAILED',
+  'LLM_CONTEXT_EXCEEDED',
   'INTERNAL_ERROR',
 ] as const;
 export type JobErrorCode = (typeof jobErrorCodes)[number];
@@ -298,7 +299,15 @@ export const upstreamModelListSchema = z.object({
 
 /** Subset of an OpenAI-compatible chat completion response. */
 export const chatCompletionSchema = z.object({
-  choices: z.array(z.object({ message: z.object({ content: z.string().nullish() }) })).min(1),
+  choices: z
+    .array(
+      z.object({
+        message: z.object({ content: z.string().nullish() }),
+        /** "length" when the context window cut the reply off. */
+        finish_reason: z.string().nullish(),
+      }),
+    )
+    .min(1),
 });
 
 /** What the summarizer must return; validated before anything is stored. */
