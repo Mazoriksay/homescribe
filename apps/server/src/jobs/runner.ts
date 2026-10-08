@@ -127,6 +127,11 @@ export class JobRunner {
     });
   }
 
+  /** True while a job is running (not merely queued). */
+  get busy(): boolean {
+    return this.current !== null;
+  }
+
   /** Aborts on shutdown or when the running job is cancelled. */
   private get signal(): AbortSignal {
     return this.current

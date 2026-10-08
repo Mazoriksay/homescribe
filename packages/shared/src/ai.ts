@@ -91,6 +91,45 @@ export const discoverySchema = z.object({
 });
 export type Discovery = z.infer<typeof discoverySchema>;
 
+// ---------------------------------------------------------------- video memory
+
+export const loadedModelSchema = z.object({
+  model: z.string(),
+  /** GPU memory it holds, when the server says (Ollama does, speaches does not). */
+  vramBytes: z.number().nonnegative().nullable(),
+});
+export type LoadedModel = z.infer<typeof loadedModelSchema>;
+
+/**
+ * - `ok`: a local server that can unload on request (speaches, Ollama)
+ * - `unsupported`: a local server without that API (LM Studio, llama.cpp, ...)
+ * - `unreachable`: the server did not answer
+ * - `remote`: a cloud API, nothing to free here
+ * - `off`: summaries are turned off
+ */
+export const backendMemoryStates = ['ok', 'unsupported', 'unreachable', 'remote', 'off'] as const;
+
+export const backendMemorySchema = z.object({
+  state: z.enum(backendMemoryStates),
+  server: z.enum(['speaches', 'ollama']).nullable(),
+  loaded: z.array(loadedModelSchema),
+});
+export type BackendMemory = z.infer<typeof backendMemorySchema>;
+
+export const aiMemorySchema = z.object({
+  stt: backendMemorySchema,
+  llm: backendMemorySchema,
+  /** A job is running: unloading would fail or slow it down. */
+  busy: z.boolean(),
+});
+export type AiMemory = z.infer<typeof aiMemorySchema>;
+
+export const aiUnloadResultSchema = aiMemorySchema.extend({
+  /** Models the server refused or failed to unload. */
+  failed: z.array(z.string()),
+});
+export type AiUnloadResult = z.infer<typeof aiUnloadResultSchema>;
+
 /** Well-known local ports of OpenAI-compatible servers, probed by discovery. */
 export const localServerPorts: readonly { port: number; product: string }[] = [
   { port: 11434, product: 'Ollama' },

@@ -2,6 +2,8 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { apiBase } from '../app/base';
 import {
   type AiKind,
+  type AiMemory,
+  type AiUnloadResult,
   type AiSettings,
   type AiSettingsPair,
   type CreateFromUrlBody,
@@ -30,6 +32,7 @@ export const api = createApi({
     'Summary',
     'Search',
     'AiSettings',
+    'AiMemory',
     'Health',
   ],
   endpoints: (build) => ({
@@ -74,11 +77,29 @@ export const api = createApi({
     }),
     updateAiSettings: build.mutation<AiSettings, { kind: AiKind } & UpdateAiSettingsBody>({
       query: ({ kind, ...body }) => ({ url: `/settings/ai/${kind}`, method: 'PUT', body }),
-      invalidatesTags: ['AiSettings', 'Health'],
+      invalidatesTags: ['AiSettings', 'AiMemory', 'Health'],
     }),
     resetAiSettings: build.mutation<AiSettings, AiKind>({
       query: (kind) => ({ url: `/settings/ai/${kind}`, method: 'DELETE' }),
       invalidatesTags: ['AiSettings', 'Health'],
+    }),
+    getAiMemory: build.query<AiMemory, void>({
+      query: () => '/ai/memory',
+      providesTags: ['AiMemory'],
+    }),
+    unloadAi: build.mutation<AiUnloadResult, void>({
+      query: () => ({ url: '/ai/unload', method: 'POST' }),
+      // The answer already is the new state; no second round trip.
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        const { data } = await queryFulfilled;
+        dispatch(
+          api.util.upsertQueryData('getAiMemory', undefined, {
+            stt: data.stt,
+            llm: data.llm,
+            busy: data.busy,
+          }),
+        );
+      },
     }),
     discoverAi: build.query<Discovery, void>({
       query: () => '/ai/discovery',
@@ -128,6 +149,8 @@ export const {
   useRenameRecordingMutation,
   useSearchQuery,
   useGetAiSettingsQuery,
+  useGetAiMemoryQuery,
+  useUnloadAiMutation,
   useUpdateAiSettingsMutation,
   useResetAiSettingsMutation,
   useLazyDiscoverAiQuery,

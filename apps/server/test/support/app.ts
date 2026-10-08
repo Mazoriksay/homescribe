@@ -9,6 +9,7 @@ import { buildApp } from '../../src/http/app';
 import { JobRunner } from '../../src/jobs/runner';
 import { MediaStore } from '../../src/storage';
 import type { AiModel, Discovery } from '@homescribe/shared';
+import { AiMemoryService } from '../../src/ai/memory';
 import { AiSettingsService } from '../../src/ai/settings';
 import { SelfCheck } from '../../src/self-check';
 import {
@@ -101,6 +102,7 @@ export async function createTestApp(
     events,
     aiSettings,
     discover: async () => ai$.discovery,
+    memory: new AiMemoryService(aiSettings, () => runner.busy),
     listModels: async (baseUrl, apiKey) => {
       ai$.modelCalls.push({ baseUrl, apiKey });
       if (ai$.modelsError) throw ai$.modelsError;

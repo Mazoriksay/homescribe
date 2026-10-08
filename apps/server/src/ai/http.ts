@@ -10,7 +10,7 @@ export interface HttpResult {
 }
 
 export interface HttpOptions {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'DELETE';
   headers?: Record<string, string>;
   body?: string | Readable;
   signal?: AbortSignal;
