@@ -66,10 +66,22 @@ export function registerCookieRoutes(
     return save(bodyText(request), 'extension');
   });
 
-  app.get(`${API_PREFIX}/extension.zip`, async (_request, reply) =>
-    reply
+  // ?browser=firefox: the Firefox build; anything else gets the Chromium one.
+  app.get(`${API_PREFIX}/extension.zip`, async (request, reply) => {
+    const { browser } = request.query as { browser?: string };
+    const firefox = browser === 'firefox';
+    return reply
       .header('content-type', 'application/zip')
-      .header('content-disposition', 'attachment; filename="homescribe-extension.zip"')
-      .send(await extensionZip(deps.config.extensionDir, deps.config.version)),
-  );
+      .header(
+        'content-disposition',
+        `attachment; filename="homescribe-extension${firefox ? '-firefox' : ''}.zip"`,
+      )
+      .send(
+        await extensionZip(
+          deps.config.extensionDir,
+          deps.config.version,
+          firefox ? 'firefox' : 'chromium',
+        ),
+      );
+  });
 }

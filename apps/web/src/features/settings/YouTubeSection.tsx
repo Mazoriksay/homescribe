@@ -190,9 +190,11 @@ function ExtensionSteps({ pairing }: { pairing: Pairing }) {
     server,
     code: pairing.code,
   })}`;
-  const folder = pairing.extensionFolder;
+  // The unpacked folder is the Chromium build; Firefox needs its own zip.
+  const folder = page.firefox ? null : pairing.extensionFolder;
+  const firefoxZip = `${apiBase}/extension.zip?browser=firefox`;
   const download = (
-    <a href={`${apiBase}/extension.zip`} download>
+    <a href={page.firefox ? firefoxZip : `${apiBase}/extension.zip`} download>
       {t('settings.youtube.download')}
     </a>
   );
@@ -221,8 +223,7 @@ function ExtensionSteps({ pairing }: { pairing: Pairing }) {
             {t('settings.youtube.openPage')} <CopyText text={page.address} />
           </li>
           <li>
-            {t(page.firefox ? 'settings.youtube.firefoxFolder' : 'settings.youtube.pickFolder')}{' '}
-            <CopyText text={folder} />
+            {t('settings.youtube.pickFolder')} <CopyText text={folder} />
           </li>
           {pair}
         </ol>
@@ -244,7 +245,14 @@ function ExtensionSteps({ pairing }: { pairing: Pairing }) {
         </p>
       )}
       <p className={styles.muted}>{t('settings.youtube.manual', { server, code: pairing.code })}</p>
-      {!page.firefox && <p className={styles.muted}>{t('settings.youtube.firefox')}</p>}
+      {!page.firefox && (
+        <p className={styles.muted}>
+          <a href={firefoxZip} download>
+            {t('settings.youtube.firefoxZip')}
+          </a>
+          {t('settings.youtube.firefox')}
+        </p>
+      )}
     </div>
   );
 }

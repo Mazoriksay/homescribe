@@ -19,6 +19,43 @@ export function dosDateTime(at: Date): { time: number; date: number } {
   };
 }
 
+export type ExtensionBrowser = 'chromium' | 'firefox';
+
+/**
+ * The manifest for one browser family. The source carries both background
+ * forms; Chrome lists `background.scripts` and the gecko settings as errors,
+ * Firefox has no service workers and no use for the Chrome `key`.
+ */
+export function browserManifest(
+  manifest: Record<string, unknown>,
+  version: string,
+  browser: ExtensionBrowser,
+): Record<string, unknown> {
+  const {
+    background,
+    key,
+    browser_specific_settings: gecko,
+    ...rest
+  } = manifest as {
+    background: { service_worker: string; scripts: string[] };
+    key: string;
+    browser_specific_settings: unknown;
+  } & Record<string, unknown>;
+  return browser === 'firefox'
+    ? {
+        ...rest,
+        version: manifestVersion(version),
+        background: { scripts: background.scripts },
+        browser_specific_settings: gecko,
+      }
+    : {
+        ...rest,
+        version: manifestVersion(version),
+        key,
+        background: { service_worker: background.service_worker },
+      };
+}
+
 async function listFiles(dir: string, prefix = ''): Promise<string[]> {
   const entries = await readdir(path.join(dir, prefix), { withFileTypes: true });
   const files: string[] = [];
@@ -31,11 +68,16 @@ async function listFiles(dir: string, prefix = ''): Promise<string[]> {
 }
 
 /**
- * The extension folder as a zip (stored, not compressed: it is a few
+ * The extension folder as a zip for one browser family (stored, not compressed: it is a few
  * kilobytes), with the server's version in manifest.json. Minimal ZIP
  * (PKWARE APPNOTE 4.3.7, 4.3.12, 4.3.16), UTF-8 names, no extra fields.
  */
-export async function extensionZip(dir: string, version: string, at = new Date()): Promise<Buffer> {
+export async function extensionZip(
+  dir: string,
+  version: string,
+  browser: ExtensionBrowser = 'chromium',
+  at = new Date(),
+): Promise<Buffer> {
   const { time, date } = dosDateTime(at);
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
@@ -45,7 +87,7 @@ export async function extensionZip(dir: string, version: string, at = new Date()
     if (name === 'manifest.json') {
       const manifest = JSON.parse(data.toString('utf8')) as Record<string, unknown>;
       data = Buffer.from(
-        `${JSON.stringify({ ...manifest, version: manifestVersion(version) }, null, 2)}\n`,
+        `${JSON.stringify(browserManifest(manifest, version, browser), null, 2)}\n`,
       );
     }
     const fileName = Buffer.from(name, 'utf8');

@@ -601,6 +601,11 @@ no other cookies and sends them nowhere but the paired server.
   scope.
 - `GET /api/v1/extension.zip` serves the extension, with the server's version
   (`HOMESCRIBE_VERSION`, from the release tag in the image) in its manifest.
+  The source manifest has both background forms; the zip keeps only what the
+  browser understands (Chrome lists the others as errors): the service
+  worker and `key` by default, the background scripts and gecko settings
+  with `?browser=firefox`. The unpacked folder below is the Chromium build;
+  Firefox gets its own zip in the settings.
 - No unpacking on the computer Homescribe runs on: the installer and the
   control script's `start` and `update` unpack that zip into
   `browser-extension` in the install folder and write its full path to `.env`

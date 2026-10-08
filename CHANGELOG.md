@@ -41,6 +41,10 @@ source of truth for the version.
 
 ### Fixed
 
+- Chrome no longer lists "'background.scripts' requires manifest version of 2
+  or lower" for the extension: the zip and the unpacked folder keep only
+  what Chrome understands, and Firefox gets its own zip
+  (`extension.zip?browser=firefox`).
 - The settings say to paste the extension's folder into the "Folder" field
   of the "Load unpacked" dialog; pasted into its address bar, Chrome got the
   `_locales` folder inside and reported a missing manifest.

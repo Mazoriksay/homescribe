@@ -202,6 +202,27 @@ describe('YouTube cookies API', () => {
     expect(res.headers['content-type']).toBe('application/zip');
     expect(res.rawPayload.subarray(0, 4).toString('hex')).toBe('504b0304');
     expect(res.rawPayload.toString('latin1')).toContain('"version": "0.0.0"');
+    // Chrome lists background.scripts and gecko settings as errors; Firefox has its own build.
+    const manifestOf = (zip: Buffer) => {
+      const at = zip.indexOf('manifest.json');
+      const size = zip.readUInt32LE(at - 30 + 18);
+      const start = at + 'manifest.json'.length;
+      return JSON.parse(zip.subarray(start, start + size).toString('utf8')) as Record<
+        string,
+        unknown
+      >;
+    };
+    const chromium = manifestOf(res.rawPayload);
+    expect(chromium.background).toEqual({ service_worker: 'background.js' });
+    expect(chromium.key).toBeTypeOf('string');
+    expect(chromium).not.toHaveProperty('browser_specific_settings');
+    const firefox = await t.app.inject('/api/v1/extension.zip?browser=firefox');
+    expect(firefox.headers['content-disposition']).toContain('homescribe-extension-firefox.zip');
+    const gecko = manifestOf(firefox.rawPayload);
+    expect(gecko.background).toEqual({ scripts: ['common.js', 'background.js'] });
+    expect(gecko).toHaveProperty('browser_specific_settings');
+    expect(gecko).not.toHaveProperty('key');
+    expect(gecko.version).toBe('0.0.0');
     // A real modification date: Windows Explorer will not unpack a zero one.
     const date = res.rawPayload.readUInt16LE(12);
     expect(date >> 9).toBeGreaterThan(40);

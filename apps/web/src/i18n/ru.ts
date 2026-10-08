@@ -133,8 +133,6 @@ export const ru: Record<MessageKey, string> = {
     'Затем нажмите «Загрузить временное дополнение» и выберите manifest.json в этой папке. Работает до перезапуска Firefox.',
   'settings.youtube.pickFolder':
     'Включите режим разработчика, нажмите «Загрузить распакованное», вставьте эту папку в поле «Папка» внизу окна (не в адресную строку сверху: так выберется папка внутри неё) и нажмите «Выбор папки»:',
-  'settings.youtube.firefoxFolder':
-    'Нажмите «Загрузить временное дополнение» и выберите manifest.json в этой папке. Работает до перезапуска Firefox.',
   'settings.youtube.elsewhere': 'для другого компьютера и распакуйте архив там.',
   'settings.youtube.notInstalled':
     'Расширение в этом браузере ещё не установлено. Установите его (шаги 1–2), затем:',
@@ -142,8 +140,9 @@ export const ru: Record<MessageKey, string> = {
   'settings.youtube.pairLink': 'Подключить этот браузер',
   'settings.youtube.manual':
     'Или нажмите значок Homescribe на панели браузера и введите {server} и код {code} (действует 10 минут).',
+  'settings.youtube.firefoxZip': 'Версия для Firefox',
   'settings.youtube.firefox':
-    'Firefox: about:debugging → Этот Firefox → Загрузить временное дополнение → manifest.json. Работает до перезапуска Firefox.',
+    ': распакуйте, затем about:debugging → Этот Firefox → Загрузить временное дополнение → manifest.json. Работает до перезапуска Firefox.',
   'recording.connectYoutube': 'Подключить YouTube',
   'recording.orUpload': 'или скачайте ролик сами и загрузите файл.',
   'error.DOWNLOAD_COOKIES_EXPIRED':
