@@ -41,6 +41,9 @@ source of truth for the version.
 
 ### Fixed
 
+- The settings say to paste the extension's folder into the "Folder" field
+  of the "Load unpacked" dialog; pasted into its address bar, Chrome got the
+  `_locales` folder inside and reported a missing manifest.
 - The extension zip unpacks with Windows Explorer: its files carried no valid
   date, which only 7-Zip and similar tools accepted.
 - "Free video memory" no longer breaks speech recognition: speaches 0.8.1

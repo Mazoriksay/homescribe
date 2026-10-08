@@ -605,7 +605,7 @@ no other cookies and sends them nowhere but the paired server.
   control script's `start` and `update` unpack that zip into
   `browser-extension` in the install folder and write its full path to `.env`
   as `EXTENSION_FOLDER`. The settings show that path with "Copy", to paste
-  into the "Load unpacked" dialog, and the zip only for other computers.
+  into the "Folder" field of the "Load unpacked" dialog, and the zip only for other computers.
   After an update Chrome takes the new files on its next start or on
   "Reload" in the extensions page.
 
