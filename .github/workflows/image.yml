@@ -44,5 +44,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # "0.3.1" for a release tag, "latest" on main (the extension then says 0.0.0).
+          build-args: |
+            HOMESCRIBE_VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

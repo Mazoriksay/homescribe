@@ -1,7 +1,7 @@
 import type { Recording } from '@homescribe/shared';
 import { Button } from 'antd';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import {
   useGetAiSettingsQuery,
   useCancelJobMutation,
@@ -47,6 +47,15 @@ export function StatusPanel({ recording }: { recording: Recording }) {
       {job.status === 'failed' && job.error && (
         <div className={styles.error} role="alert">
           <p>{t(errorMessageKey(job.error.code))}</p>
+          {(job.error.code === 'DOWNLOAD_BLOCKED' ||
+            job.error.code === 'DOWNLOAD_COOKIES_EXPIRED') && (
+            <p className={styles.youtube}>
+              <Link to="/settings#youtube" className="link-action">
+                {t('recording.connectYoutube')}
+              </Link>{' '}
+              <span>{t('recording.orUpload')}</span>
+            </p>
+          )}
           <details className={styles.errorDetail}>
             <summary>{t('recording.errorDetails')}</summary>
             <pre>{cleanToolOutput(job.error.message)}</pre>

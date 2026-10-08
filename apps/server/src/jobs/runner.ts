@@ -4,7 +4,12 @@ import { TITLE_MAX_LENGTH, type Job, type JobErrorCode } from '@homescribe/share
 import type { JobPatch, Repository } from '../db/repository';
 import type { EventBus } from '../events';
 import { LlmError, type Summarizer } from '../llm/summarizer';
-import { DownloadBlockedError, DownloadError, type MediaDownloader } from '../media/downloader';
+import {
+  DownloadBlockedError,
+  DownloadCookiesExpiredError,
+  DownloadError,
+  type MediaDownloader,
+} from '../media/downloader';
 import { MediaError, type AudioFormat, type MediaTool } from '../media/media-tool';
 import { downloadedMediaType, storedNameFor, type MediaStore } from '../storage';
 import {
@@ -41,6 +46,8 @@ export interface JobRunnerDeps {
   download?: { maxBytes: number; timeoutMs: number };
   events: EventBus;
   logger: Logger;
+  /** A download found the YouTube cookies stale (SPEC.md §7.8). */
+  onCookiesExpired?: () => void;
   /** Minimum time between two progress updates of one job. */
   progressIntervalMs?: number;
   /** How often the transcribing estimate is updated. */
@@ -399,6 +406,13 @@ export class JobRunner {
       );
     }
     if (error instanceof JobFailure) return error;
+    if (error instanceof DownloadCookiesExpiredError) {
+      this.deps.onCookiesExpired?.();
+      return new JobFailure(
+        'DOWNLOAD_COOKIES_EXPIRED',
+        `The YouTube cookies are no longer valid: ${error.message}`,
+      );
+    }
     if (error instanceof DownloadBlockedError) {
       return new JobFailure('DOWNLOAD_BLOCKED', `The site asks to sign in: ${error.message}`);
     }

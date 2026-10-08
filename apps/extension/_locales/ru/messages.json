@@ -1,0 +1,83 @@
+{
+  "name": {
+    "message": "Homescribe: cookies YouTube"
+  },
+  "description": {
+    "message": "Передаёт cookies входа в YouTube на ваш сервер Homescribe, чтобы он мог скачивать ролики по ссылкам."
+  },
+  "server": {
+    "message": "Сервер"
+  },
+  "lastSent": {
+    "message": "Отправлено"
+  },
+  "serverStatus": {
+    "message": "На сервере"
+  },
+  "never": {
+    "message": "ещё нет"
+  },
+  "sendNow": {
+    "message": "Обновить сейчас"
+  },
+  "unpair": {
+    "message": "Отвязать"
+  },
+  "connect": {
+    "message": "Подключить"
+  },
+  "code": {
+    "message": "Код"
+  },
+  "pairHint": {
+    "message": "В Homescribe откройте Настройки → YouTube → «Подключить расширение» и введите адрес и код оттуда."
+  },
+  "pairTitle": {
+    "message": "Подключить Homescribe"
+  },
+  "pairQuestion": {
+    "message": "Передавать cookies YouTube этому серверу Homescribe?"
+  },
+  "pairDone": {
+    "message": "Подключено. Cookies отправлены, вкладку можно закрыть."
+  },
+  "status_none": {
+    "message": "нет cookies"
+  },
+  "status_ok": {
+    "message": "действуют"
+  },
+  "status_expired": {
+    "message": "устарели"
+  },
+  "status_unchecked": {
+    "message": "ещё не проверены"
+  },
+  "errorNoCookies": {
+    "message": "В этом браузере нет cookies YouTube. Сначала войдите на youtube.com."
+  },
+  "errorUnpaired": {
+    "message": "Сервер больше не знает этот браузер. Подключите заново."
+  },
+  "errorServer": {
+    "message": "Сервер не принял cookies."
+  },
+  "errorUnreachable": {
+    "message": "Сервер недоступен."
+  },
+  "errorCode": {
+    "message": "Код неверный или устарел. Создайте новый в Homescribe."
+  },
+  "errorPermission": {
+    "message": "Доступ к серверу не разрешён."
+  },
+  "errorAddress": {
+    "message": "Введите адрес сервера, например http://192.168.1.10:8080"
+  },
+  "errorLink": {
+    "message": "Ссылка неполная. Откройте её заново из настроек Homescribe."
+  },
+  "remoteWarning": {
+    "message": "Этот адрес не из вашей домашней сети. Продолжайте, только если это ваш собственный сервер Homescribe: его владелец получит доступ к вашему аккаунту YouTube."
+  }
+}

@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Homescribe</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <h1 data-i18n="pairTitle"></h1>
+    <p data-i18n="pairQuestion"></p>
+    <p><strong id="server"></strong></p>
+    <p id="remote" class="error" hidden data-i18n="remoteWarning"></p>
+    <p id="error" class="error" hidden></p>
+    <p id="done" hidden data-i18n="pairDone"></p>
+    <div class="actions">
+      <button id="connect" class="primary" type="button" data-i18n="connect"></button>
+    </div>
+    <script src="common.js"></script>
+    <script src="pair.js"></script>
+  </body>
+</html>

@@ -258,7 +258,8 @@ Job failures are not HTTP errors; they live on the job (`error.code`):
 | `INTERRUPTED`                                    | Server stopped while the job was running                    |
 | `CANCELLED`                                      | Cancelled from the UI or `POST …/jobs/:id/cancel`           |
 | `DOWNLOAD_FAILED`                                | yt-dlp could not fetch the link; the message has its reason |
-| `DOWNLOAD_BLOCKED`                               | The site wants a signed-in visitor; add cookies (§7.7)      |
+| `DOWNLOAD_BLOCKED`                               | The site wants a signed-in visitor; add cookies (§7.8)      |
+| `DOWNLOAD_COOKIES_EXPIRED`                       | The YouTube cookies are no longer valid; renew them (§7.8)  |
 | `MEDIA_UNREADABLE`                               | ffprobe/ffmpeg could not read or convert the upload         |
 | `STT_UNAVAILABLE`                                | Speech-to-text server unreachable                           |
 | `STT_TIMEOUT`                                    | No answer within `STT_TIMEOUT_MS`                           |
@@ -472,6 +473,7 @@ interface Health {
     embedding: 'same_origin' | 'origins'; // FRAME_ANCESTORS empty or set
   } | null; // null until the first check finished
   checkedAt: string | null;
+  cookies: 'none' | 'ok' | 'expired' | 'unchecked'; // YouTube cookies (§7.8)
 }
 ```
 
@@ -498,9 +500,10 @@ plus direct links to media files):
   (e.g. "Video unavailable"); retrying downloads again;
 - when the site wants a signed-in visitor (YouTube: "Sign in to confirm
   you're not a bot", common from server and VPN addresses) the job ends as
-  `DOWNLOAD_BLOCKED`. A browser's cookies exported as `cookies.txt` (Netscape
-  format) at `YTDLP_COOKIES_FILE` are then passed with `--cookies`; yt-dlp
-  gets a copy per download, since it writes cookies back.
+  `DOWNLOAD_BLOCKED`; when yt-dlp says the cookies it got are no longer
+  valid, as `DOWNLOAD_COOKIES_EXPIRED`. Cookies (§7.8) at
+  `YTDLP_COOKIES_FILE` are passed with `--cookies`; yt-dlp gets a copy per
+  download, since it writes cookies back.
 
 YouTube needs a JavaScript runtime for yt-dlp; the Docker image ships deno,
 which yt-dlp recommends because it sandboxes that code. yt-dlp updates itself
@@ -517,6 +520,80 @@ name into it, and blocking it would refuse all links behind such a VPN.
 
 Downloading content is subject to each site's terms; Homescribe is meant for
 material the user may keep a personal copy of.
+
+### 7.8 YouTube cookies
+
+From VPN and hosting addresses YouTube answers every client yt-dlp tries with
+"Sign in to confirm you're not a bot"; only a signed-in browser's cookies get
+through, and they go stale within days. The sign-in cookies (`SID`,
+`__Secure-1PSID`, `LOGIN_INFO`) are `HttpOnly`, so only a browser extension
+can read them. Nothing needs setting up while YouTube lets the server in;
+after a `DOWNLOAD_BLOCKED` the recording page offers "Connect YouTube", which
+leads to the YouTube section of the settings with two ways: the extension
+(keeps cookies fresh) or uploading a `cookies.txt` once.
+
+Storage: `YTDLP_COOKIES_FILE` (default `DATA_DIR/cookies.txt`, mode `0600`),
+Netscape format, only lines whose domain is `youtube.com` or a subdomain.
+State in `cookie_state`: source (`extension | file`), times, status, the
+SHA-256 of the extension's token, the pairing code's hash, expiry and failed
+attempts. Neither the cookies nor the token appear in any API answer or log.
+
+```ts
+interface CookieStatus {
+  status: 'none' | 'ok' | 'expired' | 'unchecked';
+  source: 'extension' | 'file' | null;
+  updatedAt: string | null;
+  checkedAt: string | null;
+  paired: boolean; // an extension holds a token
+}
+```
+
+| Method and path                | Body                                          | Answer                                        |
+| ------------------------------ | --------------------------------------------- | --------------------------------------------- |
+| `GET /api/v1/cookies`          | —                                             | `200 CookieStatus`                            |
+| `PUT /api/v1/cookies/file`     | `text/plain`: a `cookies.txt`                 | `200 CookieStatus`; 400 `VALIDATION_ERROR`    |
+| `DELETE /api/v1/cookies`       | —                                             | `200 CookieStatus` (cookies and pairing gone) |
+| `POST /api/v1/cookies/pairing` | —                                             | `200 { code, expiresAt, extensionId }`        |
+| `POST /api/v1/cookies/pair`    | `{ code }`                                    | `200 { token }`; 400 `PAIRING_INVALID`        |
+| `PUT /api/v1/cookies`          | `text/plain`, `Authorization: Bearer <token>` | `200 CookieStatus`; 401 `TOKEN_INVALID`       |
+
+- **Pairing:** `POST …/pairing` makes a one-time code of 8 letters and
+  digits (no look-alikes), valid 10 minutes, replacing any earlier one. `pair`
+  turns it into a random 256-bit token, once; five wrong codes void it.
+  Pairing again replaces the old token.
+- **Why a token:** there is no login, so without it any client on the LAN
+  could replace the cookies the server signs in with. CORS stays off: the
+  extension may call the server because the user grants it that address.
+- **Check:** after every upload (at most once per 10 minutes; a newer upload
+  waits for the slot) and once a day, `yt-dlp --simulate` on one public
+  video with a copy of the cookies: success → `ok`; "cookies are no longer
+  valid" or the sign-in wall → `expired`; anything else (network) leaves the
+  status. A job ending in `DOWNLOAD_COOKIES_EXPIRED` sets `expired` too.
+- **Retry:** when the status turns `ok`, recordings whose latest job failed
+  with `DOWNLOAD_BLOCKED` or `DOWNLOAD_COOKIES_EXPIRED` in the last 24 hours,
+  and that have no newer job, get a new `process` job.
+- `GET /health` carries `cookies: CookieStatus['status']`.
+
+**Extension** (`apps/extension`, Manifest V3, plain JavaScript, no build,
+English and Russian): permissions `cookies`, `storage`, `alarms`; host access
+only to `https://*.youtube.com/*`; the server's address is asked for when
+pairing (`optional_host_permissions`). It sends `youtube.com` cookies in
+Netscape format right after pairing, about 30 s after they change (they change
+in bursts), every 6 hours and on "Update now"; its window shows the server,
+the last upload, the server's status, "Update now" and "Disconnect". It reads
+no other cookies and sends them nowhere but the paired server.
+
+- Chrome is the reference browser; the same package installs in Edge,
+  Yandex Browser, Opera and Brave as an unpacked extension (developer mode →
+  "Load unpacked"). A fixed `key` in the manifest gives it the same ID
+  everywhere, so "Connect the extension" in the settings opens
+  `chrome-extension://<id>/pair.html#server=…&code=…` and pairing is one
+  click. Firefox (121+) runs the same code; unsigned it installs only as a
+  temporary add-on (`about:debugging`) that goes away on restart, and there
+  the code is typed into the extension's window. Store listings are out of
+  scope.
+- `GET /api/v1/extension.zip` serves the extension, with the server's version
+  (`HOMESCRIBE_VERSION`, from the release tag in the image) in its manifest.
 
 ## 8. Job lifecycle
 
@@ -609,7 +686,8 @@ startup with a message naming the variable.
 | `FRAME_ANCESTORS`          | _(empty = only the app itself)_                                                  | 1     | Space-separated origins (`http://hub.lan:3000`) allowed to show the UI in an iframe    |
 | `YTDLP_PATH`               | `yt-dlp`                                                                         | 3     | yt-dlp binary for links (§7.7)                                                         |
 | `YTDLP_AUTO_UPDATE`        | `true`                                                                           | 3     | Run `yt-dlp -U` at startup and daily (sites change often)                              |
-| `YTDLP_COOKIES_FILE`       | `<DATA_DIR>/cookies.txt`                                                         | 3     | Netscape cookies for sites that want a signed-in visitor; used when the file exists    |
+| `YTDLP_COOKIES_FILE`       | `<DATA_DIR>/cookies.txt`                                                         | 3     | Where YouTube cookies are kept (§7.8); a file put there by hand is used too            |
+| `HOMESCRIBE_VERSION`       | `0.0.0`                                                                          | 3     | Set by the image build from the release tag; the extension's version (§7.8)            |
 | `DOWNLOAD_TIMEOUT_MS`      | `7200000`                                                                        | 3     | Longest a link download may take                                                       |
 | `URL_IMPORT_ALLOW_PRIVATE` | `false`                                                                          | 3     | Allow links to private/loopback addresses (e.g. a NAS on the LAN)                      |
 | `LOG_LEVEL`                | `info`                                                                           | 1     | Fastify/pino log level                                                                 |

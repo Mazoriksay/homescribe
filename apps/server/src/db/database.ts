@@ -97,6 +97,21 @@ const migrations: string[] = [
   -- Stretches Whisper could not transcribe (JSON array of { start, end }).
   ALTER TABLE transcripts ADD COLUMN gaps TEXT NOT NULL DEFAULT '[]';
   `,
+  `
+  -- YouTube cookies (SPEC.md §7.8); one row. The cookies themselves are a file.
+  CREATE TABLE cookie_state (
+    id                 INTEGER PRIMARY KEY CHECK (id = 1),
+    status             TEXT NOT NULL DEFAULT 'none',
+    source             TEXT,
+    updated_at         TEXT,
+    checked_at         TEXT,
+    token_hash         TEXT,
+    pairing_hash       TEXT,
+    pairing_expires_at TEXT,
+    pairing_attempts   INTEGER NOT NULL DEFAULT 0
+  );
+  INSERT INTO cookie_state (id) VALUES (1);
+  `,
 ];
 
 export function openDatabase(file: string): DatabaseSync {

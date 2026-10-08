@@ -36,6 +36,7 @@ describe('HTTP API', () => {
       search: 'fts5',
       checks: { ffmpeg: 'ok', ytdlp: 'ok', stt: 'ok', llm: 'ok', embedding: 'same_origin' },
       checkedAt: expect.any(String),
+      cookies: 'none',
     });
     expect(res.headers['x-content-type-options']).toBe('nosniff');
     expect(res.headers['content-security-policy']).toContain("default-src 'self'");

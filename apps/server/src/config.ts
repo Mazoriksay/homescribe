@@ -78,6 +78,7 @@ const envSchema = z.object({
       }),
   ),
   WEB_DIST_DIR: optional(z.string().optional()),
+  HOMESCRIBE_VERSION: optional(z.string().default('0.0.0')),
   BASE_PATH: optional(
     z
       .string()
@@ -141,6 +142,10 @@ export interface Config {
   /** Hosts probed for local AI servers. */
   discoveryHosts: string[];
   webDistDir: string;
+  /** The browser extension's folder, served as a zip (SPEC.md §7.8). */
+  extensionDir: string;
+  /** Set from the release tag when the image is built. */
+  version: string;
   /** Path everything is served under, e.g. "/homescribe"; "" for the root. */
   basePath: string;
   /** Origins allowed to show the UI in an iframe, besides the app itself. */
@@ -197,6 +202,8 @@ export function loadConfig(env: Record<string, string | undefined>, rootDir: str
     },
     discoveryHosts: e.AI_DISCOVERY_HOSTS,
     webDistDir: path.resolve(rootDir, e.WEB_DIST_DIR ?? 'apps/web/dist'),
+    extensionDir: path.resolve(rootDir, 'apps/extension'),
+    version: e.HOMESCRIBE_VERSION,
     basePath: e.BASE_PATH,
     frameAncestors: e.FRAME_ANCESTORS,
     logLevel: e.LOG_LEVEL,

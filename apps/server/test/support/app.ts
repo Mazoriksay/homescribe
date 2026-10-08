@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadConfig, type Config } from '../../src/config';
 import { openDatabase } from '../../src/db/database';
 import { Repository } from '../../src/db/repository';
@@ -10,6 +11,7 @@ import { JobRunner } from '../../src/jobs/runner';
 import { MediaStore } from '../../src/storage';
 import type { AiModel, Discovery } from '@homescribe/shared';
 import { AiMemoryService } from '../../src/ai/memory';
+import { CookieService, retryRecordings } from '../../src/cookies/service';
 import { AiSettingsService } from '../../src/ai/settings';
 import { SelfCheck } from '../../src/self-check';
 import {
@@ -27,16 +29,20 @@ export async function createTestApp(
 ) {
   const dataDir = await mkdtemp(path.join(os.tmpdir(), 'homescribe-app-'));
   const prepared = prepare ? await prepare(dataDir) : {};
-  const config: Config = loadConfig(
-    {
-      DATA_DIR: dataDir,
-      WEB_DIST_DIR: path.join(dataDir, 'no-web'),
-      LOG_LEVEL: 'silent',
-      ...prepared,
-      ...env,
-    },
-    dataDir,
-  );
+  const config: Config = {
+    ...loadConfig(
+      {
+        DATA_DIR: dataDir,
+        WEB_DIST_DIR: path.join(dataDir, 'no-web'),
+        LOG_LEVEL: 'silent',
+        ...prepared,
+        ...env,
+      },
+      dataDir,
+    ),
+    // The real extension folder of this checkout.
+    extensionDir: fileURLToPath(new URL('../../../extension', import.meta.url)),
+  };
   const repo = new Repository(openDatabase(':memory:'));
   const store = new MediaStore(config.dataDir);
   const media = new FakeMediaTool();
@@ -75,6 +81,14 @@ export async function createTestApp(
     events,
     logger: silentLogger,
     progressIntervalMs: 0,
+    onCookiesExpired: () => cookies.markExpired(),
+  });
+  const cookies = new CookieService({
+    repo,
+    file: config.ytdlp.cookiesFile,
+    downloader,
+    retry: (ids) => retryRecordings({ repo, events, kick: () => runner.kick() }, ids),
+    logger: silentLogger,
   });
   const selfCheck = new SelfCheck({
     media,
@@ -100,6 +114,7 @@ export async function createTestApp(
     store,
     runner,
     events,
+    cookies,
     aiSettings,
     discover: async () => ai$.discovery,
     memory: new AiMemoryService(aiSettings, () => runner.busy),
@@ -124,8 +139,10 @@ export async function createTestApp(
     ai$,
     events,
     runner,
+    cookies,
     config,
     async close() {
+      await cookies.stop();
       await runner.stop();
       await app.close();
       await rm(dataDir, { recursive: true, force: true });

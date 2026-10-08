@@ -44,8 +44,12 @@ RUN npm ci --omit=dev --workspace apps/server --workspace packages/shared \
   && npm cache clean --force
 COPY packages/shared/src packages/shared/src
 COPY apps/server/src apps/server/src
+COPY apps/extension apps/extension
 COPY --from=build /app/apps/web/dist apps/web/dist
 
+# Set by the image workflow from the release tag; shown in the browser extension.
+ARG HOMESCRIBE_VERSION=0.0.0
+ENV HOMESCRIBE_VERSION=$HOMESCRIBE_VERSION
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=8080 \

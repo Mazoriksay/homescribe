@@ -4,6 +4,8 @@ import {
   type AiKind,
   type AiMemory,
   type AiUnloadResult,
+  type CookieStatus,
+  type Pairing,
   type AiSettings,
   type AiSettingsPair,
   type CreateFromUrlBody,
@@ -33,6 +35,7 @@ export const api = createApi({
     'Search',
     'AiSettings',
     'AiMemory',
+    'Cookies',
     'Health',
   ],
   endpoints: (build) => ({
@@ -101,6 +104,26 @@ export const api = createApi({
         );
       },
     }),
+    getCookies: build.query<CookieStatus, void>({
+      query: () => '/cookies',
+      providesTags: ['Cookies'],
+    }),
+    uploadCookies: build.mutation<CookieStatus, string>({
+      query: (text) => ({
+        url: '/cookies/file',
+        method: 'PUT',
+        body: text,
+        headers: { 'content-type': 'text/plain' },
+      }),
+      invalidatesTags: ['Cookies', 'Health'],
+    }),
+    deleteCookies: build.mutation<CookieStatus, void>({
+      query: () => ({ url: '/cookies', method: 'DELETE' }),
+      invalidatesTags: ['Cookies', 'Health'],
+    }),
+    createPairing: build.mutation<Pairing, void>({
+      query: () => ({ url: '/cookies/pairing', method: 'POST' }),
+    }),
     discoverAi: build.query<Discovery, void>({
       query: () => '/ai/discovery',
       keepUnusedDataFor: 300,
@@ -150,6 +173,10 @@ export const {
   useSearchQuery,
   useGetAiSettingsQuery,
   useGetAiMemoryQuery,
+  useGetCookiesQuery,
+  useUploadCookiesMutation,
+  useDeleteCookiesMutation,
+  useCreatePairingMutation,
   useUnloadAiMutation,
   useUpdateAiSettingsMutation,
   useResetAiSettingsMutation,
