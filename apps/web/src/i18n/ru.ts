@@ -124,8 +124,13 @@ export const ru: Record<MessageKey, string> = {
     'В файле нет cookies YouTube. Выгрузите их для youtube.com в формате Netscape.',
   'settings.youtube.download': 'Скачайте расширение',
   'settings.youtube.unzip': 'и распакуйте архив в папку, которую не будете удалять.',
+  'settings.youtube.openPage': 'Вставьте этот адрес в новую вкладку:',
+  'settings.youtube.copy': 'Скопировать',
+  'settings.youtube.copied': 'Скопировано',
   'settings.youtube.chromium':
-    'Chrome, Edge, Яндекс.Браузер, Opera или Brave: откройте страницу расширений, включите режим разработчика, нажмите «Загрузить распакованное» и выберите эту папку.',
+    'Затем включите режим разработчика, нажмите «Загрузить распакованное» и выберите эту папку. Подходит для Chrome, Edge, Яндекс.Браузера, Opera и Brave.',
+  'settings.youtube.firefoxSteps':
+    'Затем нажмите «Загрузить временное дополнение» и выберите manifest.json в этой папке. Работает до перезапуска Firefox.',
   'settings.youtube.notInstalled':
     'Расширение в этом браузере ещё не установлено. Установите его (шаги 1–2), затем:',
   'settings.youtube.recheck': 'Проверить снова',

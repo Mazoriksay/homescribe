@@ -120,8 +120,13 @@ export const en = {
     'No YouTube cookies in that file. Export them for youtube.com in Netscape format.',
   'settings.youtube.download': 'Download the extension',
   'settings.youtube.unzip': 'and unpack the zip into a folder you keep.',
+  'settings.youtube.openPage': 'Paste this address into a new tab:',
+  'settings.youtube.copy': 'Copy',
+  'settings.youtube.copied': 'Copied',
   'settings.youtube.chromium':
-    'Chrome, Edge, Yandex Browser, Opera or Brave: open the extensions page, turn on developer mode, choose "Load unpacked" and pick that folder.',
+    'Then turn on developer mode, choose "Load unpacked" and pick that folder. Works in Chrome, Edge, Yandex Browser, Opera and Brave.',
+  'settings.youtube.firefoxSteps':
+    'Then choose "Load Temporary Add-on" and pick manifest.json in that folder. It stays only until Firefox restarts.',
   'settings.youtube.notInstalled':
     'The extension is not installed in this browser yet. Install it (steps 1–2), then:',
   'settings.youtube.recheck': 'Check again',

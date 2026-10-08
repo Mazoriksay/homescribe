@@ -135,9 +135,56 @@ function useExtensionInstalled(extensionId: string) {
   return { installed, recheck: () => setAttempt((n) => n + 1) };
 }
 
+/**
+ * The extensions page of this browser. Pages may not open it themselves
+ * (browsers block links to chrome:// and the like), so it is shown to copy.
+ */
+export function extensionsPage(
+  userAgent = navigator.userAgent,
+  brave = 'brave' in navigator,
+): { address: string; firefox: boolean } {
+  if (/Firefox\//.test(userAgent)) {
+    return { address: 'about:debugging#/runtime/this-firefox', firefox: true };
+  }
+  const scheme = /Edg\//.test(userAgent)
+    ? 'edge'
+    : /YaBrowser\//.test(userAgent)
+      ? 'browser'
+      : /OPR\//.test(userAgent)
+        ? 'opera'
+        : brave
+          ? 'brave'
+          : 'chrome';
+  return { address: `${scheme}://extensions`, firefox: false };
+}
+
+function CopyAddress({ address }: { address: string }) {
+  const t = useT();
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <span className={styles.address}>
+      <code>{address}</code>
+      {typeof navigator.clipboard?.writeText === 'function' && (
+        <button type="button" className="link-action" onClick={() => void copy()}>
+          {copied ? t('settings.youtube.copied') : t('settings.youtube.copy')}
+        </button>
+      )}
+    </span>
+  );
+}
+
 function ExtensionSteps({ pairing }: { pairing: Pairing }) {
   const t = useT();
   const { installed, recheck } = useExtensionInstalled(pairing.extensionId);
+  const page = extensionsPage();
   const server = `${window.location.origin}${basePath}`;
   const link = `chrome-extension://${pairing.extensionId}/pair.html#${new URLSearchParams({
     server,
@@ -152,7 +199,10 @@ function ExtensionSteps({ pairing }: { pairing: Pairing }) {
           </a>{' '}
           {t('settings.youtube.unzip')}
         </li>
-        <li>{t('settings.youtube.chromium')}</li>
+        <li>
+          {t('settings.youtube.openPage')} <CopyAddress address={page.address} />{' '}
+          {t(page.firefox ? 'settings.youtube.firefoxSteps' : 'settings.youtube.chromium')}
+        </li>
         <li>
           {installed ? (
             <a href={link} target="_blank" rel="noopener">
@@ -169,7 +219,7 @@ function ExtensionSteps({ pairing }: { pairing: Pairing }) {
         </li>
       </ol>
       <p className={styles.muted}>{t('settings.youtube.manual', { server, code: pairing.code })}</p>
-      <p className={styles.muted}>{t('settings.youtube.firefox')}</p>
+      {!page.firefox && <p className={styles.muted}>{t('settings.youtube.firefox')}</p>}
     </div>
   );
 }

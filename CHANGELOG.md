@@ -17,7 +17,8 @@ source of truth for the version.
   instead. The server checks the cookies, shows whether they work, and
   retries links blocked in the last 24 hours once they do. Stale cookies give
   their own error, `DOWNLOAD_COOKIES_EXPIRED`; `/health` reports `cookies`.
-
+  The setup steps show this browser's extensions page (`chrome://extensions`,
+  `edge://extensions`, …) with a Copy button, since pages may not open it.
 - "Free video memory" in the settings: shows which models the local speaches
   and Ollama hold and unloads them at once instead of after about 5 minutes
   (`GET /api/v1/ai/memory`, `POST /api/v1/ai/unload`). Servers without that
