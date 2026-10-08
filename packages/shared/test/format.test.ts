@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collapseRepeatedSegments, formatTimestamp } from '../src/format';
+import { collapseRepeatedSegments, findRepeatRuns, formatTimestamp } from '../src/format';
 
 describe('formatTimestamp', () => {
   it('formats seconds under an hour as m:ss', () => {
@@ -42,5 +42,15 @@ describe('collapseRepeatedSegments', () => {
   it('handles a loop that runs to the end', () => {
     const input = [seg('Start.'), ...Array.from({ length: 149 }, (_, i) => seg('Borís', i + 1))];
     expect(collapseRepeatedSegments(input).map((s) => s.text)).toEqual(['Start.', 'Borís']);
+  });
+});
+
+describe('findRepeatRuns', () => {
+  it('reports runs of three or more as index ranges', () => {
+    const texts = ['a', 'Борис', 'борис.', 'Борис', 'b', 'c', 'c', 'd', 'd', 'd'];
+    expect(findRepeatRuns(texts.map((text) => ({ text })))).toEqual([
+      [1, 4],
+      [7, 10],
+    ]);
   });
 });

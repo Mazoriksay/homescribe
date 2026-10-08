@@ -11,25 +11,36 @@ export function formatTimestamp(seconds: number): string {
 /** How many identical segments in a row count as a Whisper loop. */
 export const REPEAT_LIMIT = 3;
 
+const repeatKey = (text: string) =>
+  text
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+
 /**
  * Whisper sometimes gets stuck and repeats one phrase for minutes (a known
- * failure on long or quiet audio). Keeps the first segment of every run of
- * `REPEAT_LIMIT` or more identical segments and drops the rest; shorter runs
- * stay, since people do repeat themselves.
+ * failure on long or quiet audio). Finds every run of `REPEAT_LIMIT` or more
+ * identical segments as `[from, to)` index ranges; shorter runs are left
+ * alone, since people do repeat themselves.
  */
-export function collapseRepeatedSegments<T extends { text: string }>(segments: T[]): T[] {
-  const key = (text: string) =>
-    text
-      .toLocaleLowerCase()
-      .replace(/[^\p{L}\p{N}]+/gu, ' ')
-      .trim();
-  const result: T[] = [];
+export function findRepeatRuns(segments: readonly { text: string }[]): [number, number][] {
+  const runs: [number, number][] = [];
   for (let i = 0; i < segments.length;) {
     let j = i + 1;
-    while (j < segments.length && key(segments[j]!.text) === key(segments[i]!.text)) j++;
-    if (j - i >= REPEAT_LIMIT) result.push(segments[i]!);
-    else result.push(...segments.slice(i, j));
+    while (j < segments.length && repeatKey(segments[j]!.text) === repeatKey(segments[i]!.text)) {
+      j++;
+    }
+    if (j - i >= REPEAT_LIMIT) runs.push([i, j]);
     i = j;
   }
-  return result;
+  return runs;
+}
+
+/** Keeps the first segment of every run found by `findRepeatRuns`. */
+export function collapseRepeatedSegments<T extends { text: string }>(segments: T[]): T[] {
+  const drop = new Set<number>();
+  for (const [from, to] of findRepeatRuns(segments)) {
+    for (let k = from + 1; k < to; k++) drop.add(k);
+  }
+  return segments.filter((_, index) => !drop.has(index));
 }

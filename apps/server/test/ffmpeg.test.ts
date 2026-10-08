@@ -73,6 +73,33 @@ describe.skipIf(!hasFfmpeg)('FfmpegMediaTool (real ffmpeg)', () => {
     expect(await tool.probeDuration(output)).toBeGreaterThan(1.9);
   });
 
+  it('finds pauses and cuts a part of the audio', async () => {
+    // 1 s tone, 1.5 s silence, 1 s tone.
+    const gapped = path.join(dir, 'gapped.wav');
+    const made = spawnSync('ffmpeg', [
+      '-loglevel',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440:duration=3.5,volume=enable=between(t\\,1\\,2.5):volume=0',
+      '-ac',
+      '1',
+      '-ar',
+      '16000',
+      gapped,
+    ]);
+    expect(made.status).toBe(0);
+    const silences = await tool.findSilences(gapped);
+    expect(silences).toHaveLength(1);
+    expect(silences[0]!.start).toBeCloseTo(1, 0);
+    expect(silences[0]!.end).toBeCloseTo(2.5, 0);
+
+    const part = path.join(dir, 'part.ogg');
+    await tool.cutAudio(gapped, part, { start: 1.75, end: 3.5, format: 'ogg' });
+    expect(await tool.probeDuration(part)).toBeCloseTo(1.75, 1);
+  });
+
   it('throws MediaError for a file that is not media', async () => {
     const junk = path.join(dir, 'junk.mp3');
     await writeFile(junk, 'definitely not audio');

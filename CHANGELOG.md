@@ -58,9 +58,13 @@ source of truth for the version.
   each segment on its own line.
 - Links from search results use a rounded start time, and the summary is no
   longer requested while summaries are off.
-- Long recordings no longer end in one phrase repeated for minutes: runs of
-  three or more identical segments are collapsed, and segments past the end
-  of the recording are dropped or trimmed.
+- Long recordings no longer lose their second half to Whisper repeating one
+  phrase. Recordings over 75 s are transcribed in chunks of about a minute,
+  cut in pauses, so a loop cannot run to the end; a chunk that loops is asked
+  again at a higher temperature; whatever still loops is cut to one copy and
+  shown on the recording page as a stretch where speech was not recognized.
+  Segments past the end of the recording are dropped or trimmed. Progress
+  during transcription now counts finished chunks.
 - The speech model is now actually downloaded: the installer asks the speech
   server for it (`POST /v1/models/{id}`) instead of relying on
   `PRELOAD_MODELS`, which the image ignored, so it no longer waits forever.

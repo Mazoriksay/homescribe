@@ -152,6 +152,7 @@ CREATE TABLE transcripts (
   language      TEXT,                        -- as reported by the STT server
   text          TEXT NOT NULL,
   model         TEXT NOT NULL,
+  gaps          TEXT NOT NULL DEFAULT '[]',  -- JSON [{ start, end }]: speech lost to a Whisper loop
   created_at    TEXT NOT NULL
 );
 
@@ -310,6 +311,7 @@ interface Transcript {
   model: string;
   text: string;
   segments: Segment[];
+  gaps: { start: number; end: number }[]; // speech lost to a Whisper loop (§8)
   createdAt: string;
 }
 
@@ -503,12 +505,25 @@ summarizing → done`; `downloading` only for a recording made from a link
 - `converting`: `ffprobe` reads the duration, `ffmpeg` writes
   `work/audio.wav` (16 kHz, mono, PCM s16le). Progress = converted time /
   duration from `ffmpeg -progress`.
-- `transcribing`: one request to the STT server. The API reports no
-  progress, so it is estimated: each finished transcription of 10 s or more
-  stores how many seconds it took per second of audio for that model
-  (`stt_speed`, half old value, half new); the next one shows elapsed time /
-  (speed × duration), updated every 2 s and capped at 0.95. Without a stored
-  speed or a duration, progress is `null`.
+- `transcribing`: recordings longer than 75 s are sent in chunks of about
+  60 s, cut in the middle of the pause (ffmpeg `silencedetect`, −35 dB,
+  0.5 s) nearest to each 60 s mark within ±15 s, else at the mark; each chunk
+  is cut from the WAV and encoded in the backend's format (WAV, or Ogg Opus
+  for cloud APIs). Whisper conditions on its own previous text, and speaches
+  passes faster-whisper a single temperature of 0, so once it starts
+  repeating a phrase nothing stops it until the end of the request; chunks
+  keep such a loop inside one minute. A chunk whose segments contain a run of
+  3+ identical phrases is asked again with `temperature=0.4`, and the answer
+  with fewer repeats is kept. A loop that remains is cut to its first segment
+  and stored as a gap (from the end of that segment to the next real one);
+  the recording page names the gaps, so lost speech is never silent. Later
+  chunks get the language detected in the first one; segment times are made
+  absolute and kept within their chunk.
+  Progress: done chunks count exactly; within a chunk it is estimated from
+  how many seconds this model took per second of audio before (`stt_speed`,
+  half old value, half new, chunks of 10 s or more), updated every 2 s and
+  capped at 95 % of the chunk. A single chunk without a stored speed or a
+  duration has progress `null`.
 - `summarizing`: one request to the LLM, or for transcripts longer than
   `LLM_CHUNK_CHARS` one per part plus one to merge (local servers often run
   with a small context window that the OpenAI API cannot raise). Progress =

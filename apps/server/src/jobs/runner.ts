@@ -1,4 +1,4 @@
-import { mkdir, rename, stat } from 'node:fs/promises';
+import { mkdir, rename, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { TITLE_MAX_LENGTH, type Job, type JobErrorCode } from '@homescribe/shared';
 import type { JobPatch, Repository } from '../db/repository';
@@ -7,7 +7,17 @@ import { LlmError, type Summarizer } from '../llm/summarizer';
 import { DownloadBlockedError, DownloadError, type MediaDownloader } from '../media/downloader';
 import { MediaError, type AudioFormat, type MediaTool } from '../media/media-tool';
 import { downloadedMediaType, storedNameFor, type MediaStore } from '../storage';
+import {
+  planChunks,
+  transcribeChunk,
+  type Chunk,
+  type ChunkPlan,
+  type ChunkResult,
+} from '../stt/chunks';
 import { SttError, type Transcriber } from '../stt/transcriber';
+
+/** About a minute per STT request, cut in a pause (SPEC.md §8). */
+const CHUNKING: ChunkPlan = { target: 60, slack: 15 };
 
 /** The AI backends to use, resolved per job so settings changes apply to the next job. */
 export interface AiBackends {
@@ -239,7 +249,8 @@ export class JobRunner {
     const { transcriber, format } = this.deps.ai.stt();
     const input = store.originalPath(recordingId, storedName);
     const workDir = store.workDir(recordingId);
-    const audio = path.join(workDir, `audio.${format}`);
+    // Always a WAV first: chunks are cut from it, then encoded as `format`.
+    const audio = path.join(workDir, 'audio.wav');
 
     this.update(job.id, {
       status: 'converting',
@@ -247,56 +258,94 @@ export class JobRunner {
       ...(!alreadyStarted && { error: null, started: true }),
     });
     await mkdir(workDir, { recursive: true });
-    const duration = await media.probeDuration(input, signal);
-    if (duration !== null) repo.setDuration(recordingId, duration);
+    const probed = await media.probeDuration(input, signal);
+    if (probed !== null) repo.setDuration(recordingId, probed);
     await media.convertAudio(input, audio, {
-      format,
-      durationSeconds: duration,
+      format: 'wav',
+      durationSeconds: probed,
       signal,
       onProgress: this.progressReporter(job.id),
     });
+    const duration = probed ?? (await media.probeDuration(audio, signal));
 
-    const result = await this.withEstimate(job.id, transcriber.model, duration, () =>
-      transcriber.transcribe(audio, signal),
-    );
-    if (signal.aborted) throw signal.reason;
-    // Whisper can place its last segments past the end of the audio.
-    const segments =
-      duration === null
-        ? result.segments
-        : result.segments
-            .filter((s) => s.start < duration)
-            .map((s) => ({ ...s, end: Math.min(s.end, duration) }));
-    repo.saveTranscript(recordingId, { ...result, segments, model: transcriber.model });
+    const chunks =
+      duration !== null && duration > CHUNKING.target + CHUNKING.slack
+        ? planChunks(duration, await media.findSilences(audio, signal), CHUNKING)
+        : [{ start: 0, end: duration ?? Infinity }];
+
+    const segments: ChunkResult['segments'] = [];
+    const gaps: ChunkResult['gaps'] = [];
+    const texts: string[] = [];
+    let language: string | null = null;
+    for (const [index, chunk] of chunks.entries()) {
+      let file = audio;
+      if (chunks.length > 1 || format !== 'wav') {
+        file = path.join(workDir, `chunk-${index}.${format}`);
+        await media.cutAudio(audio, file, {
+          start: chunk.start,
+          end: Number.isFinite(chunk.end) ? chunk.end : Number.MAX_SAFE_INTEGER,
+          format,
+          signal,
+        });
+      }
+      const result = await this.withEstimate(job.id, transcriber.model, chunk, duration, () =>
+        // Later chunks keep the language of the first, so one recording is not split across two.
+        transcribeChunk(transcriber, file, chunk, { language, signal }),
+      );
+      if (signal.aborted) throw signal.reason;
+      language ??= result.language;
+      segments.push(...result.segments);
+      gaps.push(...result.gaps);
+      if (result.text) texts.push(result.text);
+      if (file !== audio) await rm(file, { force: true });
+    }
+    repo.saveTranscript(recordingId, {
+      language,
+      text: segments.length > 0 ? segments.map((s) => s.text).join(' ') : texts.join(' '),
+      segments,
+      gaps,
+      model: transcriber.model,
+    });
   }
 
   /**
-   * transcribing: the STT server reports no progress, so it is estimated from
-   * how long this model took per second of audio before (capped at 95 %).
-   * Without a measurement yet the progress stays unknown.
+   * transcribing: the STT server reports no progress. Done chunks count
+   * exactly; within a chunk progress is estimated from how long this model
+   * took per second of audio before (capped at 95 % of the chunk). With one
+   * chunk and no measurement yet, progress stays unknown.
    */
   private async withEstimate<T>(
     jobId: string,
     model: string,
+    chunk: Chunk,
     duration: number | null,
     work: () => Promise<T>,
   ): Promise<T> {
     const { repo } = this.deps;
-    const speed = duration ? repo.getSttSpeed(model) : null;
-    const expectedMs = speed && duration ? speed * duration * 1000 : null;
-    this.update(jobId, { status: 'transcribing', progress: expectedMs ? 0 : null });
+    const length = chunk.end - chunk.start;
+    const known = duration !== null && Number.isFinite(length);
+    const speed = known ? repo.getSttSpeed(model) : null;
+    const expectedMs = speed ? speed * length * 1000 : null;
+    const at = (ratio: number) =>
+      known ? Math.round(((chunk.start + ratio * length) / duration) * 1000) / 1000 : null;
+    const firstOfMany = chunk.start === 0 && known && length < duration;
+    this.update(jobId, {
+      status: 'transcribing',
+      progress: expectedMs || chunk.start > 0 || firstOfMany ? at(0) : null,
+    });
     const startedAt = Date.now();
     const timer = expectedMs
       ? setInterval(() => {
-          const ratio = Math.min(0.95, (Date.now() - startedAt) / expectedMs);
-          this.update(jobId, { progress: Math.round(ratio * 1000) / 1000 });
+          this.update(jobId, {
+            progress: at(Math.min(0.95, (Date.now() - startedAt) / expectedMs)),
+          });
         }, this.estimateIntervalMs)
       : null;
     try {
       const result = await work();
       // Very short clips are mostly model start-up time and would skew the speed.
-      if (duration && duration >= 10) {
-        repo.recordSttSpeed(model, (Date.now() - startedAt) / 1000 / duration);
+      if (known && length >= 10) {
+        repo.recordSttSpeed(model, (Date.now() - startedAt) / 1000 / length);
       }
       return result;
     } finally {

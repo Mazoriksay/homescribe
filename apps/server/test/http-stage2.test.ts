@@ -266,7 +266,7 @@ describe('HTTP API, stage 2', () => {
         apiKey: 'sk',
       });
       await uploadAndProcess();
-      expect(t.media.converted.at(-1)?.format).toBe('ogg');
+      expect(t.media.cuts.at(-1)?.format).toBe('ogg');
     });
   });
 

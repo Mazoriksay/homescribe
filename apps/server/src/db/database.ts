@@ -93,6 +93,10 @@ const migrations: string[] = [
     updated_at  TEXT NOT NULL
   );
   `,
+  `
+  -- Stretches Whisper could not transcribe (JSON array of { start, end }).
+  ALTER TABLE transcripts ADD COLUMN gaps TEXT NOT NULL DEFAULT '[]';
+  `,
 ];
 
 export function openDatabase(file: string): DatabaseSync {

@@ -49,6 +49,7 @@ export const en = {
   'recording.noSpeech': 'No speech was recognised in this recording.',
   'recording.transcriptPending': 'The transcript appears here when processing is done.',
   'recording.language': 'Language: {language}',
+  'recording.gaps': 'Speech here could not be recognized: {ranges}.',
 
   'error.CANCELLED': 'Processing was cancelled.',
   'error.INTERRUPTED': 'The server restarted while this recording was being processed.',

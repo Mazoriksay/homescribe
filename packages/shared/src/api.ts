@@ -161,12 +161,21 @@ export const segmentSchema = z.object({
 });
 export type Segment = z.infer<typeof segmentSchema>;
 
+/** A stretch of audio whose speech could not be recognized (seconds). */
+export const transcriptGapSchema = z.object({
+  start: z.number().nonnegative(),
+  end: z.number().nonnegative(),
+});
+export type TranscriptGap = z.infer<typeof transcriptGapSchema>;
+
 export const transcriptSchema = z.object({
   recordingId: z.uuid(),
   language: z.string().nullable(),
   model: z.string(),
   text: z.string(),
   segments: z.array(segmentSchema),
+  /** Where Whisper got stuck repeating itself even after a retry; the text there is missing. */
+  gaps: z.array(transcriptGapSchema),
   createdAt: timestamp,
 });
 export type Transcript = z.infer<typeof transcriptSchema>;

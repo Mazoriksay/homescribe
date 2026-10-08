@@ -1,8 +1,34 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
-import { MediaError, type ConvertOptions, type MediaTool } from './media-tool';
+import {
+  MediaError,
+  type AudioFormat,
+  type ConvertOptions,
+  type CutOptions,
+  type MediaTool,
+  type Silence,
+} from './media-tool';
 
 const STDERR_LIMIT = 4000;
+
+const codecArgs = (format: AudioFormat) =>
+  format === 'ogg' ? ['-c:a', 'libopus', '-b:a', '32k'] : ['-c:a', 'pcm_s16le'];
+
+/** Parses ffmpeg's silencedetect lines ("silence_start: 12.3", "silence_end: 13.1 | ..."). */
+export function parseSilences(log: string): Silence[] {
+  const silences: Silence[] = [];
+  let start: number | null = null;
+  for (const line of log.split('\n')) {
+    const begin = /silence_start: (-?[\d.]+)/.exec(line);
+    if (begin) start = Math.max(0, Number(begin[1]));
+    const end = /silence_end: ([\d.]+)/.exec(line);
+    if (end && start !== null) {
+      silences.push({ start, end: Number(end[1]) });
+      start = null;
+    }
+  }
+  return silences;
+}
 
 interface RunResult {
   stdout: string;
@@ -11,7 +37,8 @@ interface RunResult {
 
 /**
  * Runs a binary with an argument array (never through a shell). `onStdout`
- * receives output as it arrives; stderr is kept (tail only) for error messages.
+ * receives output as it arrives; stderr is kept (tail only) for error messages,
+ * or whole with `keepStderr` (silencedetect reports there).
  */
 function run(
   bin: string,
@@ -19,6 +46,7 @@ function run(
   signal: AbortSignal | undefined,
   redact: string[],
   onStdout?: (chunk: string) => void,
+  { keepStderr = false } = {},
 ): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], signal });
@@ -29,7 +57,7 @@ function run(
       else stdout += chunk;
     });
     child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
-      stderr = (stderr + chunk).slice(-STDERR_LIMIT);
+      stderr = keepStderr ? stderr + chunk : (stderr + chunk).slice(-STDERR_LIMIT);
     });
     child.on('error', (error) => {
       reject(
@@ -43,7 +71,7 @@ function run(
       // Error messages reach API clients; never leak server paths.
       const message = redact.reduce(
         (text, filePath) => text.replaceAll(filePath, path.basename(filePath)),
-        stderr.trim(),
+        stderr.slice(-STDERR_LIMIT).trim(),
       );
       reject(new MediaError(`${path.basename(bin)} exited with code ${code}: ${message}`));
     });
@@ -87,7 +115,7 @@ export class FfmpegMediaTool implements MediaTool {
 
   async convertAudio(input: string, output: string, options: ConvertOptions): Promise<void> {
     const { durationSeconds, onProgress, signal, format } = options;
-    const codec = format === 'ogg' ? ['-c:a', 'libopus', '-b:a', '32k'] : ['-c:a', 'pcm_s16le'];
+    const codec = codecArgs(format);
     let buffer = '';
     const handleProgress = (chunk: string) => {
       buffer += chunk;
@@ -125,6 +153,58 @@ export class FfmpegMediaTool implements MediaTool {
       signal,
       [input, output],
       handleProgress,
+    );
+  }
+
+  async findSilences(input: string, signal?: AbortSignal): Promise<Silence[]> {
+    // silencedetect logs at info level on stderr; nothing is written.
+    const { stderr } = await run(
+      this.ffmpegPath,
+      [
+        '-nostdin',
+        '-hide_banner',
+        '-nostats',
+        '-i',
+        input,
+        '-af',
+        'silencedetect=noise=-35dB:d=0.5',
+        '-f',
+        'null',
+        '-',
+      ],
+      signal,
+      [input],
+      undefined,
+      { keepStderr: true },
+    );
+    return parseSilences(stderr);
+  }
+
+  async cutAudio(input: string, output: string, options: CutOptions): Promise<void> {
+    const { start, end, format, signal } = options;
+    await run(
+      this.ffmpegPath,
+      [
+        '-nostdin',
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-y',
+        '-ss',
+        start.toFixed(3),
+        '-to',
+        end.toFixed(3),
+        '-i',
+        input,
+        '-ac',
+        '1',
+        '-ar',
+        '16000',
+        ...codecArgs(format),
+        output,
+      ],
+      signal,
+      [input, output],
     );
   }
 }
