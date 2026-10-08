@@ -34,11 +34,9 @@ export function StatusPanel({ recording }: { recording: Recording }) {
       </div>
       {(job.status === 'downloading' ||
         job.status === 'converting' ||
+        job.status === 'transcribing' ||
         job.status === 'summarizing') && (
         <ProgressBar value={job.progress} label={t(`status.${job.status}`)} />
-      )}
-      {job.status === 'transcribing' && (
-        <ProgressBar value={null} label={t('status.transcribing')} />
       )}
       {job.status === 'failed' && job.error && (
         <div className={styles.error} role="alert">

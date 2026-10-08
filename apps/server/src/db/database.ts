@@ -85,6 +85,14 @@ const migrations: string[] = [
   DELETE FROM search_docs;
   DROP TABLE IF EXISTS search_fts;
   `,
+  `
+  -- Seconds of transcription per second of audio, per STT model (progress estimate).
+  CREATE TABLE stt_speed (
+    model       TEXT PRIMARY KEY,
+    ratio       REAL NOT NULL,
+    updated_at  TEXT NOT NULL
+  );
+  `,
 ];
 
 export function openDatabase(file: string): DatabaseSync {

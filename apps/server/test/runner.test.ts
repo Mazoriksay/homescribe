@@ -309,4 +309,44 @@ describe('JobRunner', () => {
     expect(transcriber.calls).toBe(0);
     expect(runner.cancel(job.id)).toBeNull();
   });
+
+  it('estimates transcription progress from the speed it measured before', async () => {
+    runner = new JobRunner({
+      repo,
+      store,
+      media,
+      ai,
+      events,
+      logger: silentLogger,
+      progressIntervalMs: 0,
+      estimateIntervalMs: 5,
+    });
+    // 42 s of audio at 0.01 s per second: about 420 ms of transcription expected.
+    repo.recordSttSpeed('fake-whisper', 0.01);
+    const gate = deferred();
+    transcriber.gate = gate.promise;
+    const { job } = await upload();
+    runner.start();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const progress = repo.getJob(job.id)?.progress ?? 0;
+    expect(repo.getJob(job.id)?.status).toBe('transcribing');
+    expect(progress).toBeGreaterThan(0);
+    expect(progress).toBeLessThanOrEqual(0.95);
+
+    gate.resolve();
+    await runner.idle();
+    expect(repo.getSttSpeed('fake-whisper')).toBeGreaterThan(0.005);
+  });
+
+  it('leaves transcription progress unknown until a speed is known', async () => {
+    const { job } = await upload();
+    runner.start();
+    await runner.idle();
+    const transcribing = seen.find(
+      (e) => e.event === 'job' && e.data.id === job.id && e.data.status === 'transcribing',
+    );
+    expect(transcribing?.event === 'job' && transcribing.data.progress).toBeNull();
+    expect(repo.getSttSpeed('fake-whisper')).not.toBeNull();
+  });
 });

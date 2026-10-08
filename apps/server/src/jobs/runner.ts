@@ -33,6 +33,8 @@ export interface JobRunnerDeps {
   logger: Logger;
   /** Minimum time between two progress updates of one job. */
   progressIntervalMs?: number;
+  /** How often the transcribing estimate is updated. */
+  estimateIntervalMs?: number;
 }
 
 class JobFailure extends Error {
@@ -54,9 +56,11 @@ export class JobRunner {
   /** The job being run and its own abort (cancel). */
   private current: { jobId: string; cancel: AbortController } | null = null;
   private readonly progressIntervalMs: number;
+  private readonly estimateIntervalMs: number;
 
   constructor(private readonly deps: JobRunnerDeps) {
     this.progressIntervalMs = deps.progressIntervalMs ?? 500;
+    this.estimateIntervalMs = deps.estimateIntervalMs ?? 2000;
   }
 
   /** Fails jobs left running by a previous process, then starts the queue. */
@@ -252,8 +256,9 @@ export class JobRunner {
       onProgress: this.progressReporter(job.id),
     });
 
-    this.update(job.id, { status: 'transcribing', progress: null });
-    const result = await transcriber.transcribe(audio, signal);
+    const result = await this.withEstimate(job.id, transcriber.model, duration, () =>
+      transcriber.transcribe(audio, signal),
+    );
     if (signal.aborted) throw signal.reason;
     // Whisper can place its last segments past the end of the audio.
     const segments =
@@ -263,6 +268,40 @@ export class JobRunner {
             .filter((s) => s.start < duration)
             .map((s) => ({ ...s, end: Math.min(s.end, duration) }));
     repo.saveTranscript(recordingId, { ...result, segments, model: transcriber.model });
+  }
+
+  /**
+   * transcribing: the STT server reports no progress, so it is estimated from
+   * how long this model took per second of audio before (capped at 95 %).
+   * Without a measurement yet the progress stays unknown.
+   */
+  private async withEstimate<T>(
+    jobId: string,
+    model: string,
+    duration: number | null,
+    work: () => Promise<T>,
+  ): Promise<T> {
+    const { repo } = this.deps;
+    const speed = duration ? repo.getSttSpeed(model) : null;
+    const expectedMs = speed && duration ? speed * duration * 1000 : null;
+    this.update(jobId, { status: 'transcribing', progress: expectedMs ? 0 : null });
+    const startedAt = Date.now();
+    const timer = expectedMs
+      ? setInterval(() => {
+          const ratio = Math.min(0.95, (Date.now() - startedAt) / expectedMs);
+          this.update(jobId, { progress: Math.round(ratio * 1000) / 1000 });
+        }, this.estimateIntervalMs)
+      : null;
+    try {
+      const result = await work();
+      // Very short clips are mostly model start-up time and would skew the speed.
+      if (duration && duration >= 10) {
+        repo.recordSttSpeed(model, (Date.now() - startedAt) / 1000 / duration);
+      }
+      return result;
+    } finally {
+      if (timer) clearInterval(timer);
+    }
   }
 
   /** summarizing; skipped when summaries are off or there is no speech. */

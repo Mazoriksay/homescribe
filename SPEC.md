@@ -188,6 +188,10 @@ CREATE TABLE ai_settings (                   -- one row per kind once chosen in 
   api_key     TEXT,                            -- never returned by the API
   updated_at  TEXT NOT NULL
 );
+CREATE TABLE stt_speed (                     -- transcription speed per STT model
+  model TEXT PRIMARY KEY, ratio REAL NOT NULL, -- seconds per second of audio
+  updated_at TEXT NOT NULL
+);
 CREATE TABLE search_docs (                   -- title + transcript + summary (plain text)
   recording_id  TEXT PRIMARY KEY REFERENCES recordings(id) ON DELETE CASCADE,
   title TEXT NOT NULL, body TEXT NOT NULL,
@@ -497,8 +501,12 @@ summarizing → done`; `downloading` only for a recording made from a link
 - `converting`: `ffprobe` reads the duration, `ffmpeg` writes
   `work/audio.wav` (16 kHz, mono, PCM s16le). Progress = converted time /
   duration from `ffmpeg -progress`.
-- `transcribing`: one request to the STT server. Progress is `null`
-  (the API reports none).
+- `transcribing`: one request to the STT server. The API reports no
+  progress, so it is estimated: each finished transcription of 10 s or more
+  stores how many seconds it took per second of audio for that model
+  (`stt_speed`, half old value, half new); the next one shows elapsed time /
+  (speed × duration), updated every 2 s and capped at 0.95. Without a stored
+  speed or a duration, progress is `null`.
 - `summarizing`: one request to the LLM, or for transcripts longer than
   `LLM_CHUNK_CHARS` one per part plus one to merge (local servers often run
   with a small context window that the OpenAI API cannot raise). Progress =
