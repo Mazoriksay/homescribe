@@ -62,6 +62,19 @@ $url = "http://localhost:$port"
 function Get-Health {
   try { return Invoke-RestMethod -TimeoutSec 5 "http://127.0.0.1:$port/api/v1/health" } catch { return $null }
 }
+# Unpacks the browser extension next to this script; the settings show this
+# folder (EXTENSION_FOLDER in .env) to paste into "Load unpacked".
+function Update-Extension {
+  $zip = Join-Path ([IO.Path]::GetTempPath()) 'homescribe-extension.zip'
+  try {
+    Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 "http://127.0.0.1:$port/api/v1/extension.zip" -OutFile $zip
+    Expand-Archive -Path $zip -DestinationPath (Join-Path $PSScriptRoot 'browser-extension') -Force
+  } catch {
+    Write-Host "Could not unpack the browser extension: $($_.Exception.Message)"
+  } finally {
+    Remove-Item $zip -Force -ErrorAction SilentlyContinue
+  }
+}
 function Wait-Ready {
   Write-Host -NoNewline 'Waiting for Homescribe'
   for ($i = 0; -not (Get-Health); $i++) {
@@ -76,6 +89,7 @@ switch ($Command) {
   'start' {
     Invoke-Docker compose up -d
     Wait-Ready
+    Update-Extension
     Ok "Homescribe is running: $url"
     # The self-check repeats every minute; right after start speaches may still load.
     $health = Get-Health
@@ -107,6 +121,7 @@ switch ($Command) {
     Invoke-Docker compose pull
     Invoke-Docker compose up -d --remove-orphans
     Wait-Ready
+    Update-Extension
     Ok "Updated and running: $url"
     Write-Host 'To change models or the GPU/CPU choice, run the installer again.'
   }

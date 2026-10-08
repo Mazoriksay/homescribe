@@ -19,6 +19,10 @@ source of truth for the version.
   their own error, `DOWNLOAD_COOKIES_EXPIRED`; `/health` reports `cookies`.
   The setup steps show this browser's extensions page (`chrome://extensions`,
   `edge://extensions`, …) with a Copy button, since pages may not open it.
+  The installer and `start`/`update` unpack the extension into
+  `browser-extension` in the install folder, and the settings show that
+  folder with Copy to paste into "Load unpacked" (`EXTENSION_FOLDER`), so
+  there is no zip to unpack or folder to look for on that computer.
 - "Free video memory" in the settings: shows which models the local speaches
   and Ollama hold and unloads them at once instead of after about 5 minutes
   (`GET /api/v1/ai/memory`, `POST /api/v1/ai/unload`). Servers without that

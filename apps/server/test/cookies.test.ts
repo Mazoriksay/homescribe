@@ -45,6 +45,7 @@ describe('YouTube cookies API', () => {
     (await t.app.inject({ method: 'POST', url: '/api/v1/cookies/pairing' })).json<{
       code: string;
       extensionId: string;
+      extensionFolder: string | null;
     }>();
   const pair = (code: string) =>
     t.app.inject({ method: 'POST', url: '/api/v1/cookies/pair', payload: { code } });
@@ -67,7 +68,8 @@ describe('YouTube cookies API', () => {
       checkedAt: null,
       paired: false,
     });
-    const { code, extensionId } = await pairing();
+    const { code, extensionId, extensionFolder } = await pairing();
+    expect(extensionFolder).toBeNull();
     expect(code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
     expect(extensionId).toMatch(/^[a-p]{32}$/);
 

@@ -127,6 +127,11 @@ export const en = {
     'Then turn on developer mode, choose "Load unpacked" and pick that folder. Works in Chrome, Edge, Yandex Browser, Opera and Brave.',
   'settings.youtube.firefoxSteps':
     'Then choose "Load Temporary Add-on" and pick manifest.json in that folder. It stays only until Firefox restarts.',
+  'settings.youtube.pickFolder':
+    'Turn on developer mode, choose "Load unpacked", paste this folder into the address field of the window that opens and choose "Select Folder":',
+  'settings.youtube.firefoxFolder':
+    'Choose "Load Temporary Add-on" and pick manifest.json in this folder. It stays only until Firefox restarts.',
+  'settings.youtube.elsewhere': 'to install it on another computer, and unpack the zip there.',
   'settings.youtube.notInstalled':
     'The extension is not installed in this browser yet. Install it (steps 1–2), then:',
   'settings.youtube.recheck': 'Check again',

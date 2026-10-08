@@ -258,6 +258,8 @@ export const pairingSchema = z.object({
   expiresAt: timestamp,
   /** The extension's fixed Chrome ID, for the one-click pairing link. */
   extensionId: z.string(),
+  /** Where the installer unpacked the extension on the host (EXTENSION_FOLDER). */
+  extensionFolder: z.string().nullable(),
 });
 export type Pairing = z.infer<typeof pairingSchema>;
 

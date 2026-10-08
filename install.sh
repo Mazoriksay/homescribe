@@ -439,6 +439,7 @@ RESTART="$([ "$AUTOSTART" = yes ] && echo unless-stopped || echo no)"
 
 step "Writing $DIR"
 mkdir -p "$DIR"
+DIR="$(cd "$DIR" && pwd)"
 if [ -n "$SOURCE_DIR" ]; then
   cp "$SOURCE_DIR/compose.yaml" "$DIR/compose.yaml"
   cp "$SOURCE_DIR/scripts/homescribe" "$DIR/homescribe"
@@ -457,7 +458,7 @@ profiles=""
 # Our keys are rewritten; anything else you put into .env is kept.
 touch "$DIR/.env"
 tmp="$(mktemp)"
-ours='COMPOSE_PROFILES|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL'
+ours='COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL'
 [ "$STT" != none ] && ours="$ours|STT_MODEL"
 grep -vE "^($ours)=" "$DIR/.env" > "$tmp" || true
 {
@@ -466,6 +467,7 @@ grep -vE "^($ours)=" "$DIR/.env" > "$tmp" || true
   echo "HOMESCRIBE_IMAGE=$IMAGE"
   echo "HOMESCRIBE_PORT=$PORT"
   echo "HOMESCRIBE_RESTART=$RESTART"
+  echo "EXTENSION_FOLDER=$DIR/browser-extension"
   [ "$STT" != none ] && echo "STT_MODEL=$STT_ID"
   if [ "$LLM" = yes ]; then echo "LLM_MODE=local"; echo "LLM_MODEL=$LLM_MODEL"; else echo "LLM_MODE=off"; fi
 } > "$DIR/.env"
@@ -507,6 +509,18 @@ until [ -n "$(health)" ]; do
   printf '.'; sleep 3; waited=$((waited + 3))
 done
 echo; ok "Homescribe is running"
+
+# Unpacked for "Load unpacked"; the settings show this folder.
+ext_zip="$(mktemp)"
+if curl -fsS --max-time 30 "http://127.0.0.1:$PORT/api/v1/extension.zip" -o "$ext_zip" 2>/dev/null \
+  && mkdir -p browser-extension \
+  && { if command -v unzip >/dev/null 2>&1; then unzip -qo "$ext_zip" -d browser-extension;
+       else python3 -m zipfile -e "$ext_zip" browser-extension; fi; } 2>/dev/null; then
+  ok "Browser extension unpacked in $DIR/browser-extension"
+else
+  warn "Could not unpack the browser extension; it can be downloaded in Settings → YouTube."
+fi
+rm -f "$ext_zip"
 
 llm_service="ollama-$([ "$STT" = gpu ] && echo gpu || echo cpu)"
 if [ "$LLM" = yes ] && has "$LLM_MODEL" ${HAVE_LLM[@]+"${HAVE_LLM[@]}"}; then
