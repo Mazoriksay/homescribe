@@ -158,12 +158,12 @@ export function extensionsPage(
   return { address: `${scheme}://extensions`, firefox: false };
 }
 
-function CopyAddress({ address }: { address: string }) {
+function CopyText({ text }: { text: string }) {
   const t = useT();
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(address);
+      await navigator.clipboard.writeText(text);
       setCopied(true);
     } catch {
       setCopied(false);
@@ -171,7 +171,7 @@ function CopyAddress({ address }: { address: string }) {
   };
   return (
     <span className={styles.address}>
-      <code>{address}</code>
+      <code>{text}</code>
       {typeof navigator.clipboard?.writeText === 'function' && (
         <button type="button" className="link-action" onClick={() => void copy()}>
           {copied ? t('settings.youtube.copied') : t('settings.youtube.copy')}
@@ -190,34 +190,59 @@ function ExtensionSteps({ pairing }: { pairing: Pairing }) {
     server,
     code: pairing.code,
   })}`;
+  const folder = pairing.extensionFolder;
+  const download = (
+    <a href={`${apiBase}/extension.zip`} download>
+      {t('settings.youtube.download')}
+    </a>
+  );
+  const pair = (
+    <li>
+      {installed ? (
+        <a href={link} target="_blank" rel="noopener">
+          {t('settings.youtube.pairLink')}
+        </a>
+      ) : (
+        <span className={styles.muted}>
+          {installed === false && t('settings.youtube.notInstalled')}{' '}
+          <button type="button" className="link-action" onClick={recheck}>
+            {t('settings.youtube.recheck')}
+          </button>
+        </span>
+      )}
+    </li>
+  );
   return (
     <div className={styles.form}>
-      <ol className={styles.steps}>
-        <li>
-          <a href={`${apiBase}/extension.zip`} download>
-            {t('settings.youtube.download')}
-          </a>{' '}
-          {t('settings.youtube.unzip')}
-        </li>
-        <li>
-          {t('settings.youtube.openPage')} <CopyAddress address={page.address} />{' '}
-          {t(page.firefox ? 'settings.youtube.firefoxSteps' : 'settings.youtube.chromium')}
-        </li>
-        <li>
-          {installed ? (
-            <a href={link} target="_blank" rel="noopener">
-              {t('settings.youtube.pairLink')}
-            </a>
-          ) : (
-            <span className={styles.muted}>
-              {installed === false && t('settings.youtube.notInstalled')}{' '}
-              <button type="button" className="link-action" onClick={recheck}>
-                {t('settings.youtube.recheck')}
-              </button>
-            </span>
-          )}
-        </li>
-      </ol>
+      {folder ? (
+        // The installer already unpacked it on this computer: nothing to choose.
+        <ol className={styles.steps}>
+          <li>
+            {t('settings.youtube.openPage')} <CopyText text={page.address} />
+          </li>
+          <li>
+            {t(page.firefox ? 'settings.youtube.firefoxFolder' : 'settings.youtube.pickFolder')}{' '}
+            <CopyText text={folder} />
+          </li>
+          {pair}
+        </ol>
+      ) : (
+        <ol className={styles.steps}>
+          <li>
+            {download} {t('settings.youtube.unzip')}
+          </li>
+          <li>
+            {t('settings.youtube.openPage')} <CopyText text={page.address} />{' '}
+            {t(page.firefox ? 'settings.youtube.firefoxSteps' : 'settings.youtube.chromium')}
+          </li>
+          {pair}
+        </ol>
+      )}
+      {folder && (
+        <p className={styles.muted}>
+          {download} {t('settings.youtube.elsewhere')}
+        </p>
+      )}
       <p className={styles.muted}>{t('settings.youtube.manual', { server, code: pairing.code })}</p>
       {!page.firefox && <p className={styles.muted}>{t('settings.youtube.firefox')}</p>}
     </div>

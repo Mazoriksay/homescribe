@@ -79,6 +79,7 @@ const envSchema = z.object({
   ),
   WEB_DIST_DIR: optional(z.string().optional()),
   HOMESCRIBE_VERSION: optional(z.string().default('0.0.0')),
+  EXTENSION_FOLDER: optional(z.string().optional()),
   BASE_PATH: optional(
     z
       .string()
@@ -144,6 +145,8 @@ export interface Config {
   webDistDir: string;
   /** The browser extension's folder, served as a zip (SPEC.md §7.8). */
   extensionDir: string;
+  /** The host's unpacked copy, only shown to the user. */
+  extensionFolder: string | null;
   /** Set from the release tag when the image is built. */
   version: string;
   /** Path everything is served under, e.g. "/homescribe"; "" for the root. */
@@ -203,6 +206,7 @@ export function loadConfig(env: Record<string, string | undefined>, rootDir: str
     discoveryHosts: e.AI_DISCOVERY_HOSTS,
     webDistDir: path.resolve(rootDir, e.WEB_DIST_DIR ?? 'apps/web/dist'),
     extensionDir: path.resolve(rootDir, 'apps/extension'),
+    extensionFolder: e.EXTENSION_FOLDER || null,
     version: e.HOMESCRIBE_VERSION,
     basePath: e.BASE_PATH,
     frameAncestors: e.FRAME_ANCESTORS,

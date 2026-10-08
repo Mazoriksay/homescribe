@@ -45,6 +45,7 @@ export function registerCookieRoutes(
   app.post(`${API_PREFIX}/cookies/pairing`, async () => ({
     ...cookies.createPairing(),
     extensionId: EXTENSION_ID,
+    extensionFolder: deps.config.extensionFolder,
   }));
 
   app.post(`${API_PREFIX}/cookies/pair`, async (request) => {

@@ -552,14 +552,14 @@ interface CookieStatus {
 }
 ```
 
-| Method and path                | Body                                          | Answer                                        |
-| ------------------------------ | --------------------------------------------- | --------------------------------------------- |
-| `GET /api/v1/cookies`          | —                                             | `200 CookieStatus`                            |
-| `PUT /api/v1/cookies/file`     | `text/plain`: a `cookies.txt`                 | `200 CookieStatus`; 400 `VALIDATION_ERROR`    |
-| `DELETE /api/v1/cookies`       | —                                             | `200 CookieStatus` (cookies and pairing gone) |
-| `POST /api/v1/cookies/pairing` | —                                             | `200 { code, expiresAt, extensionId }`        |
-| `POST /api/v1/cookies/pair`    | `{ code }`                                    | `200 { token }`; 400 `PAIRING_INVALID`        |
-| `PUT /api/v1/cookies`          | `text/plain`, `Authorization: Bearer <token>` | `200 CookieStatus`; 401 `TOKEN_INVALID`       |
+| Method and path                | Body                                          | Answer                                                  |
+| ------------------------------ | --------------------------------------------- | ------------------------------------------------------- |
+| `GET /api/v1/cookies`          | —                                             | `200 CookieStatus`                                      |
+| `PUT /api/v1/cookies/file`     | `text/plain`: a `cookies.txt`                 | `200 CookieStatus`; 400 `VALIDATION_ERROR`              |
+| `DELETE /api/v1/cookies`       | —                                             | `200 CookieStatus` (cookies and pairing gone)           |
+| `POST /api/v1/cookies/pairing` | —                                             | `200 { code, expiresAt, extensionId, extensionFolder }` |
+| `POST /api/v1/cookies/pair`    | `{ code }`                                    | `200 { token }`; 400 `PAIRING_INVALID`                  |
+| `PUT /api/v1/cookies`          | `text/plain`, `Authorization: Bearer <token>` | `200 CookieStatus`; 401 `TOKEN_INVALID`                 |
 
 - **Pairing:** `POST …/pairing` makes a one-time code of 8 letters and
   digits (no look-alikes), valid 10 minutes, replacing any earlier one. `pair`
@@ -601,6 +601,13 @@ no other cookies and sends them nowhere but the paired server.
   scope.
 - `GET /api/v1/extension.zip` serves the extension, with the server's version
   (`HOMESCRIBE_VERSION`, from the release tag in the image) in its manifest.
+- No unpacking on the computer Homescribe runs on: the installer and the
+  control script's `start` and `update` unpack that zip into
+  `browser-extension` in the install folder and write its full path to `.env`
+  as `EXTENSION_FOLDER`. The settings show that path with "Copy", to paste
+  into the "Load unpacked" dialog, and the zip only for other computers.
+  After an update Chrome takes the new files on its next start or on
+  "Reload" in the extensions page.
 
 ## 8. Job lifecycle
 
@@ -669,39 +676,40 @@ All settings come from environment variables; `.env.example` lists them.
 exists (Node's `--env-file-if-exists`). Invalid values stop the server at
 startup with a message naming the variable.
 
-| Variable                   | Default                                                                          | Stage | Meaning                                                                                |
-| -------------------------- | -------------------------------------------------------------------------------- | ----- | -------------------------------------------------------------------------------------- |
-| `HOST`                     | `0.0.0.0`                                                                        | 1     | Listen address                                                                         |
-| `PORT`                     | `8080`                                                                           | 1     | Listen port                                                                            |
-| `DATA_DIR`                 | `./data`                                                                         | 1     | SQLite file and media; created if missing                                              |
-| `ALLOWED_NETWORKS`         | `127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,fe80::/10` | 1     | Comma-separated CIDR list of allowed client addresses                                  |
-| `MAX_UPLOAD_MB`            | `2048`                                                                           | 1     | Largest accepted upload                                                                |
-| `FFMPEG_PATH`              | `ffmpeg`                                                                         | 1     | ffmpeg binary                                                                          |
-| `FFPROBE_PATH`             | `ffprobe`                                                                        | 1     | ffprobe binary                                                                         |
-| `STT_MODE`                 | `local`                                                                          | 2     | `local` or `api` (cloud: audio sent as Opus)                                           |
-| `STT_BASE_URL`             | `http://localhost:8000`                                                          | 1     | Base URL; the server calls `${STT_BASE_URL}/v1/audio/transcriptions`                   |
-| `STT_MODEL`                | `Systran/faster-whisper-large-v3`                                                | 1     | `model` form field                                                                     |
-| `STT_LANGUAGE`             | _(empty = auto-detect)_                                                          | 1     | ISO 639-1 code sent as `language`                                                      |
-| `STT_API_KEY`              | _(empty)_                                                                        | 1     | Sent as `Authorization: Bearer …` when set                                             |
-| `STT_TIMEOUT_MS`           | `3600000`                                                                        | 1     | Per-request timeout                                                                    |
-| `STT_VAD_FILTER`           | `true`                                                                           | 3     | Send speaches' `vad_filter=true` in local mode (skips silence, prevents Whisper loops) |
-| `LLM_MODE`                 | `local`                                                                          | 2     | `local`, `api` or `off` (no summaries)                                                 |
-| `LLM_BASE_URL`             | `http://localhost:11434`                                                         | 2     | Base URL; calls `${LLM_BASE_URL}/v1/chat/completions`                                  |
-| `LLM_MODEL`                | `llama3.1:8b`                                                                    | 2     | `model` field                                                                          |
-| `LLM_API_KEY`              | _(empty)_                                                                        | 2     | Bearer token when set                                                                  |
-| `LLM_TIMEOUT_MS`           | `600000`                                                                         | 2     | Per-request timeout                                                                    |
-| `LLM_CHUNK_CHARS`          | `12000`                                                                          | 2     | Longer transcripts are summarized in parts, then merged                                |
-| `AI_DISCOVERY_HOSTS`       | `localhost,host.docker.internal`                                                 | 2     | Hosts probed for local AI servers (names or IPs, no ports)                             |
-| `BASE_PATH`                | _(empty = root)_                                                                 | 3     | Serve UI and API under this path, e.g. `/homescribe` (§11.2)                           |
-| `WEB_DIST_DIR`             | `apps/web/dist` (resolved from the repo root)                                    | 1     | Built UI to serve; skipped if missing                                                  |
-| `FRAME_ANCESTORS`          | _(empty = only the app itself)_                                                  | 1     | Space-separated origins (`http://hub.lan:3000`) allowed to show the UI in an iframe    |
-| `YTDLP_PATH`               | `yt-dlp`                                                                         | 3     | yt-dlp binary for links (§7.7)                                                         |
-| `YTDLP_AUTO_UPDATE`        | `true`                                                                           | 3     | Run `yt-dlp -U` at startup and daily (sites change often)                              |
-| `YTDLP_COOKIES_FILE`       | `<DATA_DIR>/cookies.txt`                                                         | 3     | Where YouTube cookies are kept (§7.8); a file put there by hand is used too            |
-| `HOMESCRIBE_VERSION`       | `0.0.0`                                                                          | 3     | Set by the image build from the release tag; the extension's version (§7.8)            |
-| `DOWNLOAD_TIMEOUT_MS`      | `7200000`                                                                        | 3     | Longest a link download may take                                                       |
-| `URL_IMPORT_ALLOW_PRIVATE` | `false`                                                                          | 3     | Allow links to private/loopback addresses (e.g. a NAS on the LAN)                      |
-| `LOG_LEVEL`                | `info`                                                                           | 1     | Fastify/pino log level                                                                 |
+| Variable                   | Default                                                                          | Stage | Meaning                                                                                  |
+| -------------------------- | -------------------------------------------------------------------------------- | ----- | ---------------------------------------------------------------------------------------- |
+| `HOST`                     | `0.0.0.0`                                                                        | 1     | Listen address                                                                           |
+| `PORT`                     | `8080`                                                                           | 1     | Listen port                                                                              |
+| `DATA_DIR`                 | `./data`                                                                         | 1     | SQLite file and media; created if missing                                                |
+| `ALLOWED_NETWORKS`         | `127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,fe80::/10` | 1     | Comma-separated CIDR list of allowed client addresses                                    |
+| `MAX_UPLOAD_MB`            | `2048`                                                                           | 1     | Largest accepted upload                                                                  |
+| `FFMPEG_PATH`              | `ffmpeg`                                                                         | 1     | ffmpeg binary                                                                            |
+| `FFPROBE_PATH`             | `ffprobe`                                                                        | 1     | ffprobe binary                                                                           |
+| `STT_MODE`                 | `local`                                                                          | 2     | `local` or `api` (cloud: audio sent as Opus)                                             |
+| `STT_BASE_URL`             | `http://localhost:8000`                                                          | 1     | Base URL; the server calls `${STT_BASE_URL}/v1/audio/transcriptions`                     |
+| `STT_MODEL`                | `Systran/faster-whisper-large-v3`                                                | 1     | `model` form field                                                                       |
+| `STT_LANGUAGE`             | _(empty = auto-detect)_                                                          | 1     | ISO 639-1 code sent as `language`                                                        |
+| `STT_API_KEY`              | _(empty)_                                                                        | 1     | Sent as `Authorization: Bearer …` when set                                               |
+| `STT_TIMEOUT_MS`           | `3600000`                                                                        | 1     | Per-request timeout                                                                      |
+| `STT_VAD_FILTER`           | `true`                                                                           | 3     | Send speaches' `vad_filter=true` in local mode (skips silence, prevents Whisper loops)   |
+| `LLM_MODE`                 | `local`                                                                          | 2     | `local`, `api` or `off` (no summaries)                                                   |
+| `LLM_BASE_URL`             | `http://localhost:11434`                                                         | 2     | Base URL; calls `${LLM_BASE_URL}/v1/chat/completions`                                    |
+| `LLM_MODEL`                | `llama3.1:8b`                                                                    | 2     | `model` field                                                                            |
+| `LLM_API_KEY`              | _(empty)_                                                                        | 2     | Bearer token when set                                                                    |
+| `LLM_TIMEOUT_MS`           | `600000`                                                                         | 2     | Per-request timeout                                                                      |
+| `LLM_CHUNK_CHARS`          | `12000`                                                                          | 2     | Longer transcripts are summarized in parts, then merged                                  |
+| `AI_DISCOVERY_HOSTS`       | `localhost,host.docker.internal`                                                 | 2     | Hosts probed for local AI servers (names or IPs, no ports)                               |
+| `BASE_PATH`                | _(empty = root)_                                                                 | 3     | Serve UI and API under this path, e.g. `/homescribe` (§11.2)                             |
+| `WEB_DIST_DIR`             | `apps/web/dist` (resolved from the repo root)                                    | 1     | Built UI to serve; skipped if missing                                                    |
+| `FRAME_ANCESTORS`          | _(empty = only the app itself)_                                                  | 1     | Space-separated origins (`http://hub.lan:3000`) allowed to show the UI in an iframe      |
+| `YTDLP_PATH`               | `yt-dlp`                                                                         | 3     | yt-dlp binary for links (§7.7)                                                           |
+| `YTDLP_AUTO_UPDATE`        | `true`                                                                           | 3     | Run `yt-dlp -U` at startup and daily (sites change often)                                |
+| `YTDLP_COOKIES_FILE`       | `<DATA_DIR>/cookies.txt`                                                         | 3     | Where YouTube cookies are kept (§7.8); a file put there by hand is used too              |
+| `HOMESCRIBE_VERSION`       | `0.0.0`                                                                          | 3     | Set by the image build from the release tag; the extension's version (§7.8)              |
+| `EXTENSION_FOLDER`         | _(empty)_                                                                        | 3     | Where the installer unpacked the browser extension on the host; shown in Settings (§7.8) |
+| `DOWNLOAD_TIMEOUT_MS`      | `7200000`                                                                        | 3     | Longest a link download may take                                                         |
+| `URL_IMPORT_ALLOW_PRIVATE` | `false`                                                                          | 3     | Allow links to private/loopback addresses (e.g. a NAS on the LAN)                        |
+| `LOG_LEVEL`                | `info`                                                                           | 1     | Fastify/pino log level                                                                   |
 
 The `STT_*` and `LLM_*` values are defaults: once a backend is chosen in the
 UI (§7.5), the saved choice wins until it is reset.

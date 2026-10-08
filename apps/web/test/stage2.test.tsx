@@ -168,6 +168,7 @@ describe('SettingsPage', () => {
           code: 'ABCD-EFGH',
           expiresAt: '2026-01-01T10:10:00.000Z',
           extensionId: 'fladogegofoeopddbkeonljdjgpbblgi',
+          extensionFolder: null,
         },
       },
       {
@@ -234,6 +235,53 @@ describe('SettingsPage', () => {
       .map(([r]) => r as Request)
       .find((r) => r.method === 'PUT' && r.url.endsWith('/cookies/file'));
     expect(put?.headers.get('content-type')).toBe('text/plain');
+  });
+
+  it('points at the folder the installer unpacked the extension into', async () => {
+    mockApi([
+      { path: `${API_PREFIX}/settings/ai`, body: settings },
+      {
+        path: `${API_PREFIX}/cookies`,
+        body: { status: 'none', source: null, updatedAt: null, checkedAt: null, paired: false },
+      },
+      {
+        method: 'POST',
+        path: `${API_PREFIX}/cookies/pairing`,
+        body: {
+          code: 'ABCD-EFGH',
+          expiresAt: '2026-01-01T10:10:00.000Z',
+          extensionId: 'fladogegofoeopddbkeonljdjgpbblgi',
+          extensionFolder: 'C:\\Users\\me\\homescribe\\browser-extension',
+        },
+      },
+    ]);
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    onTestFinished(() => {
+      delete (navigator as { clipboard?: unknown }).clipboard;
+    });
+    vi.stubGlobal(
+      'Image',
+      class {
+        onerror: (() => void) | null = null;
+        set src(_: string) {
+          queueMicrotask(() => this.onerror?.());
+        }
+      },
+    );
+    renderPage(<SettingsPage />);
+    const section = (await screen.findByRole('heading', { name: 'YouTube' })).closest('section')!;
+    fireEvent.click(within(section).getByRole('button', { name: 'Connect the extension' }));
+    const folder = await within(section).findByText('C:\\Users\\me\\homescribe\\browser-extension');
+    expect(within(section).getByText(/paste this folder/)).toBeTruthy();
+    fireEvent.click(within(folder.parentElement!).getByRole('button', { name: 'Copy' }));
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith('C:\\Users\\me\\homescribe\\browser-extension'),
+    );
+    // The zip stays for other computers.
+    expect(
+      within(section).getByRole('link', { name: 'Download the extension' }).getAttribute('href'),
+    ).toBe('/api/v1/extension.zip');
   });
 
   it('says where it looked when nothing is running', async () => {

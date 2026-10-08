@@ -286,6 +286,8 @@ $Restart = if ($UseAutostart) { 'unless-stopped' } else { 'no' }
 
 Step "Writing $Dir"
 New-Item -ItemType Directory -Force -Path $Dir | Out-Null
+$Dir = (Resolve-Path $Dir).Path
+$extensionFolder = Join-Path $Dir 'browser-extension'
 $composeFile = Join-Path $Dir 'compose.yaml'
 $controlScript = Join-Path $Dir 'homescribe.ps1'
 if ($Source) {
@@ -315,13 +317,14 @@ if ($UseLlm) { $profiles += $(if ($Stt -eq 'gpu') { 'llm-gpu' } else { 'llm-cpu'
 # Our keys are rewritten; anything else in .env is kept.
 $kept = @()
 if (Test-Path $envFile) {
-  $kept = Get-Content $envFile | Where-Object { $_ -notmatch $(if ($Stt -ne 'none') { '^(COMPOSE_PROFILES|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL|STT_MODEL)=' } else { '^(COMPOSE_PROFILES|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL)=' }) }
+  $kept = Get-Content $envFile | Where-Object { $_ -notmatch $(if ($Stt -ne 'none') { '^(COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL|STT_MODEL)=' } else { '^(COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL)=' }) }
 }
 $lines = @($kept) + @(
   "COMPOSE_PROFILES=$($profiles -join ',')",
   "HOMESCRIBE_IMAGE=$Image",
   "HOMESCRIBE_PORT=$Port",
-  "HOMESCRIBE_RESTART=$Restart"
+  "HOMESCRIBE_RESTART=$Restart",
+  "EXTENSION_FOLDER=$extensionFolder"
 )
 if ($Stt -ne 'none') { $lines += "STT_MODEL=$($SttChoice.Id)" }
 $lines += $(if ($UseLlm) { @('LLM_MODE=local', "LLM_MODEL=$LlmModel") } else { @('LLM_MODE=off') })
@@ -370,6 +373,18 @@ try {
   }
   Write-Host ''
   Ok 'Homescribe is running'
+
+  # Unpacked for "Load unpacked"; the settings show this folder.
+  $zip = Join-Path ([IO.Path]::GetTempPath()) 'homescribe-extension.zip'
+  try {
+    Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 "http://127.0.0.1:$Port/api/v1/extension.zip" -OutFile $zip
+    Expand-Archive -Path $zip -DestinationPath $extensionFolder -Force
+    Ok "Browser extension unpacked in $extensionFolder"
+  } catch {
+    Warn "Could not unpack the browser extension: $($_.Exception.Message)"
+  } finally {
+    Remove-Item $zip -Force -ErrorAction SilentlyContinue
+  }
 
   $service = if ($Stt -eq 'gpu') { 'ollama-gpu' } else { 'ollama-cpu' }
   if ($UseLlm -and $HaveLlm -contains $LlmModel) {

@@ -55,6 +55,23 @@ stt_note() {
   fi
 }
 
+# Unpacks the browser extension next to this script; the settings show this
+# folder (EXTENSION_FOLDER in .env) to paste into "Load unpacked".
+update_extension() {
+  local zip
+  zip="$(mktemp)"
+  if curl -fsS --max-time 30 "http://127.0.0.1:$PORT/api/v1/extension.zip" -o "$zip" 2>/dev/null; then
+    mkdir -p browser-extension
+    if command -v unzip >/dev/null 2>&1; then unzip -qo "$zip" -d browser-extension
+    elif command -v python3 >/dev/null 2>&1; then python3 -m zipfile -e "$zip" browser-extension
+    else echo "Install unzip to get the browser extension unpacked here."
+    fi || echo "Could not unpack the browser extension."
+  else
+    echo "Could not download the browser extension."
+  fi
+  rm -f "$zip"
+}
+
 wait_ready() {
   printf 'Waiting for Homescribe'
   local waited=0
@@ -76,6 +93,7 @@ case "${1:-}" in
   start)
     $DOCKER compose up -d
     wait_ready
+    update_extension
     ok "Homescribe is running: $URL"
     stt_note
     open_browser
@@ -99,6 +117,7 @@ case "${1:-}" in
     $DOCKER compose pull
     $DOCKER compose up -d --remove-orphans
     wait_ready
+    update_extension
     ok "Updated and running: $URL"
     echo "To change models or the GPU/CPU choice, run the installer again."
     ;;
