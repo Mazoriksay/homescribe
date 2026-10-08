@@ -114,8 +114,30 @@ export function YouTubeSection() {
   );
 }
 
+/**
+ * Whether the extension is installed in this browser: its icon is a
+ * web-accessible resource, so it loads only when the extension is there.
+ * Firefox gives each install its own address, so there it never loads.
+ */
+function useExtensionInstalled(extensionId: string) {
+  const [installed, setInstalled] = useState<boolean | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    const image = new Image();
+    image.onload = () => setInstalled(true);
+    image.onerror = () => setInstalled(false);
+    image.src = `chrome-extension://${extensionId}/icon.png?${attempt}`;
+    return () => {
+      image.onload = null;
+      image.onerror = null;
+    };
+  }, [extensionId, attempt]);
+  return { installed, recheck: () => setAttempt((n) => n + 1) };
+}
+
 function ExtensionSteps({ pairing }: { pairing: Pairing }) {
   const t = useT();
+  const { installed, recheck } = useExtensionInstalled(pairing.extensionId);
   const server = `${window.location.origin}${basePath}`;
   const link = `chrome-extension://${pairing.extensionId}/pair.html#${new URLSearchParams({
     server,
@@ -132,9 +154,18 @@ function ExtensionSteps({ pairing }: { pairing: Pairing }) {
         </li>
         <li>{t('settings.youtube.chromium')}</li>
         <li>
-          <a href={link} target="_blank" rel="noopener">
-            {t('settings.youtube.pairLink')}
-          </a>
+          {installed ? (
+            <a href={link} target="_blank" rel="noopener">
+              {t('settings.youtube.pairLink')}
+            </a>
+          ) : (
+            <span className={styles.muted}>
+              {installed === false && t('settings.youtube.notInstalled')}{' '}
+              <button type="button" className="link-action" onClick={recheck}>
+                {t('settings.youtube.recheck')}
+              </button>
+            </span>
+          )}
         </li>
       </ol>
       <p className={styles.muted}>{t('settings.youtube.manual', { server, code: pairing.code })}</p>

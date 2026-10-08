@@ -49,6 +49,31 @@ export function planChunks(
   return chunks;
 }
 
+/**
+ * Lines Whisper invents over silence or music, learned from subtitle credits
+ * in its training data. A segment that is only one of these is dropped; the
+ * same words inside real speech stay.
+ */
+// \b only knows Latin letters, so Cyrillic words end at a space or the end.
+const HALLUCINATIONS = [
+  /^продолжение следует$/,
+  /^субтитры (создавал|сделал|подготовил|делал)( |$)/,
+  /^редактор субтитров( |$)/,
+  /^корректор .*субтитр/,
+  /^thanks? (you )?for watching$/,
+  /^subtitles by\b/,
+  /amara\.org/,
+];
+
+export function isHallucination(text: string): boolean {
+  const plain = text
+    .toLowerCase()
+    .replace(/[.!?…"«»]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return HALLUCINATIONS.some((pattern) => pattern.test(plain));
+}
+
 /** Temperature of the retry when Whisper looped at the default of 0. */
 export const RETRY_TEMPERATURE = 0.4;
 
@@ -98,7 +123,7 @@ export async function transcribeChunk(
   }));
   // Whisper can place its last segments past the end of the audio.
   const kept = collapseRepeatedSegments(segments)
-    .filter((s) => s.start < limit)
+    .filter((s) => s.start < limit && !isHallucination(s.text))
     .map((s) => ({
       start: chunk.start + s.start,
       end: chunk.start + Math.min(s.end, limit),

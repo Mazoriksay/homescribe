@@ -43,28 +43,16 @@ async function probe(baseUrl: string, apiKey: string | null): Promise<Probe> {
   return 'unsupported';
 }
 
-async function unloadOne(
-  baseUrl: string,
-  apiKey: string | null,
-  server: 'speaches' | 'ollama',
-  model: string,
-): Promise<void> {
+async function unloadOllama(baseUrl: string, apiKey: string | null, model: string): Promise<void> {
   const timer = withTimeout(TIMEOUT_MS * 5);
   const headers = { accept: 'application/json', ...authHeaders(apiKey) };
-  // speaches: DELETE /api/ps/{model_id} (the id keeps its slash, as a path).
   // Ollama: an empty generate request with keep_alive 0 unloads the model.
-  const { status, body } =
-    server === 'speaches'
-      ? await httpRequest(
-          new URL(`${baseUrl}/api/ps/${model.split('/').map(encodeURIComponent).join('/')}`),
-          { method: 'DELETE', headers, signal: timer.signal },
-        )
-      : await httpRequest(new URL(`${baseUrl}/api/generate`), {
-          method: 'POST',
-          headers: { ...headers, 'content-type': 'application/json' },
-          body: JSON.stringify({ model, keep_alive: 0 }),
-          signal: timer.signal,
-        });
+  const { status, body } = await httpRequest(new URL(`${baseUrl}/api/generate`), {
+    method: 'POST',
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify({ model, keep_alive: 0 }),
+    signal: timer.signal,
+  });
   // 404: already gone, which is what was asked for.
   if (status === 404 || (status >= 200 && status < 300)) return;
   throw new Error(`HTTP ${status}: ${body.slice(0, 200)}`);
@@ -83,9 +71,11 @@ export class AiMemoryService {
     if (mode === 'api') return { state: 'remote', server: null, loaded: [] };
     try {
       const result = await probe(baseUrl, apiKey);
-      return result === 'unsupported'
-        ? { state: 'unsupported', server: null, loaded: [] }
-        : { state: 'ok', ...result };
+      if (result === 'unsupported') return { state: 'unsupported', server: null, loaded: [] };
+      // speaches 0.8.1: DELETE /api/ps/{id} unloads, then never answers and
+      // takes no more transcriptions until restarted (live test 2026-10-08).
+      // It unloads idle models by itself (stt_model_ttl, 5 min), so leave it.
+      return { state: result.server === 'speaches' ? 'auto' : 'ok', ...result };
     } catch {
       return { state: 'unreachable', server: null, loaded: [] };
     }
@@ -102,11 +92,11 @@ export class AiMemoryService {
     const failed: string[] = [];
     for (const kind of ['stt', 'llm'] as const) {
       const backend = before[kind];
-      if (backend.state !== 'ok' || !backend.server) continue;
+      if (backend.state !== 'ok') continue;
       const { baseUrl, apiKey } = this.settings.effective(kind);
       for (const { model } of backend.loaded) {
         try {
-          await unloadOne(baseUrl, apiKey, backend.server, model);
+          await unloadOllama(baseUrl, apiKey, model);
         } catch {
           failed.push(model);
         }

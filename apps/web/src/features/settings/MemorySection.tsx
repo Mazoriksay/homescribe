@@ -15,18 +15,21 @@ export function MemorySection() {
   // Cloud APIs and summaries turned off hold nothing on this machine.
   if (!data || (!local(data.stt) && !local(data.llm))) return null;
 
-  const loaded = data.stt.loaded.length + data.llm.loaded.length;
+  // Only servers that unload on request count; speaches does it by itself.
+  const unloadable = [data.stt, data.llm].filter((b) => b.state === 'ok');
+  const loaded = unloadable.reduce((n, b) => n + b.loaded.length, 0);
   const describe = (b: BackendMemory) => {
     if (b.state === 'unsupported') return t('settings.memory.unsupported');
     if (b.state === 'unreachable') return t('settings.memory.unreachable');
     if (b.loaded.length === 0) return t('settings.memory.unloaded');
-    return b.loaded
+    const models = b.loaded
       .map(({ model, vramBytes }) =>
         vramBytes
           ? `${model} · ${t('settings.memory.size', { gb: (vramBytes / 1e9).toFixed(1) })}`
           : model,
       )
       .join(', ');
+    return b.state === 'auto' ? `${models} · ${t('settings.memory.auto')}` : models;
   };
 
   return (
@@ -44,17 +47,23 @@ export function MemorySection() {
             </div>
           ))}
       </dl>
-      <div>
-        <Button
-          loading={isLoading}
-          disabled={data.busy || loaded === 0}
-          onClick={() => void unload()}
-        >
-          {t('settings.memory.free')}
-        </Button>
-      </div>
-      {data.busy && <p className={styles.muted}>{t('settings.memory.busy')}</p>}
-      {!data.busy && loaded === 0 && <p className={styles.muted}>{t('settings.memory.empty')}</p>}
+      {unloadable.length > 0 && (
+        <div>
+          <Button
+            loading={isLoading}
+            disabled={data.busy || loaded === 0}
+            onClick={() => void unload()}
+          >
+            {t('settings.memory.free')}
+          </Button>
+        </div>
+      )}
+      {unloadable.length > 0 && data.busy && (
+        <p className={styles.muted}>{t('settings.memory.busy')}</p>
+      )}
+      {unloadable.length > 0 && !data.busy && loaded === 0 && (
+        <p className={styles.muted}>{t('settings.memory.empty')}</p>
+      )}
       {result && result.failed.length > 0 && (
         <p className={styles.muted} role="alert">
           {t('settings.memory.failed', { models: result.failed.join(', ') })}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseSilences } from '../src/media/ffmpeg';
-import { planChunks } from '../src/stt/chunks';
+import { isHallucination, planChunks } from '../src/stt/chunks';
 
 describe('planChunks', () => {
   it('keeps a short recording whole', () => {
@@ -45,5 +45,26 @@ describe('parseSilences', () => {
       { start: 0, end: 1.5 },
       { start: 61.25, end: 62 },
     ]);
+  });
+});
+
+describe('isHallucination', () => {
+  it('spots subtitle credits Whisper makes up over silence, not real speech', () => {
+    for (const text of [
+      'Продолжение следует...',
+      'Субтитры создавал DimaTorzok',
+      'Редактор субтитров А.Синецкая Корректор А.Егорова',
+      'Thank you for watching!',
+      'Subtitles by the Amara.org community',
+    ]) {
+      expect(isHallucination(text), text).toBe(true);
+    }
+    for (const text of [
+      'Продолжение следует на следующей неделе, когда вернётся Борис.',
+      'Мы обсудили субтитры к ролику.',
+      'До новых встреч.',
+    ]) {
+      expect(isHallucination(text), text).toBe(false);
+    }
   });
 });

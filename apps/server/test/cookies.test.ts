@@ -171,6 +171,23 @@ describe('YouTube cookies API', () => {
     expect((await t.app.inject('/api/v1/health')).json().cookies).toBe('expired');
   });
 
+  it('keeps the verdict for the same cookies and checks changed ones again', async () => {
+    await t.cookies.save(FILE, 'extension');
+    await t.cookies.check();
+    expect(t.cookies.status().status).toBe('ok');
+    const checks = t.downloader.cookieChecks;
+
+    // The 6-hourly resend of unchanged cookies: no new check, still working.
+    await t.cookies.save(FILE, 'extension');
+    expect(t.cookies.status().status).toBe('ok');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(t.downloader.cookieChecks).toBe(checks);
+
+    // Changed cookies are unchecked until their own check.
+    await t.cookies.save(`${FILE}.youtube.com\tTRUE\t/\tTRUE\t1893456000\tNEW\tx\n`, 'extension');
+    expect(t.cookies.status().status).toBe('unchecked');
+  });
+
   it('adopts a cookies.txt put into the data folder by hand', async () => {
     await writeFile(t.config.ytdlp.cookiesFile, FILE);
     await t.cookies.start();

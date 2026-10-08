@@ -122,9 +122,12 @@ export const en = {
   'settings.youtube.unzip': 'and unpack the zip into a folder you keep.',
   'settings.youtube.chromium':
     'Chrome, Edge, Yandex Browser, Opera or Brave: open the extensions page, turn on developer mode, choose "Load unpacked" and pick that folder.',
+  'settings.youtube.notInstalled':
+    'The extension is not installed in this browser yet. Install it (steps 1–2), then:',
+  'settings.youtube.recheck': 'Check again',
   'settings.youtube.pairLink': 'Connect this browser',
   'settings.youtube.manual':
-    "If the link does not open: in the extension's window enter {server} and the code {code} (valid for 10 minutes).",
+    "Or click the Homescribe icon in the browser's toolbar and enter {server} and the code {code} (valid for 10 minutes).",
   'settings.youtube.firefox':
     'Firefox: about:debugging → This Firefox → Load Temporary Add-on → manifest.json. It stays only until Firefox restarts.',
   'recording.connectYoutube': 'Connect YouTube',
@@ -134,6 +137,7 @@ export const en = {
   'error.PAIRING_INVALID': 'The code is wrong or has expired.',
   'error.TOKEN_INVALID': 'Connect the extension again.',
   'settings.memory.title': 'Video memory',
+  'settings.memory.auto': 'unloads by itself after 5 idle minutes',
   'settings.memory.unloaded': 'not loaded',
   'settings.memory.unsupported': 'this server cannot unload models on request',
   'settings.memory.unreachable': 'the server is not responding',

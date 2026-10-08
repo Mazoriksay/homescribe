@@ -184,7 +184,26 @@ describe('SettingsPage', () => {
       ),
     ).toBeTruthy();
 
+    // The settings probe the extension's icon; first it is missing, then installed.
+    let installed = false;
+    vi.stubGlobal(
+      'Image',
+      class {
+        onload: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        set src(url: string) {
+          expect(url).toMatch(/^chrome-extension:\/\/fladogegofoeopddbkeonljdjgpbblgi\/icon\.png/);
+          queueMicrotask(() => (installed ? this.onload?.() : this.onerror?.()));
+        }
+      },
+    );
     fireEvent.click(within(section).getByRole('button', { name: 'Connect the extension' }));
+    expect(
+      await within(section).findByText(/The extension is not installed in this browser yet/),
+    ).toBeTruthy();
+    expect(within(section).queryByRole('link', { name: 'Connect this browser' })).toBeNull();
+    installed = true;
+    fireEvent.click(within(section).getByRole('button', { name: 'Check again' }));
     const link = await within(section).findByRole('link', { name: 'Connect this browser' });
     expect(link.getAttribute('href')).toMatch(
       /^chrome-extension:\/\/fladogegofoeopddbkeonljdjgpbblgi\/pair\.html#server=http%3A%2F%2F.+&code=ABCD-EFGH$/,

@@ -11,8 +11,8 @@ const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 8;
 const CODE_TTL_MS = 10 * 60_000;
 const CODE_ATTEMPTS = 5;
-/** yt-dlp checks hit YouTube; cookies arrive in bursts from the extension. */
-const CHECK_INTERVAL_MS = 10 * 60_000;
+/** yt-dlp checks hit YouTube; unchanged cookies are not checked again at all. */
+const CHECK_INTERVAL_MS = 60_000;
 const DAILY_MS = 24 * 60 * 60_000;
 /** Jobs failed for want of cookies this recently are retried once cookies work. */
 const RETRY_WINDOW_MS = 24 * 60 * 60_000;
@@ -41,6 +41,9 @@ export class CookieService {
   private dailyTimer: NodeJS.Timeout | null = null;
   private checking: Promise<void> | null = null;
   private lastCheckAt = 0;
+  /** What was last stored, and what the stored status was found for. */
+  private storedHash: string | null = null;
+  private checkedHash: string | null = null;
 
   constructor(private readonly deps: CookieServiceDeps) {
     this.now = deps.now ?? (() => new Date());
@@ -76,7 +79,7 @@ export class CookieService {
     }
     if (this.deps.repo.getCookieState().status !== 'none') this.scheduleCheck();
     this.dailyTimer = setInterval(() => {
-      if (this.deps.repo.getCookieState().status !== 'none') void this.check();
+      if (this.deps.repo.getCookieState().status !== 'none') void this.check({ again: true });
     }, DAILY_MS);
     this.dailyTimer.unref();
   }
@@ -93,12 +96,16 @@ export class CookieService {
     const temp = `${this.deps.file}.tmp`;
     await writeFile(temp, clean, { mode: 0o600 });
     await rename(temp, this.deps.file);
+    // The extension also sends every 6 hours; the same cookies keep their verdict.
+    this.storedHash = sha256(clean);
+    const { status } = this.deps.repo.getCookieState();
+    const known = (status === 'ok' || status === 'expired') && this.storedHash === this.checkedHash;
     this.deps.repo.updateCookieState({
-      status: 'unchecked',
+      status: known ? status : 'unchecked',
       source,
       updatedAt: this.now().toISOString(),
     });
-    this.scheduleCheck();
+    if (!known) this.scheduleCheck();
     return this.status();
   }
 
@@ -181,16 +188,24 @@ export class CookieService {
     this.checkTimer.unref();
   }
 
-  /** Tries the cookies with yt-dlp; on success re-runs recently blocked recordings. */
-  async check(): Promise<void> {
+  /**
+   * Tries the cookies with yt-dlp; on success re-runs recently blocked
+   * recordings. Cookies already checked are skipped unless `again` (daily).
+   */
+  async check({ again = false } = {}): Promise<void> {
     if (this.checking) return this.checking;
     this.checking = (async () => {
       const { downloader } = this.deps;
-      if (!downloader || this.deps.repo.getCookieState().status === 'none') return;
+      const { status } = this.deps.repo.getCookieState();
+      if (!downloader || status === 'none') return;
+      if (!again && status !== 'unchecked' && this.storedHash === this.checkedHash) return;
       this.lastCheckAt = this.now().getTime();
+      const hash = this.storedHash;
       const result = await downloader.checkCookies();
       this.deps.logger.info({ result }, 'checked YouTube cookies');
-      if (result === 'unknown') return;
+      // Newer cookies arrived meanwhile: their own check is already scheduled.
+      if (result === 'unknown' || hash !== this.storedHash) return;
+      this.checkedHash = hash;
       this.update({
         status: result,
         checkedAt: this.now().toISOString(),

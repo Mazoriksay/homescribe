@@ -101,13 +101,22 @@ export const loadedModelSchema = z.object({
 export type LoadedModel = z.infer<typeof loadedModelSchema>;
 
 /**
- * - `ok`: a local server that can unload on request (speaches, Ollama)
+ * - `ok`: a local server that can unload on request (Ollama)
+ * - `auto`: it unloads by itself after a few idle minutes and must not be
+ *   asked to (speaches 0.8.1 hangs on `DELETE /api/ps` and then takes no work)
  * - `unsupported`: a local server without that API (LM Studio, llama.cpp, ...)
  * - `unreachable`: the server did not answer
  * - `remote`: a cloud API, nothing to free here
  * - `off`: summaries are turned off
  */
-export const backendMemoryStates = ['ok', 'unsupported', 'unreachable', 'remote', 'off'] as const;
+export const backendMemoryStates = [
+  'ok',
+  'auto',
+  'unsupported',
+  'unreachable',
+  'remote',
+  'off',
+] as const;
 
 export const backendMemorySchema = z.object({
   state: z.enum(backendMemoryStates),
