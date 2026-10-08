@@ -49,8 +49,7 @@ source of truth for the version.
 - Search treats «ё» and «е» as the same letter (the index is rebuilt once
   on start).
 - An empty upload is refused with `400` instead of becoming a failed job.
-- Links to `198.18.0.0/15` count as internal for link import, and a
-  malformed link is reported once instead of twice.
+- A malformed link is reported once instead of twice.
 - Error details from ffprobe or yt-dlp are folded under «Details», without
   memory addresses.
 - Settings controls are at least 44 px tall on phones.

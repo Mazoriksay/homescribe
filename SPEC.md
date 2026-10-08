@@ -477,7 +477,9 @@ which yt-dlp recommends because it sandboxes that code. yt-dlp updates itself
 link-local or otherwise internal address unless `URL_IMPORT_ALLOW_PRIVATE`
 is set (`400 URL_NOT_ALLOWED`). This is a best-effort check before handing
 the URL to yt-dlp, which follows redirects and site-specific requests on its
-own; every allowed LAN client is trusted anyway (§10).
+own; every allowed LAN client is trusted anyway (§10). `198.18.0.0/15` is not
+blocked: VPN clients with fake-IP DNS (Clash, sing-box) resolve every public
+name into it, and blocking it would refuse all links behind such a VPN.
 
 Downloading content is subject to each site's terms; Homescribe is meant for
 material the user may keep a personal copy of.

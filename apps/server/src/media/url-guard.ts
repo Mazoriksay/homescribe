@@ -1,7 +1,11 @@
 import { lookup } from 'node:dns/promises';
 import net from 'node:net';
 
-/** Addresses a link import must not reach by default (SPEC.md §7.7). */
+/**
+ * Addresses a link import must not reach by default (SPEC.md §7.7).
+ * 198.18.0.0/15 stays allowed: VPN clients with fake-IP DNS (Clash, sing-box)
+ * answer every public name with an address from it.
+ */
 const INTERNAL = new net.BlockList();
 for (const [address, prefix] of [
   ['0.0.0.0', 8],
@@ -11,7 +15,6 @@ for (const [address, prefix] of [
   ['169.254.0.0', 16],
   ['172.16.0.0', 12],
   ['192.168.0.0', 16],
-  ['198.18.0.0', 15], // benchmarking, used by some VPN clients for fake DNS
   ['224.0.0.0', 4],
   ['240.0.0.0', 4],
 ] as const) {
