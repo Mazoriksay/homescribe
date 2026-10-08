@@ -128,7 +128,7 @@ export const en = {
   'settings.youtube.firefoxSteps':
     'Then choose "Load Temporary Add-on" and pick manifest.json in that folder. It stays only until Firefox restarts.',
   'settings.youtube.pickFolder':
-    'Turn on developer mode, choose "Load unpacked", paste this folder into the address field of the window that opens and choose "Select Folder":',
+    'Turn on developer mode, choose "Load unpacked", paste this folder into the "Folder" field at the bottom of the window (not the address bar at the top, which picks a folder inside it) and choose "Select Folder":',
   'settings.youtube.firefoxFolder':
     'Choose "Load Temporary Add-on" and pick manifest.json in this folder. It stays only until Firefox restarts.',
   'settings.youtube.elsewhere': 'to install it on another computer, and unpack the zip there.',
