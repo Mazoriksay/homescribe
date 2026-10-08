@@ -12,6 +12,7 @@ import { YtDlpDownloader } from './media/ytdlp';
 import { MediaStore } from './storage';
 import { createAiBackends } from './ai/backends';
 import { AiMemoryService } from './ai/memory';
+import { CookieService, retryRecordings } from './cookies/service';
 import { discoverServers } from './ai/discovery';
 import { listModels } from './ai/models';
 import { AiSettingsService } from './ai/settings';
@@ -42,6 +43,14 @@ async function main(): Promise<void> {
       info: (obj, msg) => app?.log.info(obj, msg),
       error: (obj, msg) => app?.log.error(obj, msg),
     },
+    onCookiesExpired: () => cookies.markExpired(),
+  });
+  const cookies = new CookieService({
+    repo,
+    file: config.ytdlp.cookiesFile,
+    downloader,
+    retry: (ids) => retryRecordings({ repo, events, kick: () => runner.kick() }, ids),
+    logger: { info: (obj, msg) => app?.log.info(obj, msg) },
   });
   const selfCheck = new SelfCheck({
     media,
@@ -61,6 +70,7 @@ async function main(): Promise<void> {
     store,
     runner,
     events,
+    cookies,
     aiSettings,
     discover: () => discoverServers({ hosts: config.discoveryHosts, selfPort: config.port }),
     memory: new AiMemoryService(aiSettings, () => runner.busy),
@@ -71,6 +81,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string) => {
     app?.log.info({ signal }, 'shutting down');
     selfCheck.stop();
+    await cookies.stop();
     await runner.stop();
     await app?.close();
     process.exit(0);
@@ -80,6 +91,7 @@ async function main(): Promise<void> {
 
   runner.start();
   selfCheck.start();
+  await cookies.start();
 
   // Sites change often; a stale yt-dlp is the most common reason links fail.
   if (config.ytdlp.autoUpdate) {

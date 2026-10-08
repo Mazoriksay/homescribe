@@ -22,6 +22,8 @@ describe('loadConfig', () => {
       vadFilter: true,
     });
     expect(config.webDistDir).toBe(path.join(root, 'apps/web/dist'));
+    expect(config.extensionDir).toBe(path.join(root, 'apps/extension'));
+    expect(config.version).toBe('0.0.0');
     expect(config.frameAncestors).toEqual([]);
     expect(config.llm).toEqual({
       mode: 'local',

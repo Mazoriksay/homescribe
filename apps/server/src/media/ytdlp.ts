@@ -1,10 +1,13 @@
 import { spawn } from 'node:child_process';
-import { access, copyFile, rm } from 'node:fs/promises';
+import { access, copyFile, mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { z } from 'zod';
 import {
   DownloadBlockedError,
+  DownloadCookiesExpiredError,
   DownloadError,
+  type CookieCheck,
   type DownloadedFile,
   type DownloadOptions,
   type MediaDownloader,
@@ -69,6 +72,9 @@ function errorLine(stderr: string): string {
 }
 
 const BLOCKED = /confirm you.re not a bot|sign in to confirm|--cookies-from-browser/i;
+const EXPIRED = /cookies are no longer valid/i;
+/** A short public video ("Me at the zoo") for checking cookies. */
+const CHECK_URL = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
 
 const exists = (file: string) =>
   access(file).then(
@@ -153,6 +159,8 @@ export class YtDlpDownloader implements MediaDownloader {
 
     if (result.code !== 0) {
       const line = errorLine(result.stderr);
+      // yt-dlp warns about stale cookies on its own line before the error.
+      if (cookies && EXPIRED.test(result.stderr)) throw new DownloadCookiesExpiredError(line);
       throw BLOCKED.test(line) ? new DownloadBlockedError(line) : new DownloadError(line);
     }
     const file = done as z.infer<typeof doneSchema> | null;
@@ -174,6 +182,28 @@ export class YtDlpDownloader implements MediaDownloader {
       durationSeconds: file.duration ?? null,
       audioOnly: file.vcodec === 'none',
     };
+  }
+
+  async checkCookies(signal?: AbortSignal): Promise<CookieCheck> {
+    if (!this.cookiesFile || !(await exists(this.cookiesFile))) return 'unknown';
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'homescribe-cookies-'));
+    try {
+      const copy = path.join(dir, 'cookies.txt');
+      await copyFile(this.cookiesFile, copy);
+      const timeout = AbortSignal.timeout(90_000);
+      const result = await run(
+        this.bin,
+        ['--ignore-config', '--no-playlist', '--simulate', '--cookies', copy, '--', CHECK_URL],
+        signal ? AbortSignal.any([signal, timeout]) : timeout,
+      );
+      if (EXPIRED.test(result.stderr)) return 'expired';
+      if (result.code === 0) return 'ok';
+      return BLOCKED.test(result.stderr) ? 'expired' : 'unknown';
+    } catch {
+      return 'unknown';
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   }
 
   async selfUpdate(): Promise<string> {

@@ -19,6 +19,8 @@ export const apiErrorCodes = [
   'SUMMARIES_OFF',
   'URL_NOT_ALLOWED',
   'AI_UNREACHABLE',
+  'PAIRING_INVALID',
+  'TOKEN_INVALID',
   'FILE_TOO_LARGE',
   'UNSUPPORTED_MEDIA_TYPE',
   'INTERNAL_ERROR',
@@ -39,6 +41,7 @@ export const jobErrorCodes = [
   'CANCELLED',
   'DOWNLOAD_FAILED',
   'DOWNLOAD_BLOCKED',
+  'DOWNLOAD_COOKIES_EXPIRED',
   'MEDIA_UNREADABLE',
   'STT_UNAVAILABLE',
   'STT_TIMEOUT',
@@ -236,12 +239,41 @@ export const healthChecksSchema = z.object({
 });
 export type HealthChecks = z.infer<typeof healthChecksSchema>;
 
+// ---------------------------------------------------------------- YouTube cookies (§7.8)
+
+export const cookieStatuses = ['none', 'ok', 'expired', 'unchecked'] as const;
+
+export const cookieStatusSchema = z.object({
+  status: z.enum(cookieStatuses),
+  source: z.enum(['extension', 'file']).nullable(),
+  updatedAt: timestamp.nullable(),
+  checkedAt: timestamp.nullable(),
+  /** An extension holds a token. */
+  paired: z.boolean(),
+});
+export type CookieStatus = z.infer<typeof cookieStatusSchema>;
+
+export const pairingSchema = z.object({
+  code: z.string(),
+  expiresAt: timestamp,
+  /** The extension's fixed Chrome ID, for the one-click pairing link. */
+  extensionId: z.string(),
+});
+export type Pairing = z.infer<typeof pairingSchema>;
+
+export const pairBodySchema = z.object({ code: z.string().trim().min(1).max(20) });
+export const pairResultSchema = z.object({ token: z.string() });
+
+/** ID that the `key` in apps/extension/manifest.json gives the extension in Chromium browsers. */
+export const EXTENSION_ID = 'fladogegofoeopddbkeonljdjgpbblgi';
+
 export const healthSchema = z.object({
   status: z.literal('ok'),
   search: z.enum(searchModes),
   /** null until the first check has finished. */
   checks: healthChecksSchema.nullable(),
   checkedAt: timestamp.nullable(),
+  cookies: z.enum(cookieStatuses),
 });
 export type Health = z.infer<typeof healthSchema>;
 

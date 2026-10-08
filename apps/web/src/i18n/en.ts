@@ -105,6 +105,34 @@ export const en = {
   'settings.appearance': 'Appearance',
   'settings.stt.title': 'Speech recognition',
   'settings.llm.title': 'Summaries',
+  'settings.youtube.none': 'Not set up. Links work until YouTube asks to sign in.',
+  'settings.youtube.ok': 'Working, updated {ago}',
+  'settings.youtube.unchecked': 'Received {ago}, not checked yet',
+  'settings.youtube.expired': 'No longer valid. Update them in the extension or upload a new file.',
+  'settings.youtube.source.extension': 'from the extension',
+  'settings.youtube.source.file': 'from a file',
+  'settings.youtube.account':
+    'This signs the server in to your Google account; a separate account is safer.',
+  'settings.youtube.connect': 'Connect the extension',
+  'settings.youtube.upload': 'Upload cookies.txt',
+  'settings.youtube.remove': 'Delete cookies',
+  'settings.youtube.badFile':
+    'No YouTube cookies in that file. Export them for youtube.com in Netscape format.',
+  'settings.youtube.download': 'Download the extension',
+  'settings.youtube.unzip': 'and unpack the zip into a folder you keep.',
+  'settings.youtube.chromium':
+    'Chrome, Edge, Yandex Browser, Opera or Brave: open the extensions page, turn on developer mode, choose "Load unpacked" and pick that folder.',
+  'settings.youtube.pairLink': 'Connect this browser',
+  'settings.youtube.manual':
+    "If the link does not open: in the extension's window enter {server} and the code {code} (valid for 10 minutes).",
+  'settings.youtube.firefox':
+    'Firefox: about:debugging → This Firefox → Load Temporary Add-on → manifest.json. It stays only until Firefox restarts.',
+  'recording.connectYoutube': 'Connect YouTube',
+  'recording.orUpload': 'or download the video yourself and upload the file.',
+  'error.DOWNLOAD_COOKIES_EXPIRED':
+    'The YouTube cookies are no longer valid. Update them, and the link is tried again.',
+  'error.PAIRING_INVALID': 'The code is wrong or has expired.',
+  'error.TOKEN_INVALID': 'Connect the extension again.',
   'settings.memory.title': 'Video memory',
   'settings.memory.unloaded': 'not loaded',
   'settings.memory.unsupported': 'this server cannot unload models on request',
@@ -142,8 +170,7 @@ export const en = {
   'settings.reset': 'Back to defaults',
   'settings.cloudNote': 'Audio and transcripts are sent to this provider.',
   'error.DOWNLOAD_FAILED': 'The link could not be downloaded.',
-  'error.DOWNLOAD_BLOCKED':
-    'The site asks to sign in. Put cookies.txt from your browser into the data folder and retry.',
+  'error.DOWNLOAD_BLOCKED': 'YouTube asks to sign in before it lets this server download.',
   'error.URL_NOT_ALLOWED':
     'This link cannot be used: it points to this server or the local network.',
   'error.AI_UNREACHABLE': 'The AI server could not be reached.',

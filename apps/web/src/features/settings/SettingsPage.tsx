@@ -8,6 +8,7 @@ import { useT } from '../../i18n/useT';
 import type { ThemePreference } from '../../theme/theme';
 import { AiBackendForm } from './AiBackendForm';
 import { MemorySection } from './MemorySection';
+import { YouTubeSection } from './YouTubeSection';
 import styles from './Settings.module.css';
 
 export function SettingsPage() {
@@ -31,6 +32,8 @@ export function SettingsPage() {
       ))}
 
       <MemorySection />
+
+      <YouTubeSection />
 
       <section className={styles.section} aria-labelledby="settings-appearance">
         <h2 id="settings-appearance" className={styles.heading}>

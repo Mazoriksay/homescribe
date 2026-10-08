@@ -147,6 +147,65 @@ describe('SettingsPage', () => {
     ).toBeTruthy();
   });
 
+  it('connects the extension with a one-time code and takes a cookies.txt', async () => {
+    const fetchMock = mockApi([
+      { path: `${API_PREFIX}/settings/ai`, body: settings },
+      {
+        path: `${API_PREFIX}/cookies`,
+        body: {
+          status: 'expired',
+          source: 'extension',
+          updatedAt: '2026-01-01T10:00:00.000Z',
+          checkedAt: null,
+          paired: true,
+        },
+      },
+      {
+        method: 'POST',
+        path: `${API_PREFIX}/cookies/pairing`,
+        body: {
+          code: 'ABCD-EFGH',
+          expiresAt: '2026-01-01T10:10:00.000Z',
+          extensionId: 'fladogegofoeopddbkeonljdjgpbblgi',
+        },
+      },
+      {
+        method: 'PUT',
+        path: `${API_PREFIX}/cookies/file`,
+        status: 400,
+        body: { error: { code: 'VALIDATION_ERROR', message: 'x' } },
+      },
+    ]);
+    renderPage(<SettingsPage />);
+    const section = (await screen.findByRole('heading', { name: 'YouTube' })).closest('section')!;
+    expect(
+      await within(section).findByText(
+        'No longer valid. Update them in the extension or upload a new file.',
+      ),
+    ).toBeTruthy();
+
+    fireEvent.click(within(section).getByRole('button', { name: 'Connect the extension' }));
+    const link = await within(section).findByRole('link', { name: 'Connect this browser' });
+    expect(link.getAttribute('href')).toMatch(
+      /^chrome-extension:\/\/fladogegofoeopddbkeonljdjgpbblgi\/pair\.html#server=http%3A%2F%2F.+&code=ABCD-EFGH$/,
+    );
+    expect(
+      within(section).getByRole('link', { name: 'Download the extension' }).getAttribute('href'),
+    ).toBe('/api/v1/extension.zip');
+
+    const input = section.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['nothing'], 'cookies.txt')] } });
+    expect(
+      await within(section).findByText(
+        'No YouTube cookies in that file. Export them for youtube.com in Netscape format.',
+      ),
+    ).toBeTruthy();
+    const put = fetchMock.mock.calls
+      .map(([r]) => r as Request)
+      .find((r) => r.method === 'PUT' && r.url.endsWith('/cookies/file'));
+    expect(put?.headers.get('content-type')).toBe('text/plain');
+  });
+
   it('says where it looked when nothing is running', async () => {
     mockApi([
       { path: `${API_PREFIX}/settings/ai`, body: settings },
@@ -234,6 +293,27 @@ describe('RecordingPage, stage 2', () => {
     expect(container.querySelector('img')).toBeNull();
     expect(screen.getByText('Ann: send the notes')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Summarize again' })).toBeTruthy();
+  });
+
+  it('offers to connect YouTube when a link needs signing in', async () => {
+    mockApi([
+      {
+        path: recordingPath,
+        body: recording({
+          sourceUrl: 'https://www.youtube.com/watch?v=x',
+          job: job({
+            status: 'failed',
+            error: { code: 'DOWNLOAD_BLOCKED', message: 'Sign in to confirm' },
+          }),
+        }),
+      },
+      { path: `${recordingPath}/transcript`, status: 409, body: {} },
+      { path: `${API_PREFIX}/settings/ai`, body: settings },
+    ]);
+    renderPage(<RecordingPage />, page);
+    const link = await screen.findByRole('link', { name: 'Connect YouTube' });
+    expect(link.getAttribute('href')).toBe('/settings#youtube');
+    expect(screen.getByText('or download the video yourself and upload the file.')).toBeTruthy();
   });
 
   it('shows a cancelled job as cancelled, not failed', async () => {

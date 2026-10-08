@@ -3,7 +3,11 @@ import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DownloadBlockedError, DownloadError } from '../src/media/downloader';
+import {
+  DownloadBlockedError,
+  DownloadCookiesExpiredError,
+  DownloadError,
+} from '../src/media/downloader';
 import { YtDlpDownloader } from '../src/media/ytdlp';
 
 /**
@@ -32,6 +36,21 @@ if (url.includes('bot')) {
   }
   console.error("ERROR: [youtube] abc: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication.");
   process.exit(1);
+}
+if (url.includes('stale')) {
+  console.error('WARNING: [youtube] The provided YouTube account cookies are no longer valid. They have likely been rotated in the browser as a security measure.');
+  console.error('ERROR: [youtube] x: Sign in to confirm you are not a bot');
+  process.exit(1);
+}
+if (args.includes('--simulate')) {
+  const cookies = fs.readFileSync(args[args.indexOf('--cookies') + 1], 'utf8');
+  if (cookies.includes('stale')) {
+    console.error('WARNING: [youtube] The provided YouTube account cookies are no longer valid.');
+    process.exit(1);
+  }
+  if (cookies.includes('offline')) { console.error('ERROR: Unable to download webpage'); process.exit(1); }
+  console.log('[youtube] jNQXAC9IVRw: Downloading webpage');
+  process.exit(0);
 }
 if (url.includes('huge')) {
   console.log('[download] File is larger than max-filesize (999 bytes > 10 bytes). Aborting.');
@@ -119,6 +138,45 @@ describe('YtDlpDownloader (fake executable)', () => {
     expect(await readFile(`${argsFile}.cookies`, 'utf8')).toBe('# Netscape HTTP Cookie File\n');
     expect(await readFile(cookies, 'utf8')).toBe('# Netscape HTTP Cookie File\n');
     expect(await readdir(out)).toEqual([]);
+  });
+
+  it('tells stale cookies apart from no cookies', async () => {
+    const cookies = path.join(dir, 'stale-cookies.txt');
+    await writeFile(cookies, '# Netscape HTTP Cookie File\n');
+    const withCookies = await new YtDlpDownloader(bin, cookies)
+      .download('https://www.youtube.com/watch?v=stale', { dir: await target('s1'), maxBytes: 10 })
+      .catch((e: unknown) => e);
+    expect(withCookies).toBeInstanceOf(DownloadCookiesExpiredError);
+    // Without a cookies file the same answer is just the sign-in wall.
+    const without = await new YtDlpDownloader(bin)
+      .download('https://www.youtube.com/watch?v=stale', { dir: await target('s2'), maxBytes: 10 })
+      .catch((e: unknown) => e);
+    expect(without).toBeInstanceOf(DownloadBlockedError);
+    expect(without).not.toBeInstanceOf(DownloadCookiesExpiredError);
+  });
+
+  it('checks cookies on one video without downloading it', async () => {
+    const write = async (name: string, text: string) => {
+      const file = path.join(dir, name);
+      await writeFile(file, text);
+      return file;
+    };
+    expect(await new YtDlpDownloader(bin, await write('good.txt', 'fresh')).checkCookies()).toBe(
+      'ok',
+    );
+    expect(await new YtDlpDownloader(bin, await write('old.txt', 'stale')).checkCookies()).toBe(
+      'expired',
+    );
+    expect(await new YtDlpDownloader(bin, await write('net.txt', 'offline')).checkCookies()).toBe(
+      'unknown',
+    );
+    expect(await new YtDlpDownloader(bin, path.join(dir, 'none.txt')).checkCookies()).toBe(
+      'unknown',
+    );
+    const args = JSON.parse(await readFile(argsFile, 'utf8')) as string[];
+    expect(args).toEqual(expect.arrayContaining(['--simulate', '--cookies']));
+    // yt-dlp got a copy, never the stored file.
+    expect(args[args.indexOf('--cookies') + 1]).not.toBe(path.join(dir, 'net.txt'));
   });
 
   it('runs without cookies when the file does not exist', async () => {

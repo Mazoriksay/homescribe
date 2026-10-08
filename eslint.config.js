@@ -13,6 +13,24 @@ export default defineConfig(
     extends: [reactHooks.configs.flat.recommended],
   },
   {
+    // Browser extension: plain scripts sharing globalThis.HS (apps/extension/common.js).
+    files: ['apps/extension/**/*.js'],
+    languageOptions: {
+      sourceType: 'script',
+      globals: {
+        HS: 'readonly',
+        chrome: 'readonly',
+        browser: 'readonly',
+        importScripts: 'readonly',
+        document: 'readonly',
+        location: 'readonly',
+        fetch: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+      },
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/consistent-type-imports': 'error',

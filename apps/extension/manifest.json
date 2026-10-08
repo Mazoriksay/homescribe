@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_name__",
+  "description": "__MSG_description__",
+  "version": "0.0.0",
+  "default_locale": "en",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Nllm2A0Q3oeisY3kmwpFgf4VgALGoKOzWJJT1NbQEN5YHINQt+h7/ohiXewOo1iBBldd9l9GVGDxkGHeWmDld3Am63HbVfhd4MtoLgcsicZ3grkfKZdJp+o+Qenv4cUFjk5sWOnwrNkzGtr1zqsssz9fmX2l4d+0lc3I8uqCkV0oCe53PZAMlJbJG2fFCFfqJhTeL6Y848zS11/J6gb9nYkFJkV2ITMhob2Rw0BQipH1BK9/aT/0Ib1dA9BgCxsbb+Na1H6jaePjWF1khm167nzfdt9s1HNgKDWpnKzmXY9ss7z1DE7nI4Lbta2dqs4nlL+R+Nx1EsRxET/7+s/wIDAQAB",
+  "permissions": ["cookies", "storage", "alarms"],
+  "host_permissions": ["https://*.youtube.com/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["common.js", "background.js"]
+  },
+  "action": { "default_popup": "popup.html", "default_title": "Homescribe" },
+  "web_accessible_resources": [{ "resources": ["pair.html"], "matches": ["<all_urls>"] }],
+  "browser_specific_settings": {
+    "gecko": { "id": "youtube-cookies@homescribe", "strict_min_version": "121.0" }
+  }
+}

@@ -109,6 +109,34 @@ export const ru: Record<MessageKey, string> = {
   'settings.appearance': 'Оформление',
   'settings.stt.title': 'Распознавание речи',
   'settings.llm.title': 'Итоги',
+  'settings.youtube.none': 'Не настроено. Ссылки работают, пока YouTube не попросит войти.',
+  'settings.youtube.ok': 'Действуют, обновлены {ago}',
+  'settings.youtube.unchecked': 'Получены {ago}, ещё не проверены',
+  'settings.youtube.expired': 'Устарели. Обновите их в расширении или загрузите новый файл.',
+  'settings.youtube.source.extension': 'из расширения',
+  'settings.youtube.source.file': 'из файла',
+  'settings.youtube.account':
+    'Это вход сервера в ваш аккаунт Google; надёжнее завести отдельный аккаунт.',
+  'settings.youtube.connect': 'Подключить расширение',
+  'settings.youtube.upload': 'Загрузить cookies.txt',
+  'settings.youtube.remove': 'Удалить cookies',
+  'settings.youtube.badFile':
+    'В файле нет cookies YouTube. Выгрузите их для youtube.com в формате Netscape.',
+  'settings.youtube.download': 'Скачайте расширение',
+  'settings.youtube.unzip': 'и распакуйте архив в папку, которую не будете удалять.',
+  'settings.youtube.chromium':
+    'Chrome, Edge, Яндекс.Браузер, Opera или Brave: откройте страницу расширений, включите режим разработчика, нажмите «Загрузить распакованное» и выберите эту папку.',
+  'settings.youtube.pairLink': 'Подключить этот браузер',
+  'settings.youtube.manual':
+    'Если ссылка не открылась: в окне расширения введите {server} и код {code} (действует 10 минут).',
+  'settings.youtube.firefox':
+    'Firefox: about:debugging → Этот Firefox → Загрузить временное дополнение → manifest.json. Работает до перезапуска Firefox.',
+  'recording.connectYoutube': 'Подключить YouTube',
+  'recording.orUpload': 'или скачайте ролик сами и загрузите файл.',
+  'error.DOWNLOAD_COOKIES_EXPIRED':
+    'Cookies YouTube устарели. Обновите их — ссылка скачается заново сама.',
+  'error.PAIRING_INVALID': 'Код неверный или устарел.',
+  'error.TOKEN_INVALID': 'Подключите расширение заново.',
   'settings.memory.title': 'Видеопамять',
   'settings.memory.unloaded': 'не загружена',
   'settings.memory.unsupported': 'этот сервер не умеет выгружать модели по запросу',
@@ -147,8 +175,7 @@ export const ru: Record<MessageKey, string> = {
   'settings.reset': 'Вернуть по умолчанию',
   'settings.cloudNote': 'Звук и расшифровки отправляются этому провайдеру.',
   'error.DOWNLOAD_FAILED': 'Не удалось скачать по ссылке.',
-  'error.DOWNLOAD_BLOCKED':
-    'Сайт просит войти. Положите cookies.txt из браузера в папку данных и повторите.',
+  'error.DOWNLOAD_BLOCKED': 'YouTube просит войти, прежде чем отдать ролик этому серверу.',
   'error.URL_NOT_ALLOWED':
     'Эту ссылку нельзя использовать: она ведёт на этот сервер или в локальную сеть.',
   'error.AI_UNREACHABLE': 'Не удалось связаться с ИИ-сервером.',

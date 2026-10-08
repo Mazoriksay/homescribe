@@ -9,6 +9,15 @@ source of truth for the version.
 
 ### Added
 
+- YouTube sign-in without hand-made files: when a link fails with "Sign in to
+  confirm you're not a bot", the recording page offers "Connect YouTube".
+  Settings → YouTube pairs a browser extension (Chrome, Edge, Yandex Browser,
+  Opera, Brave; Firefox as a temporary add-on) with a one-time code; it keeps
+  the server's youtube.com cookies fresh. A `cookies.txt` can be uploaded
+  instead. The server checks the cookies, shows whether they work, and
+  retries links blocked in the last 24 hours once they do. Stale cookies give
+  their own error, `DOWNLOAD_COOKIES_EXPIRED`; `/health` reports `cookies`.
+
 - "Free video memory" in the settings: shows which models the local speaches
   and Ollama hold and unloads them at once instead of after about 5 minutes
   (`GET /api/v1/ai/memory`, `POST /api/v1/ai/unload`). Servers without that

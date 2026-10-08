@@ -1,6 +1,11 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { DownloadBlockedError, DownloadError } from '../../src/media/downloader';
+import {
+  DownloadBlockedError,
+  DownloadCookiesExpiredError,
+  DownloadError,
+  type CookieCheck,
+} from '../../src/media/downloader';
 import { LlmError } from '../../src/llm/summarizer';
 import {
   MediaError,
@@ -140,6 +145,9 @@ export class FakeDownloader {
   isAvailable = true;
   failWith: string | null = null;
   blocked = false;
+  cookiesExpired = false;
+  cookieCheck: CookieCheck = 'ok';
+  cookieChecks = 0;
   result = {
     ext: 'webm',
     title: 'Talk: Building a Home Server',
@@ -168,6 +176,7 @@ export class FakeDownloader {
       ]);
     }
     if (this.failWith) {
+      if (this.cookiesExpired) throw new DownloadCookiesExpiredError(this.failWith);
       throw this.blocked
         ? new DownloadBlockedError(this.failWith)
         : new DownloadError(this.failWith);
@@ -181,5 +190,10 @@ export class FakeDownloader {
 
   async selfUpdate(): Promise<string> {
     return 'yt-dlp is up to date';
+  }
+
+  async checkCookies(): Promise<CookieCheck> {
+    this.cookieChecks += 1;
+    return this.cookieCheck;
   }
 }

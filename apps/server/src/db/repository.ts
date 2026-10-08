@@ -60,6 +60,17 @@ export interface StoredAiSettings {
   apiKey: string | null;
 }
 
+export interface CookieState {
+  status: 'none' | 'ok' | 'expired' | 'unchecked';
+  source: 'extension' | 'file' | null;
+  updatedAt: string | null;
+  checkedAt: string | null;
+  tokenHash: string | null;
+  pairingHash: string | null;
+  pairingExpiresAt: string | null;
+  pairingAttempts: number;
+}
+
 export interface NewTranscript {
   language: string | null;
   model: string;
@@ -340,6 +351,68 @@ export class Repository {
   }
 
   /** The recording's job that has not reached a final status, if any. */
+  getCookieState(): CookieState {
+    const row = this.db.prepare('SELECT * FROM cookie_state WHERE id = 1').get() as {
+      status: CookieState['status'];
+      source: CookieState['source'];
+      updated_at: string | null;
+      checked_at: string | null;
+      token_hash: string | null;
+      pairing_hash: string | null;
+      pairing_expires_at: string | null;
+      pairing_attempts: number;
+    };
+    return {
+      status: row.status,
+      source: row.source,
+      updatedAt: row.updated_at,
+      checkedAt: row.checked_at,
+      tokenHash: row.token_hash,
+      pairingHash: row.pairing_hash,
+      pairingExpiresAt: row.pairing_expires_at,
+      pairingAttempts: row.pairing_attempts,
+    };
+  }
+
+  updateCookieState(patch: Partial<CookieState>): CookieState {
+    const columns: Record<keyof CookieState, string> = {
+      status: 'status',
+      source: 'source',
+      updatedAt: 'updated_at',
+      checkedAt: 'checked_at',
+      tokenHash: 'token_hash',
+      pairingHash: 'pairing_hash',
+      pairingExpiresAt: 'pairing_expires_at',
+      pairingAttempts: 'pairing_attempts',
+    };
+    const entries = Object.entries(patch) as [keyof CookieState, string | number | null][];
+    if (entries.length > 0) {
+      this.db
+        .prepare(
+          `UPDATE cookie_state SET ${entries.map(([key]) => `${columns[key]} = ?`).join(', ')} WHERE id = 1`,
+        )
+        .run(...entries.map(([, value]) => value));
+    }
+    return this.getCookieState();
+  }
+
+  /** Recordings whose latest job failed with one of `codes` since `since` (ISO time). */
+  recordingsFailedWith(codes: readonly string[], since: string): string[] {
+    const rows = this.db
+      .prepare(
+        `SELECT j.recording_id AS id FROM jobs j
+         WHERE j.status = 'failed' AND j.error_code IN (${codes.map(() => '?').join(', ')})
+           AND j.finished_at >= ?
+           AND NOT EXISTS (
+             SELECT 1 FROM jobs newer WHERE newer.recording_id = j.recording_id
+               AND (newer.created_at > j.created_at
+                    OR (newer.created_at = j.created_at AND newer.rowid > j.rowid))
+           )`,
+      )
+      .all(...codes, since) as { id: string }[];
+    return rows.map((row) => row.id);
+  }
+
   activeJob(recordingId: string): Job | null {
     const row = this.db
       .prepare(
