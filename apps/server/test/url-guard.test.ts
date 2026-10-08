@@ -16,8 +16,6 @@ describe('isInternalAddress', () => {
       '192.168.1.5',
       '169.254.169.254',
       '100.101.102.103',
-      '198.18.0.1',
-      '198.19.255.254',
       '0.0.0.0',
       '::1',
       'fd00::1',
@@ -30,7 +28,14 @@ describe('isInternalAddress', () => {
   });
 
   it('lets public addresses through', () => {
-    for (const ip of ['8.8.8.8', '142.250.74.46', '2001:4860:4860::8888', '::ffff:8.8.8.8']) {
+    // 198.18.0.0/15: what a VPN's fake-IP DNS returns for public sites.
+    for (const ip of [
+      '8.8.8.8',
+      '142.250.74.46',
+      '2001:4860:4860::8888',
+      '::ffff:8.8.8.8',
+      '198.18.0.12',
+    ]) {
       expect(isInternalAddress(ip), ip).toBe(false);
     }
   });
