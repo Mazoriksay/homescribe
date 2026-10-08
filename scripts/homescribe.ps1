@@ -77,6 +77,11 @@ switch ($Command) {
     Invoke-Docker compose up -d
     Wait-Ready
     Ok "Homescribe is running: $url"
+    # The self-check repeats every minute; right after start speaches may still load.
+    $health = Get-Health
+    if (-not $health -or -not $health.checks -or $health.checks.stt -ne 'ok') {
+      Write-Host 'Speech recognition is still starting; new recordings wait in the queue until it is ready.'
+    }
     Start-Process $url
   }
   'stop' {

@@ -55,7 +55,7 @@ function settings(stt: Partial<EffectiveAiSettings>, llm: Partial<EffectiveAiSet
 }
 
 describe('AiMemoryService', () => {
-  it('tells speaches from Ollama and unloads both', async () => {
+  it('tells speaches from Ollama and unloads only Ollama', async () => {
     const speaches = await fakeSpeaches(['Systran/faster-whisper-large-v3']);
     const ollama = await fakeOllama([{ name: 'qwen2.5:7b', size_vram: 5_000_000_000 }]);
     const memory = new AiMemoryService(
@@ -66,7 +66,7 @@ describe('AiMemoryService', () => {
     expect(await memory.status()).toEqual({
       busy: false,
       stt: {
-        state: 'ok',
+        state: 'auto',
         server: 'speaches',
         loaded: [{ model: 'Systran/faster-whisper-large-v3', vramBytes: null }],
       },
@@ -79,12 +79,10 @@ describe('AiMemoryService', () => {
 
     const { memory: after, failed } = await memory.unload();
     expect(failed).toEqual([]);
-    expect(after.stt.loaded).toEqual([]);
     expect(after.llm.loaded).toEqual([]);
-    // The model id keeps its slash as a path, as speaches' {model_id:path} expects.
-    expect(speaches.received.some((r) => r.url === '/api/ps/Systran/faster-whisper-large-v3')).toBe(
-      true,
-    );
+    // speaches 0.8.1 stops working after DELETE /api/ps; it unloads by itself.
+    expect(after.stt.loaded).toHaveLength(1);
+    expect(speaches.received.some((r) => r.method === 'DELETE')).toBe(false);
   });
 
   it('says when a server cannot unload, is a cloud API, is off or does not answer', async () => {
@@ -112,14 +110,16 @@ describe('AiMemoryService', () => {
 
   it('reports a model the server refused to unload', async () => {
     const busy = await startFakeOpenAi((req, res) => {
-      if (req.method === 'GET') return res.end(JSON.stringify({ models: ['whisper'] }));
-      res.writeHead(409).end('Model whisper is still in use');
+      if (req.method === 'GET') {
+        return res.end(JSON.stringify({ models: [{ name: 'qwen2.5:7b', size_vram: 1 }] }));
+      }
+      res.writeHead(500).end('busy');
     });
     closers.push(busy.close);
     const memory = new AiMemoryService(
-      settings({ baseUrl: busy.baseUrl }, { mode: 'off', baseUrl: 'http://x' }),
+      settings({ mode: 'api', baseUrl: 'https://api.example.com' }, { baseUrl: busy.baseUrl }),
       () => false,
     );
-    expect((await memory.unload()).failed).toEqual(['whisper']);
+    expect((await memory.unload()).failed).toEqual(['qwen2.5:7b']);
   });
 });

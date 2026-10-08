@@ -34,6 +34,20 @@ source of truth for the version.
 
 - New installs no longer start with the computer unless you say so.
 
+### Fixed
+
+- "Free video memory" no longer breaks speech recognition: speaches 0.8.1
+  stopped taking work after being asked to unload, so it is left to unload by
+  itself after 5 idle minutes (shown as such); the button now unloads Ollama.
+- "Connect this browser" appears only once the extension is installed in that
+  browser; before, it led to Chrome's "blocked" page.
+- Cookies from the extension are checked within a minute instead of staying
+  "not checked yet" for up to 10 minutes; resending the same cookies keeps
+  their status.
+- Subtitle credits Whisper invents over silence ("Продолжение следует",
+  "Субтитры создавал …", "Thanks for watching", …) are left out of transcripts.
+- "Start Homescribe" says when speech recognition is still starting.
+
 ## [0.3.1] - 2026-10-08
 
 ### Added

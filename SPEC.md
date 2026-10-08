@@ -429,9 +429,13 @@ interface UpdateAiSettings {
 5 minutes after use. `GET /ai/memory` asks each local backend
 `GET {baseUrl}/api/ps`: speaches (`routers/misc.py`) answers
 `{ models: string[] }`, Ollama (`docs/api.md`) `{ models: [{ name,
-size_vram, … }] }`; the shape tells them apart. Any other answer means the
-server cannot unload on request (`unsupported`); cloud APIs are `remote`,
-summaries turned off `off`:
+size_vram, … }] }`; the shape tells them apart. Ollama can unload on request
+(`ok`). speaches is `auto`: version 0.8.1 unloads on `DELETE /api/ps/{id}`
+but then never answers and takes no more transcriptions until restarted
+(found in a live test), and it unloads idle models by itself after
+`stt_model_ttl` (5 minutes), so it is shown, never asked. Any other answer
+means the server cannot unload on request (`unsupported`); cloud APIs are
+`remote`, summaries turned off `off`:
 
 ```ts
 interface AiMemory {
@@ -440,20 +444,20 @@ interface AiMemory {
   busy: boolean; // a job is running
 }
 interface BackendMemory {
-  state: 'ok' | 'unsupported' | 'unreachable' | 'remote' | 'off';
+  state: 'ok' | 'auto' | 'unsupported' | 'unreachable' | 'remote' | 'off';
   server: 'speaches' | 'ollama' | null;
   loaded: { model: string; vramBytes: number | null }[];
 }
 ```
 
-`POST /ai/unload` unloads every loaded model: speaches
-`DELETE /api/ps/{model_id}`, Ollama `POST /api/generate { model,
-keep_alive: 0 }`. While a job runs it answers `409 JOB_ACTIVE`: speaches
-refuses to unload a model in use, and the job would load it again; the UI
-disables the button with that reason (the job can be cancelled next to it).
-Models the server refused are listed in `failed`. The next job loads the
-model again by itself. The settings page shows the section only when a
-backend is local.
+`POST /ai/unload` unloads every model of an `ok` backend (Ollama:
+`POST /api/generate { model, keep_alive: 0 }`). While a job runs it answers
+`409 JOB_ACTIVE`, since the job would load the model again; the UI disables
+the button with that reason (the job can be cancelled next to it). Models
+the server refused are listed in `failed`. The next job loads the model
+again by itself. The settings page shows the section only when a backend is
+local, the button only when a backend is `ok`, and for speaches "unloads by
+itself after 5 idle minutes".
 
 ### 7.6 Health and self-check
 
@@ -564,8 +568,9 @@ interface CookieStatus {
 - **Why a token:** there is no login, so without it any client on the LAN
   could replace the cookies the server signs in with. CORS stays off: the
   extension may call the server because the user grants it that address.
-- **Check:** after every upload (at most once per 10 minutes; a newer upload
-  waits for the slot) and once a day, `yt-dlp --simulate` on one public
+- **Check:** after an upload whose content differs from the last checked one
+  (at most once a minute; a newer upload waits for the slot; the extension's
+  6-hourly resend of the same cookies keeps their status) and once a day, `yt-dlp --simulate` on one public
   video with a copy of the cookies: success → `ok`; "cookies are no longer
   valid" or the sign-in wall → `expired`; anything else (network) leaves the
   status. A job ending in `DOWNLOAD_COOKIES_EXPIRED` sets `expired` too.
@@ -588,7 +593,9 @@ no other cookies and sends them nowhere but the paired server.
   "Load unpacked"). A fixed `key` in the manifest gives it the same ID
   everywhere, so "Connect the extension" in the settings opens
   `chrome-extension://<id>/pair.html#server=…&code=…` and pairing is one
-  click. Firefox (121+) runs the same code; unsigned it installs only as a
+  click; the settings first check that the extension is installed by loading
+  its icon (a web-accessible resource) and otherwise say so, with "Check
+  again", instead of a link that fails. Firefox (121+) runs the same code; unsigned it installs only as a
   temporary add-on (`about:debugging`) that goes away on restart, and there
   the code is typed into the extension's window. Store listings are out of
   scope.
@@ -627,7 +634,11 @@ summarizing → done`; `downloading` only for a recording made from a link
   and stored as a gap (from the end of that segment to the next real one);
   the recording page names the gaps, so lost speech is never silent. Later
   chunks get the language detected in the first one; segment times are made
-  absolute and kept within their chunk.
+  absolute and kept within their chunk. A segment that is nothing but a
+  subtitle credit Whisper makes up over silence ("Продолжение следует",
+  "Субтитры создавал …", "Редактор субтитров …", "Thanks for watching",
+  "Subtitles by …", Amara.org) is dropped; the same words inside real speech
+  stay.
   Progress: done chunks count exactly; within a chunk it is estimated from
   how many seconds this model took per second of audio before (`stt_speed`,
   half old value, half new, chunks of 10 s or more), updated every 2 s and

@@ -126,9 +126,12 @@ export const ru: Record<MessageKey, string> = {
   'settings.youtube.unzip': 'и распакуйте архив в папку, которую не будете удалять.',
   'settings.youtube.chromium':
     'Chrome, Edge, Яндекс.Браузер, Opera или Brave: откройте страницу расширений, включите режим разработчика, нажмите «Загрузить распакованное» и выберите эту папку.',
+  'settings.youtube.notInstalled':
+    'Расширение в этом браузере ещё не установлено. Установите его (шаги 1–2), затем:',
+  'settings.youtube.recheck': 'Проверить снова',
   'settings.youtube.pairLink': 'Подключить этот браузер',
   'settings.youtube.manual':
-    'Если ссылка не открылась: в окне расширения введите {server} и код {code} (действует 10 минут).',
+    'Или нажмите значок Homescribe на панели браузера и введите {server} и код {code} (действует 10 минут).',
   'settings.youtube.firefox':
     'Firefox: about:debugging → Этот Firefox → Загрузить временное дополнение → manifest.json. Работает до перезапуска Firefox.',
   'recording.connectYoutube': 'Подключить YouTube',
@@ -138,6 +141,7 @@ export const ru: Record<MessageKey, string> = {
   'error.PAIRING_INVALID': 'Код неверный или устарел.',
   'error.TOKEN_INVALID': 'Подключите расширение заново.',
   'settings.memory.title': 'Видеопамять',
+  'settings.memory.auto': 'выгрузится сама через 5 минут простоя',
   'settings.memory.unloaded': 'не загружена',
   'settings.memory.unsupported': 'этот сервер не умеет выгружать модели по запросу',
   'settings.memory.unreachable': 'сервер не отвечает',

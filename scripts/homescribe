@@ -48,6 +48,13 @@ checks() {
   echo "Self-check: ${text:-not available}"
 }
 
+# The self-check repeats every minute; right after start speaches may still load.
+stt_note() {
+  if ! health | grep -q '"stt":"ok"'; then
+    echo "Speech recognition is still starting; new recordings wait in the queue until it is ready."
+  fi
+}
+
 wait_ready() {
   printf 'Waiting for Homescribe'
   local waited=0
@@ -70,6 +77,7 @@ case "${1:-}" in
     $DOCKER compose up -d
     wait_ready
     ok "Homescribe is running: $URL"
+    stt_note
     open_browser
     ;;
   stop)

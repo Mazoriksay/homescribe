@@ -12,9 +12,26 @@
     "service_worker": "background.js",
     "scripts": ["common.js", "background.js"]
   },
-  "action": { "default_popup": "popup.html", "default_title": "Homescribe" },
-  "web_accessible_resources": [{ "resources": ["pair.html"], "matches": ["<all_urls>"] }],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Homescribe",
+    "default_icon": {
+      "128": "icon.png"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["pair.html", "icon.png"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ],
   "browser_specific_settings": {
-    "gecko": { "id": "youtube-cookies@homescribe", "strict_min_version": "121.0" }
+    "gecko": {
+      "id": "youtube-cookies@homescribe",
+      "strict_min_version": "121.0"
+    }
+  },
+  "icons": {
+    "128": "icon.png"
   }
 }
