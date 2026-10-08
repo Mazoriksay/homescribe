@@ -96,6 +96,13 @@ video file. Only the audio is downloaded. The Docker image includes yt-dlp and
 deno (the JavaScript runtime yt-dlp needs for YouTube) and keeps yt-dlp up to
 date by itself; without Docker, install both and keep yt-dlp current.
 
+If YouTube answers "Sign in to confirm you're not a bot" (common from server
+and VPN addresses), export your browser's cookies for youtube.com as
+`cookies.txt` (Netscape format, for example with a "Get cookies.txt" browser
+extension) and put the file into the data folder: with Docker,
+`docker compose cp cookies.txt homescribe:/data/cookies.txt`. Use a separate
+account if you can; the cookies give access to it.
+
 Links to this server or the local network are refused unless
 `URL_IMPORT_ALLOW_PRIVATE=true` (for example to import from a NAS). Respect the
 terms of the sites you download from.

@@ -36,6 +36,7 @@ describe('loadConfig', () => {
     expect(config.ytdlp).toEqual({
       path: 'yt-dlp',
       autoUpdate: true,
+      cookiesFile: '/srv/app/data/cookies.txt',
       timeoutMs: 7_200_000,
       allowPrivate: false,
     });
@@ -52,6 +53,9 @@ describe('loadConfig', () => {
       allowPrivate: true,
     });
     expect(() => loadConfig({ YTDLP_AUTO_UPDATE: 'maybe' }, root)).toThrow(/YTDLP_AUTO_UPDATE/);
+    expect(loadConfig({ YTDLP_COOKIES_FILE: 'secrets/yt.txt' }, root).ytdlp.cookiesFile).toBe(
+      '/srv/app/secrets/yt.txt',
+    );
   });
 
   it('normalises BASE_PATH and rejects odd values', () => {

@@ -42,6 +42,7 @@ const envSchema = z.object({
   FFPROBE_PATH: optional(z.string().default('ffprobe')),
   YTDLP_PATH: optional(z.string().default('yt-dlp')),
   YTDLP_AUTO_UPDATE: optional(z.stringbool().default(true)),
+  YTDLP_COOKIES_FILE: optional(z.string().optional()),
   DOWNLOAD_TIMEOUT_MS: optional(z.coerce.number().int().positive().default(7_200_000)),
   URL_IMPORT_ALLOW_PRIVATE: optional(z.stringbool().default(false)),
   STT_MODE: optional(z.enum(['local', 'api']).default('local')),
@@ -112,6 +113,8 @@ export interface Config {
   ytdlp: {
     path: string;
     autoUpdate: boolean;
+    /** cookies.txt for sites that want a signed-in visitor; used when it exists. */
+    cookiesFile: string;
     timeoutMs: number;
     allowPrivate: boolean;
   };
@@ -169,6 +172,9 @@ export function loadConfig(env: Record<string, string | undefined>, rootDir: str
     ytdlp: {
       path: e.YTDLP_PATH,
       autoUpdate: e.YTDLP_AUTO_UPDATE,
+      cookiesFile: e.YTDLP_COOKIES_FILE
+        ? path.resolve(rootDir, e.YTDLP_COOKIES_FILE)
+        : path.join(path.resolve(rootDir, e.DATA_DIR), 'cookies.txt'),
       timeoutMs: e.DOWNLOAD_TIMEOUT_MS,
       allowPrivate: e.URL_IMPORT_ALLOW_PRIVATE,
     },

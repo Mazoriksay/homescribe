@@ -9,6 +9,10 @@ source of truth for the version.
 
 ### Added
 
+- Links from sites that ask to sign in (YouTube's "confirm you're not a
+  bot") end with a clear `DOWNLOAD_BLOCKED` error, and browser cookies in
+  `cookies.txt` in the data folder (`YTDLP_COOKIES_FILE`) are passed to
+  yt-dlp.
 - `STT_VAD_FILTER` (on by default): a local speaches server is asked to skip
   silence, which stops Whisper from repeating one phrase on long recordings.
 - The installer asks what to download before pulling anything: speech

@@ -1,5 +1,8 @@
 export class DownloadError extends Error {}
 
+/** The site wants a signed-in visitor (YouTube: "confirm you're not a bot"). */
+export class DownloadBlockedError extends DownloadError {}
+
 export interface DownloadedFile {
   /** Absolute path of the downloaded file. */
   path: string;

@@ -128,6 +128,8 @@ export const en = {
   'settings.reset': 'Back to defaults',
   'settings.cloudNote': 'Audio and transcripts are sent to this provider.',
   'error.DOWNLOAD_FAILED': 'The link could not be downloaded.',
+  'error.DOWNLOAD_BLOCKED':
+    'The site asks to sign in. Put cookies.txt from your browser into the data folder and retry.',
   'error.URL_NOT_ALLOWED':
     'This link cannot be used: it points to this server or the local network.',
   'error.AI_UNREACHABLE': 'The AI server could not be reached.',

@@ -1,9 +1,9 @@
 import { spawnSync } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DownloadError } from '../src/media/downloader';
+import { DownloadBlockedError, DownloadError } from '../src/media/downloader';
 import { YtDlpDownloader } from '../src/media/ytdlp';
 
 /**
@@ -22,6 +22,15 @@ const out = args[args.indexOf('-o') + 1];
 if (url.includes('unavailable')) {
   console.error('WARNING: something');
   console.error('ERROR: [youtube] abc: Video unavailable');
+  process.exit(1);
+}
+if (url.includes('bot')) {
+  const at = args.indexOf('--cookies');
+  if (at !== -1) {
+    fs.writeFileSync(process.env.FAKE_YTDLP_ARGS + '.cookies', fs.readFileSync(args[at + 1]));
+    fs.appendFileSync(args[at + 1], 'written back by yt-dlp');
+  }
+  console.error("ERROR: [youtube] abc: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication.");
   process.exit(1);
 }
 if (url.includes('huge')) {
@@ -97,6 +106,28 @@ describe('YtDlpDownloader (fake executable)', () => {
       .catch((e: unknown) => e);
     expect(error).toBeInstanceOf(DownloadError);
     expect((error as Error).message).toBe('ERROR: [youtube] abc: Video unavailable');
+  });
+
+  it('tells a sign-in wall apart and hands yt-dlp a copy of the cookies', async () => {
+    const out = await target('bot');
+    const cookies = path.join(dir, 'cookies.txt');
+    await writeFile(cookies, '# Netscape HTTP Cookie File\n');
+    const error = await new YtDlpDownloader(bin, cookies)
+      .download('https://www.youtube.com/watch?v=bot', { dir: out, maxBytes: 10 })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(DownloadBlockedError);
+    expect(await readFile(`${argsFile}.cookies`, 'utf8')).toBe('# Netscape HTTP Cookie File\n');
+    expect(await readFile(cookies, 'utf8')).toBe('# Netscape HTTP Cookie File\n');
+    expect(await readdir(out)).toEqual([]);
+  });
+
+  it('runs without cookies when the file does not exist', async () => {
+    await new YtDlpDownloader(bin, path.join(dir, 'missing.txt')).download('https://x.example/a', {
+      dir: await target('nc'),
+      maxBytes: 10,
+    });
+    const args = JSON.parse(await readFile(argsFile, 'utf8')) as string[];
+    expect(args).not.toContain('--cookies');
   });
 
   it('explains a file over the size limit', async () => {

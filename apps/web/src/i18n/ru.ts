@@ -133,6 +133,8 @@ export const ru: Record<MessageKey, string> = {
   'settings.reset': 'Вернуть по умолчанию',
   'settings.cloudNote': 'Звук и расшифровки отправляются этому провайдеру.',
   'error.DOWNLOAD_FAILED': 'Не удалось скачать по ссылке.',
+  'error.DOWNLOAD_BLOCKED':
+    'Сайт просит войти. Положите cookies.txt из браузера в папку данных и повторите.',
   'error.URL_NOT_ALLOWED':
     'Эту ссылку нельзя использовать: она ведёт на этот сервер или в локальную сеть.',
   'error.AI_UNREACHABLE': 'Не удалось связаться с ИИ-сервером.',

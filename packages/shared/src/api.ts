@@ -37,6 +37,7 @@ export type ApiError = z.infer<typeof apiErrorSchema>;
 export const jobErrorCodes = [
   'INTERRUPTED',
   'DOWNLOAD_FAILED',
+  'DOWNLOAD_BLOCKED',
   'MEDIA_UNREADABLE',
   'STT_UNAVAILABLE',
   'STT_TIMEOUT',

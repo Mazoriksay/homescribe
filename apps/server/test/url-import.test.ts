@@ -94,6 +94,16 @@ describe('transcribing a link', () => {
     expect(t.downloader.urls).toHaveLength(2);
   });
 
+  it('fails as DOWNLOAD_BLOCKED when the site asks to sign in', async () => {
+    t.downloader.failWith = 'ERROR: [youtube] abc: Sign in to confirm you are not a bot';
+    t.downloader.blocked = true;
+    const { job } = (
+      await fromUrl({ url: 'https://www.youtube.com/watch?v=abc' })
+    ).json<Recording>();
+    await t.runner.idle();
+    expect(t.repo.getJob(job.id)?.error?.code).toBe('DOWNLOAD_BLOCKED');
+  });
+
   it('does not download again when the media is already stored', async () => {
     const { id } = (
       await fromUrl({ url: 'https://www.youtube.com/watch?v=abc' })

@@ -4,7 +4,7 @@ import { TITLE_MAX_LENGTH, type Job, type JobErrorCode } from '@homescribe/share
 import type { JobPatch, Repository } from '../db/repository';
 import type { EventBus } from '../events';
 import { LlmError, type Summarizer } from '../llm/summarizer';
-import { DownloadError, type MediaDownloader } from '../media/downloader';
+import { DownloadBlockedError, DownloadError, type MediaDownloader } from '../media/downloader';
 import { MediaError, type AudioFormat, type MediaTool } from '../media/media-tool';
 import { downloadedMediaType, storedNameFor, type MediaStore } from '../storage';
 import { SttError, type Transcriber } from '../stt/transcriber';
@@ -273,6 +273,9 @@ export class JobRunner {
       );
     }
     if (error instanceof JobFailure) return error;
+    if (error instanceof DownloadBlockedError) {
+      return new JobFailure('DOWNLOAD_BLOCKED', `The site asks to sign in: ${error.message}`);
+    }
     if (error instanceof DownloadError) {
       return new JobFailure('DOWNLOAD_FAILED', `Cannot download the link: ${error.message}`);
     }

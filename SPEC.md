@@ -252,6 +252,7 @@ Job failures are not HTTP errors; they live on the job (`error.code`):
 | ------------------------------------------------ | ----------------------------------------------------------- |
 | `INTERRUPTED`                                    | Server stopped while the job was running                    |
 | `DOWNLOAD_FAILED`                                | yt-dlp could not fetch the link; the message has its reason |
+| `DOWNLOAD_BLOCKED`                               | The site wants a signed-in visitor; add cookies (§7.7)      |
 | `MEDIA_UNREADABLE`                               | ffprobe/ffmpeg could not read or convert the upload         |
 | `STT_UNAVAILABLE`                                | Speech-to-text server unreachable                           |
 | `STT_TIMEOUT`                                    | No answer within `STT_TIMEOUT_MS`                           |
@@ -454,7 +455,12 @@ plus direct links to media files):
 - the file becomes `original.<ext>` like an upload; without a user-given
   title, the page's title replaces the placeholder;
 - failures end the job as `DOWNLOAD_FAILED` with yt-dlp's error line
-  (e.g. "Video unavailable"); retrying downloads again.
+  (e.g. "Video unavailable"); retrying downloads again;
+- when the site wants a signed-in visitor (YouTube: "Sign in to confirm
+  you're not a bot", common from server and VPN addresses) the job ends as
+  `DOWNLOAD_BLOCKED`. A browser's cookies exported as `cookies.txt` (Netscape
+  format) at `YTDLP_COOKIES_FILE` are then passed with `--cookies`; yt-dlp
+  gets a copy per download, since it writes cookies back.
 
 YouTube needs a JavaScript runtime for yt-dlp; the Docker image ships deno,
 which yt-dlp recommends because it sandboxes that code. yt-dlp updates itself
@@ -540,6 +546,7 @@ startup with a message naming the variable.
 | `FRAME_ANCESTORS`          | _(empty = only the app itself)_                                                  | 1     | Space-separated origins (`http://hub.lan:3000`) allowed to show the UI in an iframe    |
 | `YTDLP_PATH`               | `yt-dlp`                                                                         | 3     | yt-dlp binary for links (§7.7)                                                         |
 | `YTDLP_AUTO_UPDATE`        | `true`                                                                           | 3     | Run `yt-dlp -U` at startup and daily (sites change often)                              |
+| `YTDLP_COOKIES_FILE`       | `<DATA_DIR>/cookies.txt`                                                         | 3     | Netscape cookies for sites that want a signed-in visitor; used when the file exists    |
 | `DOWNLOAD_TIMEOUT_MS`      | `7200000`                                                                        | 3     | Longest a link download may take                                                       |
 | `URL_IMPORT_ALLOW_PRIVATE` | `false`                                                                          | 3     | Allow links to private/loopback addresses (e.g. a NAS on the LAN)                      |
 | `LOG_LEVEL`                | `info`                                                                           | 1     | Fastify/pino log level                                                                 |
