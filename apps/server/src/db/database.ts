@@ -112,6 +112,13 @@ const migrations: string[] = [
   );
   INSERT INTO cookie_state (id) VALUES (1);
   `,
+  `
+  -- Small switches set in the UI (SPEC.md §6), as JSON values.
+  CREATE TABLE app_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  `,
 ];
 
 export function openDatabase(file: string): DatabaseSync {

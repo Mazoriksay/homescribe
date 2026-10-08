@@ -31,6 +31,10 @@ async function main(): Promise<void> {
   const media = new FfmpegMediaTool(config.ffmpegPath, config.ffprobePath);
   const downloader = new YtDlpDownloader(config.ytdlp.path, config.ytdlp.cookiesFile);
   let app: FastifyInstance | undefined;
+  const memory: AiMemoryService = new AiMemoryService(aiSettings, (): boolean => runner.busy, {
+    repo,
+    gpu: config.gpu,
+  });
   const runner = new JobRunner({
     repo,
     store,
@@ -43,6 +47,7 @@ async function main(): Promise<void> {
       info: (obj, msg) => app?.log.info(obj, msg),
       error: (obj, msg) => app?.log.error(obj, msg),
     },
+    gpu: memory,
     onCookiesExpired: () => cookies.markExpired(),
   });
   const cookies = new CookieService({
@@ -73,7 +78,7 @@ async function main(): Promise<void> {
     cookies,
     aiSettings,
     discover: () => discoverServers({ hosts: config.discoveryHosts, selfPort: config.port }),
-    memory: new AiMemoryService(aiSettings, () => runner.busy),
+    memory,
     listModels: (baseUrl, apiKey) => listModels(baseUrl, apiKey),
   });
   app.log.info({ search: repo.search.mode }, 'search index ready');

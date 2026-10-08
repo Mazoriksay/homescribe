@@ -2,6 +2,7 @@ import {
   aiKindParamsSchema,
   API_PREFIX,
   listModelsBodySchema,
+  takeTurnsBodySchema,
   updateAiSettingsBodySchema,
   type AiModel,
   type Discovery,
@@ -63,6 +64,11 @@ export function registerAiRoutes(app: FastifyInstance, deps: AiRouteDeps): void 
     }
     const { memory, failed } = await deps.memory.unload();
     return { ...memory, failed };
+  });
+
+  app.put(`${API_PREFIX}/ai/take-turns`, async (request) => {
+    const body = parseInput(takeTurnsBodySchema, request.body ?? {}, 'body');
+    return deps.memory.setTakeTurns(body.enabled);
   });
 
   app.post(`${API_PREFIX}/ai/models`, async (request) => {

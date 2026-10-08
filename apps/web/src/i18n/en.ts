@@ -146,11 +146,14 @@ export const en = {
   'error.PAIRING_INVALID': 'The code is wrong or has expired.',
   'error.TOKEN_INVALID': 'Connect the extension again.',
   'settings.memory.title': 'Video memory',
-  'settings.memory.auto': 'unloads by itself after 5 idle minutes',
+  'settings.memory.auto': 'unloads by itself after {seconds} idle seconds',
   'settings.memory.unloaded': 'not loaded',
   'settings.memory.unsupported': 'this server cannot unload models on request',
   'settings.memory.unreachable': 'the server is not responding',
   'settings.memory.size': '{gb} GB',
+  'settings.memory.takeTurns': 'Take turns on the GPU',
+  'settings.memory.takeTurnsCost':
+    'Speech recognition leaves video memory before the summary, the summary model after it. Each recording takes about {seconds} s longer.',
   'settings.memory.free': 'Free video memory',
   'settings.memory.busy': 'A recording is being processed. Wait for it or cancel it first.',
   'settings.memory.empty': 'Models are unloaded.',
@@ -192,6 +195,8 @@ export const en = {
   'error.LLM_FAILED': 'The language model did not produce a usable summary.',
   'error.LLM_CONTEXT_EXCEEDED':
     "The model's context window is too small: its reply was cut off even for short parts. Lower LLM_CHUNK_CHARS or raise the window on the AI server.",
+  'error.LLM_OUT_OF_MEMORY':
+    'The summary model did not fit in video memory next to speech recognition, even on a second try. Turn on "Take turns on the GPU" in Settings or choose a smaller model.',
   'error.SUMMARIES_OFF': 'Summaries are turned off in the settings.',
   'error.VALIDATION_ERROR': 'Check the entered values.',
 } as const;

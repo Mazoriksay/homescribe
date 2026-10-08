@@ -351,6 +351,21 @@ export class Repository {
   }
 
   /** The recording's job that has not reached a final status, if any. */
+  /** A switch set in the UI, or null when never set. */
+  getAppSetting<T>(key: string): T | null {
+    const row = this.db.prepare('SELECT value FROM app_settings WHERE key = ?').get(key) as
+      { value: string } | undefined;
+    return row ? (JSON.parse(row.value) as T) : null;
+  }
+
+  setAppSetting(key: string, value: unknown): void {
+    this.db
+      .prepare(
+        'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+      )
+      .run(key, JSON.stringify(value));
+  }
+
   getCookieState(): CookieState {
     const row = this.db.prepare('SELECT * FROM cookie_state WHERE id = 1').get() as {
       status: CookieState['status'];

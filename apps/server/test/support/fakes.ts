@@ -6,7 +6,7 @@ import {
   DownloadError,
   type CookieCheck,
 } from '../../src/media/downloader';
-import { LlmError } from '../../src/llm/summarizer';
+import { LlmError, type LlmErrorCode } from '../../src/llm/summarizer';
 import {
   MediaError,
   type ConvertOptions,
@@ -112,7 +112,9 @@ export function deferred(): { promise: Promise<void>; resolve: () => void } {
 export class FakeSummarizer {
   readonly model = 'fake-llm';
   result = { summary: '- Plan agreed', actionItems: ['Ann: send notes'] };
-  failWith: 'LLM_UNAVAILABLE' | 'LLM_TIMEOUT' | 'LLM_FAILED' | null = null;
+  failWith: LlmErrorCode | null = null;
+  /** Fail only this many calls, then succeed (null: every call). */
+  failTimes: number | null = null;
   calls: { text: string; language: string | null }[] = [];
 
   async summarize(
@@ -120,7 +122,9 @@ export class FakeSummarizer {
     options: { onProgress?: (ratio: number) => void } = {},
   ) {
     this.calls.push(transcript);
-    if (this.failWith) throw new LlmError(this.failWith, 'fake failure');
+    if (this.failWith && (this.failTimes === null || this.failTimes-- > 0)) {
+      throw new LlmError(this.failWith, 'fake failure');
+    }
     options.onProgress?.(0.5);
     options.onProgress?.(1);
     return this.result;

@@ -1,15 +1,19 @@
 import type { BackendMemory } from '@homescribe/shared';
-import { Button } from 'antd';
-import { useGetAiMemoryQuery, useUnloadAiMutation } from '../../api/api';
+import { Button, Switch } from 'antd';
+import { useGetAiMemoryQuery, useSetTakeTurnsMutation, useUnloadAiMutation } from '../../api/api';
 import { useT } from '../../i18n/useT';
 import styles from './Settings.module.css';
 
-/** "Free video memory": unloads the local models now instead of after ~5 minutes. */
+/**
+ * "Free video memory": unloads the local models now instead of after a while,
+ * and "take turns" for a GPU that cannot hold both models (SPEC.md §7.5).
+ */
 export function MemorySection() {
   const t = useT();
   // Models unload by themselves after a while; keep the list current while the page is open.
   const { data } = useGetAiMemoryQuery(undefined, { pollingInterval: 10_000 });
   const [unload, { data: result, isLoading }] = useUnloadAiMutation();
+  const [setTakeTurns, { isLoading: switching }] = useSetTakeTurnsMutation();
 
   const local = (b: BackendMemory) => b.state !== 'remote' && b.state !== 'off';
   // Cloud APIs and summaries turned off hold nothing on this machine.
@@ -29,7 +33,9 @@ export function MemorySection() {
           : model,
       )
       .join(', ');
-    return b.state === 'auto' ? `${models} · ${t('settings.memory.auto')}` : models;
+    return b.state === 'auto'
+      ? `${models} · ${t('settings.memory.auto', { seconds: data.sttIdleSeconds })}`
+      : models;
   };
 
   return (
@@ -63,6 +69,21 @@ export function MemorySection() {
       )}
       {unloadable.length > 0 && !data.busy && loaded === 0 && (
         <p className={styles.muted}>{t('settings.memory.empty')}</p>
+      )}
+      {local(data.stt) && local(data.llm) && (
+        <div className={styles.field}>
+          <label className={styles.switchRow}>
+            <Switch
+              checked={data.takeTurns}
+              loading={switching}
+              onChange={(enabled) => void setTakeTurns(enabled)}
+            />
+            {t('settings.memory.takeTurns')}
+          </label>
+          <small className={styles.muted}>
+            {t('settings.memory.takeTurnsCost', { seconds: data.sttIdleSeconds })}
+          </small>
+        </div>
       )}
       {result && result.failed.length > 0 && (
         <p className={styles.muted} role="alert">

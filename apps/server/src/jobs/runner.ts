@@ -31,6 +31,16 @@ export interface AiBackends {
   llm(): Summarizer | null;
 }
 
+/** Whisper and the summary model sharing one GPU (SPEC.md §7.5). */
+export interface GpuTurns {
+  takeTurns(): boolean;
+  /** Until speaches has let Whisper go (bounded); false if there is none to watch. */
+  waitForSttIdle(signal?: AbortSignal): Promise<boolean>;
+  /** Before the one retry after the summary model failed to load. */
+  waitBeforeRetry(signal?: AbortSignal): Promise<void>;
+  unloadLlm(): Promise<void>;
+}
+
 export interface Logger {
   info(obj: object, msg: string): void;
   error(obj: object, msg: string): void;
@@ -46,6 +56,8 @@ export interface JobRunnerDeps {
   download?: { maxBytes: number; timeoutMs: number };
   events: EventBus;
   logger: Logger;
+  /** Optional so tests without a GPU can omit it. */
+  gpu?: GpuTurns;
   /** A download found the YouTube cookies stale (SPEC.md §7.8). */
   onCookiesExpired?: () => void;
   /** Minimum time between two progress updates of one job. */
@@ -386,12 +398,39 @@ export class JobRunner {
       ...(job.kind === 'summarize' && { error: null, started: true }),
     });
     const signal = this.signal;
-    const result = await summarizer.summarize(
-      { text: transcript.text, language: transcript.language },
-      { signal, onProgress: this.progressReporter(job.id) },
-    );
-    if (signal.aborted) throw signal.reason;
-    repo.saveSummary(job.recordingId, { ...result, model: summarizer.model });
+    const { gpu, logger } = this.deps;
+    const takeTurns = gpu?.takeTurns() ?? false;
+    try {
+      if (takeTurns) await gpu!.waitForSttIdle(signal);
+      const run = () =>
+        summarizer.summarize(
+          { text: transcript.text, language: transcript.language },
+          { signal, onProgress: this.progressReporter(job.id) },
+        );
+      let result;
+      try {
+        result = await run();
+      } catch (error) {
+        // The model did not fit next to Whisper; once it is gone, try again (SPEC.md §7.5).
+        if (!(error instanceof LlmError && error.code === 'LLM_OUT_OF_MEMORY') || !gpu) throw error;
+        logger.info(
+          { jobId: job.id, reason: error.message },
+          'summary model did not load; retrying',
+        );
+        await gpu.waitBeforeRetry(signal);
+        result = await run();
+      }
+      if (signal.aborted) throw signal.reason;
+      repo.saveSummary(job.recordingId, { ...result, model: summarizer.model });
+    } finally {
+      if (takeTurns) {
+        await gpu!
+          .unloadLlm()
+          .catch((error: unknown) =>
+            logger.info({ err: error, jobId: job.id }, 'could not unload the summary model'),
+          );
+      }
+    }
   }
 
   private toFailure(error: unknown): JobFailure {

@@ -388,13 +388,15 @@ if [ "$LLM" = yes ]; then
 else
   echo "  Summaries: no local AI"
 fi
+TAKE_TURNS=false
 mem_sum="$(awk -v a="${STT_MEM:-0}" -v b="${llm_mem:-0}" 'BEGIN { s = a + b; if (s > 0) printf "%g", s }')"
 if [ -n "$mem_sum" ]; then
   gpu_note=""
   [ "$STT" = gpu ] && [ -n "$GPU_MEM" ] && gpu_note=" (this GPU has $GPU_MEM GB)"
   echo "  Memory: up to ~$mem_sum GB of $MEM while both are loaded$gpu_note"
   if [ "$STT" = gpu ] && [ -n "$GPU_MEM" ] && awk -v s="$mem_sum" -v g="$GPU_MEM" 'BEGIN { exit !(s > g) }'; then
-    warn "More than this GPU has: Ollama then runs partly on the CPU and summaries get slower. Pick smaller models to avoid that."
+    TAKE_TURNS=true
+    warn "More than this GPU has, so the two models will take turns: each recording takes about 30 s longer. Pick smaller models to avoid that."
   fi
 fi
 ask_yes_no "Download and start?" y || { echo "Nothing was downloaded."; exit 0; }
@@ -458,7 +460,7 @@ profiles=""
 # Our keys are rewritten; anything else you put into .env is kept.
 touch "$DIR/.env"
 tmp="$(mktemp)"
-ours='COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL'
+ours='AI_TAKE_TURNS|COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL'
 [ "$STT" != none ] && ours="$ours|STT_MODEL"
 grep -vE "^($ours)=" "$DIR/.env" > "$tmp" || true
 {
@@ -468,6 +470,7 @@ grep -vE "^($ours)=" "$DIR/.env" > "$tmp" || true
   echo "HOMESCRIBE_PORT=$PORT"
   echo "HOMESCRIBE_RESTART=$RESTART"
   echo "EXTENSION_FOLDER=$DIR/browser-extension"
+  echo "AI_TAKE_TURNS=$TAKE_TURNS"
   [ "$STT" != none ] && echo "STT_MODEL=$STT_ID"
   if [ "$LLM" = yes ]; then echo "LLM_MODE=local"; echo "LLM_MODEL=$LLM_MODEL"; else echo "LLM_MODE=off"; fi
 } > "$DIR/.env"

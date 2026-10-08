@@ -165,6 +165,79 @@ describe('JobRunner', () => {
     expect(repo.getSummary(id)).toBeNull();
   });
 
+  /** Records what the runner asks of the GPU, in order. */
+  function fakeGpu(takeTurns: boolean) {
+    const calls: string[] = [];
+    return {
+      calls,
+      takeTurns: () => takeTurns,
+      waitForSttIdle: async () => {
+        calls.push('wait');
+        return true;
+      },
+      waitBeforeRetry: async () => void calls.push('wait before retry'),
+      unloadLlm: async () => void calls.push('unload llm'),
+    };
+  }
+
+  function runnerWith(gpu: ReturnType<typeof fakeGpu>) {
+    return new JobRunner({ repo, store, media, ai, events, logger: silentLogger, gpu });
+  }
+
+  it('takes turns: waits for Whisper to go before the summary and unloads the model after', async () => {
+    const gpu = fakeGpu(true);
+    const original = summarizer.summarize.bind(summarizer);
+    summarizer.summarize = async (...args) => {
+      gpu.calls.push('summarize');
+      return original(...args);
+    };
+    runner = runnerWith(gpu);
+    const { job } = await upload();
+    runner.start();
+    await runner.idle();
+    expect(repo.getJob(job.id)?.status).toBe('done');
+    expect(gpu.calls).toEqual(['wait', 'summarize', 'unload llm']);
+  });
+
+  it('does not wait or unload when not taking turns', async () => {
+    const gpu = fakeGpu(false);
+    runner = runnerWith(gpu);
+    const { job } = await upload();
+    runner.start();
+    await runner.idle();
+    expect(repo.getJob(job.id)?.status).toBe('done');
+    expect(gpu.calls).toEqual([]);
+  });
+
+  it('tries the summary once more when the model did not load', async () => {
+    summarizer.failWith = 'LLM_OUT_OF_MEMORY';
+    summarizer.failTimes = 1;
+    const gpu = fakeGpu(false);
+    runner = runnerWith(gpu);
+    const { id, job } = await upload();
+    runner.start();
+    await runner.idle();
+    expect(repo.getJob(job.id)?.status).toBe('done');
+    expect(gpu.calls).toEqual(['wait before retry']);
+    expect(summarizer.calls).toHaveLength(2);
+    expect(repo.getSummary(id)).not.toBeNull();
+  });
+
+  it('keeps the transcript and unloads after a second failed load', async () => {
+    summarizer.failWith = 'LLM_OUT_OF_MEMORY';
+    const gpu = fakeGpu(true);
+    runner = runnerWith(gpu);
+    const { id, job } = await upload();
+    runner.start();
+    await runner.idle();
+    expect(repo.getJob(job.id)).toMatchObject({
+      status: 'failed',
+      error: { code: 'LLM_OUT_OF_MEMORY' },
+    });
+    expect(gpu.calls).toEqual(['wait', 'wait before retry', 'unload llm']);
+    expect(repo.getTranscript(id)).not.toBeNull();
+  });
+
   it('regenerates only the summary for a summarize job', async () => {
     const { id } = await upload();
     runner.start();

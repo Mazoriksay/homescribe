@@ -97,6 +97,8 @@ describe('SettingsPage', () => {
   it('frees video memory and says when it cannot', async () => {
     const loaded = {
       busy: false,
+      takeTurns: false,
+      sttIdleSeconds: 30,
       stt: {
         state: 'ok',
         server: 'speaches',
@@ -133,6 +135,8 @@ describe('SettingsPage', () => {
         path: `${API_PREFIX}/ai/memory`,
         body: {
           busy: true,
+          takeTurns: false,
+          sttIdleSeconds: 30,
           stt: { state: 'ok', server: 'speaches', loaded: [{ model: 'w', vramBytes: null }] },
           llm: { state: 'ok', server: 'ollama', loaded: [{ model: 'q', vramBytes: 4.7e9 }] },
         },
@@ -146,6 +150,42 @@ describe('SettingsPage', () => {
     expect(
       screen.getByText('A recording is being processed. Wait for it or cancel it first.'),
     ).toBeTruthy();
+  });
+
+  it('lets the models take turns on the GPU', async () => {
+    const memory = {
+      busy: false,
+      takeTurns: false,
+      sttIdleSeconds: 30,
+      stt: {
+        state: 'auto',
+        server: 'speaches',
+        loaded: [{ model: 'Systran/faster-whisper-large-v3', vramBytes: null }],
+      },
+      llm: { state: 'ok', server: 'ollama', loaded: [] },
+    };
+    const fetchMock = mockApi([
+      { path: `${API_PREFIX}/settings/ai`, body: settings },
+      { path: `${API_PREFIX}/ai/memory`, body: memory },
+      { method: 'PUT', path: `${API_PREFIX}/ai/take-turns`, body: { ...memory, takeTurns: true } },
+    ]);
+    renderPage(<SettingsPage />, { prefs: { locale: 'ru', theme: 'auto' } });
+    const section = (await screen.findByRole('heading', { name: 'Видеопамять' })).closest(
+      'section',
+    )!;
+    expect(
+      within(section).getByText(
+        'Systran/faster-whisper-large-v3 · выгружается сама после 30 с простоя',
+      ),
+    ).toBeTruthy();
+    const toggle = within(section).getByRole('switch', { name: 'Модели по очереди' });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle.getAttribute('aria-checked')).toBe('true'));
+    const put = fetchMock.mock.calls
+      .map(([r]) => r as Request)
+      .find((r) => r.method === 'PUT' && r.url.endsWith('/ai/take-turns'));
+    expect(await put?.json()).toEqual({ enabled: true });
   });
 
   it('connects the extension with a one-time code and takes a cookies.txt', async () => {
