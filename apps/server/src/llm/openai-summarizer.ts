@@ -20,6 +20,13 @@ const FORMAT = `Reply with one JSON object and nothing else:
 {"summary": "<Markdown: one short overview paragraph, then the key points as a bullet list>", "actionItems": ["<one task per item, with owner and deadline if mentioned>"]}
 Use an empty array when there are no action items.`;
 
+/**
+ * What a local server says when the model did not load on the GPU, e.g.
+ * Ollama's "llama-server process has terminated: … CUDA error" (SPEC.md §7.5).
+ */
+const MODEL_LOAD_FAILED =
+  /out of memory|CUDA error|cudaMalloc|unable to allocate|process has terminated|failed to load model/i;
+
 function languageRule(language: string | null): string {
   return language
     ? `Write the summary and action items in the transcript's language (ISO 639-1 code "${language}").`
@@ -319,6 +326,9 @@ export class OpenAiSummarizer implements Summarizer {
     });
 
     if (status < 200 || status >= 300) {
+      if (status >= 500 && MODEL_LOAD_FAILED.test(body)) {
+        throw new LlmError('LLM_OUT_OF_MEMORY', `HTTP ${status}: ${body.slice(0, 500)}`);
+      }
       throw new LlmError('LLM_FAILED', `HTTP ${status}: ${body.slice(0, 500)}`);
     }
     let json: unknown;

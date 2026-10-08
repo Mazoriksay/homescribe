@@ -95,13 +95,23 @@ export const api = createApi({
       // The answer already is the new state; no second round trip.
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         const { data } = await queryFulfilled;
+        const { stt, llm, busy, takeTurns, sttIdleSeconds } = data;
         dispatch(
           api.util.upsertQueryData('getAiMemory', undefined, {
-            stt: data.stt,
-            llm: data.llm,
-            busy: data.busy,
+            stt,
+            llm,
+            busy,
+            takeTurns,
+            sttIdleSeconds,
           }),
         );
+      },
+    }),
+    setTakeTurns: build.mutation<AiMemory, boolean>({
+      query: (enabled) => ({ url: '/ai/take-turns', method: 'PUT', body: { enabled } }),
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        const { data } = await queryFulfilled;
+        dispatch(api.util.upsertQueryData('getAiMemory', undefined, data));
       },
     }),
     getCookies: build.query<CookieStatus, void>({
@@ -178,6 +188,7 @@ export const {
   useDeleteCookiesMutation,
   useCreatePairingMutation,
   useUnloadAiMutation,
+  useSetTakeTurnsMutation,
   useUpdateAiSettingsMutation,
   useResetAiSettingsMutation,
   useLazyDiscoverAiQuery,

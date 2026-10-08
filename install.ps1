@@ -242,6 +242,7 @@ if ($UseLlm) {
   Write-Host "  Summaries: Ollama with $LlmModel$size"
 } else { Write-Host '  Summaries: no local AI' }
 $memSum = 0
+$TakeTurns = $false
 if ($Stt -ne 'none' -and $SttChoice.Vram) { $memSum += $SttChoice.Vram }
 $llmKnown = if ($UseLlm) { $LlmModels | Where-Object { $_.Id -eq $LlmModel } | Select-Object -First 1 } else { $null }
 if ($llmKnown) { $memSum += $llmKnown.Vram }
@@ -249,7 +250,8 @@ if ($memSum -gt 0) {
   $mem = if ($Stt -eq 'gpu') { 'video memory' } else { 'RAM' }
   Write-Host "  Memory: up to ~$memSum GB of $mem while both are loaded$(if ($Stt -eq 'gpu' -and $GpuMemGb) { " (this GPU has $GpuMemGb GB)" })"
   if ($Stt -eq 'gpu' -and $GpuMemGb -and $memSum -gt $GpuMemGb) {
-    Warn 'More than this GPU has: Ollama then runs partly on the CPU and summaries get slower. Pick smaller models to avoid that.'
+    $TakeTurns = $true
+    Warn 'More than this GPU has, so the two models will take turns: each recording takes about 30 s longer. Pick smaller models to avoid that.'
   }
 }
 if (-not (Ask 'Download and start?' $true)) { Write-Host 'Nothing was downloaded.'; exit 0 }
@@ -317,14 +319,15 @@ if ($UseLlm) { $profiles += $(if ($Stt -eq 'gpu') { 'llm-gpu' } else { 'llm-cpu'
 # Our keys are rewritten; anything else in .env is kept.
 $kept = @()
 if (Test-Path $envFile) {
-  $kept = Get-Content $envFile | Where-Object { $_ -notmatch $(if ($Stt -ne 'none') { '^(COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL|STT_MODEL)=' } else { '^(COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL)=' }) }
+  $kept = Get-Content $envFile | Where-Object { $_ -notmatch $(if ($Stt -ne 'none') { '^(AI_TAKE_TURNS|COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL|STT_MODEL)=' } else { '^(AI_TAKE_TURNS|COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL)=' }) }
 }
 $lines = @($kept) + @(
   "COMPOSE_PROFILES=$($profiles -join ',')",
   "HOMESCRIBE_IMAGE=$Image",
   "HOMESCRIBE_PORT=$Port",
   "HOMESCRIBE_RESTART=$Restart",
-  "EXTENSION_FOLDER=$extensionFolder"
+  "EXTENSION_FOLDER=$extensionFolder",
+  "AI_TAKE_TURNS=$(if ($TakeTurns) { 'true' } else { 'false' })"
 )
 if ($Stt -ne 'none') { $lines += "STT_MODEL=$($SttChoice.Id)" }
 $lines += $(if ($UseLlm) { @('LLM_MODE=local', "LLM_MODEL=$LlmModel") } else { @('LLM_MODE=off') })

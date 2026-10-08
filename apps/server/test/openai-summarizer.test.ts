@@ -269,6 +269,26 @@ describe('OpenAiSummarizer', () => {
       message: expect.stringContaining('model not found'),
     });
 
+    // Ollama when the model does not fit next to Whisper (live report).
+    const crashed = await startFakeOpenAi((_, res) =>
+      res.writeHead(500).end(
+        JSON.stringify({
+          error: {
+            message:
+              'llama-server process has terminated: exit status 0xc0000409: CUDA error: shared object initialization failed',
+            type: 'api_error',
+          },
+        }),
+      ),
+    );
+    closers.push(crashed.close);
+    await expect(
+      make(crashed.baseUrl).summarize({ text: 'x', language: null }),
+    ).rejects.toMatchObject({
+      code: 'LLM_OUT_OF_MEMORY',
+      message: expect.stringContaining('CUDA error'),
+    });
+
     const gone = await startFakeOpenAi(() => undefined);
     await gone.close();
     await expect(make(gone.baseUrl).summarize({ text: 'x', language: null })).rejects.toMatchObject(

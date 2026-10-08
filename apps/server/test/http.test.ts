@@ -323,6 +323,23 @@ describe('HTTP API', () => {
       t.transcriber.gate = null;
     });
 
+    it('stores the take-turns switch over the environment default', async () => {
+      const bad = await t.app.inject({
+        method: 'PUT',
+        url: '/api/v1/ai/take-turns',
+        payload: { enabled: 'yes' },
+      });
+      expect(bad.statusCode).toBe(400);
+      const res = await t.app.inject({
+        method: 'PUT',
+        url: '/api/v1/ai/take-turns',
+        payload: { enabled: true },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({ takeTurns: true, sttIdleSeconds: 30 });
+      expect(t.repo.getAppSetting('take_turns')).toBe(true);
+    });
+
     it('returns 404 for an unknown job', async () => {
       const res = await t.app.inject('/api/v1/jobs/0b9f1a8e-3c6d-4f7a-8e2b-5d4c3b2a1f00');
       expect(res.statusCode).toBe(404);

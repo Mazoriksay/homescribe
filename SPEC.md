@@ -180,6 +180,10 @@ CREATE TABLE summaries (
 ALTER TABLE recordings ADD COLUMN source_url TEXT;           -- link the media came from
 ALTER TABLE recordings ADD COLUMN title_from_source INTEGER NOT NULL DEFAULT 0;
                                                              -- 1: replace title with the page's title
+CREATE TABLE app_settings (                  -- small switches set in the UI
+  key   TEXT PRIMARY KEY,                     -- 'take_turns'
+  value TEXT NOT NULL                         -- JSON
+);
 CREATE TABLE ai_settings (                   -- one row per kind once chosen in the UI
   kind        TEXT PRIMARY KEY,                -- 'stt' | 'llm'
   mode        TEXT NOT NULL,                   -- 'local' | 'api' | 'off' (llm only)
@@ -253,20 +257,21 @@ on `code` only.
 
 Job failures are not HTTP errors; they live on the job (`error.code`):
 
-| `code`                                           | Meaning                                                                  |
-| ------------------------------------------------ | ------------------------------------------------------------------------ |
-| `INTERRUPTED`                                    | Server stopped while the job was running                                 |
-| `CANCELLED`                                      | Cancelled from the UI or `POST …/jobs/:id/cancel`                        |
-| `DOWNLOAD_FAILED`                                | yt-dlp could not fetch the link; the message has its reason              |
-| `DOWNLOAD_BLOCKED`                               | The site wants a signed-in visitor; add cookies (§7.8)                   |
-| `DOWNLOAD_COOKIES_EXPIRED`                       | The YouTube cookies are no longer valid; renew them (§7.8)               |
-| `MEDIA_UNREADABLE`                               | ffprobe/ffmpeg could not read or convert the upload                      |
-| `STT_UNAVAILABLE`                                | Speech-to-text server unreachable                                        |
-| `STT_TIMEOUT`                                    | No answer within `STT_TIMEOUT_MS`                                        |
-| `STT_FAILED`                                     | Non-2xx answer or a response that does not match the schema              |
-| `LLM_UNAVAILABLE` / `LLM_TIMEOUT` / `LLM_FAILED` | Same for the LLM; the transcript is kept                                 |
-| `LLM_CONTEXT_EXCEEDED`                           | Replies stayed cut off even for small parts (§8); the transcript is kept |
-| `INTERNAL_ERROR`                                 | Bug; details in the server log                                           |
+| `code`                                           | Meaning                                                                                        |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `INTERRUPTED`                                    | Server stopped while the job was running                                                       |
+| `CANCELLED`                                      | Cancelled from the UI or `POST …/jobs/:id/cancel`                                              |
+| `DOWNLOAD_FAILED`                                | yt-dlp could not fetch the link; the message has its reason                                    |
+| `DOWNLOAD_BLOCKED`                               | The site wants a signed-in visitor; add cookies (§7.8)                                         |
+| `DOWNLOAD_COOKIES_EXPIRED`                       | The YouTube cookies are no longer valid; renew them (§7.8)                                     |
+| `MEDIA_UNREADABLE`                               | ffprobe/ffmpeg could not read or convert the upload                                            |
+| `STT_UNAVAILABLE`                                | Speech-to-text server unreachable                                                              |
+| `STT_TIMEOUT`                                    | No answer within `STT_TIMEOUT_MS`                                                              |
+| `STT_FAILED`                                     | Non-2xx answer or a response that does not match the schema                                    |
+| `LLM_UNAVAILABLE` / `LLM_TIMEOUT` / `LLM_FAILED` | Same for the LLM; the transcript is kept                                                       |
+| `LLM_CONTEXT_EXCEEDED`                           | Replies stayed cut off even for small parts (§8); the transcript is kept                       |
+| `LLM_OUT_OF_MEMORY`                              | The summary model did not load on the GPU, also after one retry (§7.5); the transcript is kept |
+| `INTERNAL_ERROR`                                 | Bug; details in the server log                                                                 |
 
 ### 7.2 Types
 
@@ -349,6 +354,7 @@ interface Page<T> {
 | `POST /api/v1/ai/models`                | 2     | `{ baseUrl, apiKey?, useSavedKeyFor?: 'stt' \| 'llm' }`                                                                | `200 { models: { id, kind: 'stt' \| 'llm' \| null }[] }`                | 400, 502 `AI_UNREACHABLE`                                           |
 | `GET /api/v1/ai/memory`                 | 3     | —                                                                                                                      | `200 AiMemory`                                                          |                                                                     |
 | `POST /api/v1/ai/unload`                | 3     | —                                                                                                                      | `200 AiMemory & { failed: string[] }`                                   | 409 `JOB_ACTIVE`                                                    |
+| `PUT /api/v1/ai/take-turns`             | 3     | `{ enabled: boolean }`                                                                                                 | `200 AiMemory`                                                          | 400 `VALIDATION_ERROR`                                              |
 
 `SearchHit` is `{ recording, snippet: { text, match }[], segment: { index, start } | null }`:
 a fragment around the first match split into highlighted parts, and the first
@@ -426,15 +432,21 @@ interface UpdateAiSettings {
   changing `baseUrl` without a new key drops it, and `POST /ai/models` with
   `useSavedKeyFor` uses it only when `baseUrl` matches.
 
-**Freeing video memory.** speaches and Ollama keep a model loaded for about
-5 minutes after use. `GET /ai/memory` asks each local backend
+**Freeing video memory.** speaches keeps Whisper loaded for `STT_MODEL_TTL`
+seconds after use (`compose.yaml` passes it as `WHISPER__TTL`, the
+`whisper.ttl` field of speaches 0.8.1 and 0.8.3; default 30) and Ollama
+its model for about 5 minutes. `GET /ai/memory` asks each local backend
 `GET {baseUrl}/api/ps`: speaches (`routers/misc.py`) answers
 `{ models: string[] }`, Ollama (`docs/api.md`) `{ models: [{ name,
-size_vram, … }] }`; the shape tells them apart. Ollama can unload on request
+size_vram, … }] }`; the shape tells them apart. An empty list has no shape,
+so then `GET {baseUrl}/api/version` decides: Ollama answers
+`{ version }`, speaches has no such route. Ollama can unload on request
 (`ok`). speaches is `auto`: version 0.8.1 unloads on `DELETE /api/ps/{id}`
 but then never answers and takes no more transcriptions until restarted
 (found in a live test), and it unloads idle models by itself after
-`stt_model_ttl` (5 minutes), so it is shown, never asked. Any other answer
+`STT_MODEL_TTL`, so it is shown, never asked. (Its `DELETE` handler holds
+the model manager's lock while the model's unload callback waits for the
+same lock; the TTL timer unloads from its own thread and is not affected.) Any other answer
 means the server cannot unload on request (`unsupported`); cloud APIs are
 `remote`, summaries turned off `off`:
 
@@ -443,6 +455,8 @@ interface AiMemory {
   stt: BackendMemory;
   llm: BackendMemory;
   busy: boolean; // a job is running
+  takeTurns: boolean; // see "Taking turns" below
+  sttIdleSeconds: number; // STT_MODEL_TTL
 }
 interface BackendMemory {
   state: 'ok' | 'auto' | 'unsupported' | 'unreachable' | 'remote' | 'off';
@@ -458,7 +472,34 @@ the button with that reason (the job can be cancelled next to it). Models
 the server refused are listed in `failed`. The next job loads the model
 again by itself. The settings page shows the section only when a backend is
 local, the button only when a backend is `ok`, and for speaches "unloads by
-itself after 5 idle minutes".
+itself after N idle seconds".
+
+**Taking turns.** A summary model that only just fits the GPU cannot load
+while Whisper is still there (Ollama then crashes with a CUDA error), and
+the next recording's Whisper cannot load while the summary model is. With
+`takeTurns` on, when both backends are local:
+
+- before summarizing, the job waits until speaches lists no loaded model
+  (`GET /api/ps` every 2 s, at most `STT_MODEL_TTL` + 15 s, then it goes
+  on anyway); speaches is never asked to unload (see above);
+- after summarizing, done or failed, the job unloads the Ollama model
+  (`keep_alive: 0`). Cloud APIs use no local memory and are never touched.
+
+It costs about `STT_MODEL_TTL` seconds per recording, plus loading Whisper
+again (a few seconds) for the next one. The default comes from
+`AI_TAKE_TURNS`, which the installer sets to `true` when the chosen models
+together need more video memory than the GPU has; the switch in the
+"Video memory" section (`PUT /ai/take-turns { enabled }`) overrides it and
+is stored in `app_settings`.
+
+**Out of video memory.** An LLM answer of HTTP 5xx whose text says the
+model could not load (`out of memory`, `CUDA error`, `cudaMalloc`,
+`unable to allocate`, `process has terminated`, `failed to load model`) is
+`LLM_OUT_OF_MEMORY`. The job then waits once as above (until speaches is
+empty, else 60 s: in the live case the second try a minute later loaded)
+and tries the summary again; a second failure ends the job. The UI says
+the summary model did not fit next to speech recognition and suggests
+"Take turns" or a smaller model, with the server's text under "Details".
 
 ### 7.6 Health and self-check
 
@@ -697,40 +738,42 @@ All settings come from environment variables; `.env.example` lists them.
 exists (Node's `--env-file-if-exists`). Invalid values stop the server at
 startup with a message naming the variable.
 
-| Variable                   | Default                                                                          | Stage | Meaning                                                                                  |
-| -------------------------- | -------------------------------------------------------------------------------- | ----- | ---------------------------------------------------------------------------------------- |
-| `HOST`                     | `0.0.0.0`                                                                        | 1     | Listen address                                                                           |
-| `PORT`                     | `8080`                                                                           | 1     | Listen port                                                                              |
-| `DATA_DIR`                 | `./data`                                                                         | 1     | SQLite file and media; created if missing                                                |
-| `ALLOWED_NETWORKS`         | `127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,fe80::/10` | 1     | Comma-separated CIDR list of allowed client addresses                                    |
-| `MAX_UPLOAD_MB`            | `2048`                                                                           | 1     | Largest accepted upload                                                                  |
-| `FFMPEG_PATH`              | `ffmpeg`                                                                         | 1     | ffmpeg binary                                                                            |
-| `FFPROBE_PATH`             | `ffprobe`                                                                        | 1     | ffprobe binary                                                                           |
-| `STT_MODE`                 | `local`                                                                          | 2     | `local` or `api` (cloud: audio sent as Opus)                                             |
-| `STT_BASE_URL`             | `http://localhost:8000`                                                          | 1     | Base URL; the server calls `${STT_BASE_URL}/v1/audio/transcriptions`                     |
-| `STT_MODEL`                | `Systran/faster-whisper-large-v3`                                                | 1     | `model` form field                                                                       |
-| `STT_LANGUAGE`             | _(empty = auto-detect)_                                                          | 1     | ISO 639-1 code sent as `language`                                                        |
-| `STT_API_KEY`              | _(empty)_                                                                        | 1     | Sent as `Authorization: Bearer …` when set                                               |
-| `STT_TIMEOUT_MS`           | `3600000`                                                                        | 1     | Per-request timeout                                                                      |
-| `STT_VAD_FILTER`           | `true`                                                                           | 3     | Send speaches' `vad_filter=true` in local mode (skips silence, prevents Whisper loops)   |
-| `LLM_MODE`                 | `local`                                                                          | 2     | `local`, `api` or `off` (no summaries)                                                   |
-| `LLM_BASE_URL`             | `http://localhost:11434`                                                         | 2     | Base URL; calls `${LLM_BASE_URL}/v1/chat/completions`                                    |
-| `LLM_MODEL`                | `llama3.1:8b`                                                                    | 2     | `model` field                                                                            |
-| `LLM_API_KEY`              | _(empty)_                                                                        | 2     | Bearer token when set                                                                    |
-| `LLM_TIMEOUT_MS`           | `600000`                                                                         | 2     | Per-request timeout                                                                      |
-| `LLM_CHUNK_CHARS`          | `4000`                                                                           | 2     | Longer transcripts are summarized in parts, then merged; fits a 4096-token window (§8)   |
-| `AI_DISCOVERY_HOSTS`       | `localhost,host.docker.internal`                                                 | 2     | Hosts probed for local AI servers (names or IPs, no ports)                               |
-| `BASE_PATH`                | _(empty = root)_                                                                 | 3     | Serve UI and API under this path, e.g. `/homescribe` (§11.2)                             |
-| `WEB_DIST_DIR`             | `apps/web/dist` (resolved from the repo root)                                    | 1     | Built UI to serve; skipped if missing                                                    |
-| `FRAME_ANCESTORS`          | _(empty = only the app itself)_                                                  | 1     | Space-separated origins (`http://hub.lan:3000`) allowed to show the UI in an iframe      |
-| `YTDLP_PATH`               | `yt-dlp`                                                                         | 3     | yt-dlp binary for links (§7.7)                                                           |
-| `YTDLP_AUTO_UPDATE`        | `true`                                                                           | 3     | Run `yt-dlp -U` at startup and daily (sites change often)                                |
-| `YTDLP_COOKIES_FILE`       | `<DATA_DIR>/cookies.txt`                                                         | 3     | Where YouTube cookies are kept (§7.8); a file put there by hand is used too              |
-| `HOMESCRIBE_VERSION`       | `0.0.0`                                                                          | 3     | Set by the image build from the release tag; the extension's version (§7.8)              |
-| `EXTENSION_FOLDER`         | _(empty)_                                                                        | 3     | Where the installer unpacked the browser extension on the host; shown in Settings (§7.8) |
-| `DOWNLOAD_TIMEOUT_MS`      | `7200000`                                                                        | 3     | Longest a link download may take                                                         |
-| `URL_IMPORT_ALLOW_PRIVATE` | `false`                                                                          | 3     | Allow links to private/loopback addresses (e.g. a NAS on the LAN)                        |
-| `LOG_LEVEL`                | `info`                                                                           | 1     | Fastify/pino log level                                                                   |
+| Variable                   | Default                                                                          | Stage | Meaning                                                                                     |
+| -------------------------- | -------------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------- |
+| `HOST`                     | `0.0.0.0`                                                                        | 1     | Listen address                                                                              |
+| `PORT`                     | `8080`                                                                           | 1     | Listen port                                                                                 |
+| `DATA_DIR`                 | `./data`                                                                         | 1     | SQLite file and media; created if missing                                                   |
+| `ALLOWED_NETWORKS`         | `127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,fe80::/10` | 1     | Comma-separated CIDR list of allowed client addresses                                       |
+| `MAX_UPLOAD_MB`            | `2048`                                                                           | 1     | Largest accepted upload                                                                     |
+| `FFMPEG_PATH`              | `ffmpeg`                                                                         | 1     | ffmpeg binary                                                                               |
+| `FFPROBE_PATH`             | `ffprobe`                                                                        | 1     | ffprobe binary                                                                              |
+| `STT_MODE`                 | `local`                                                                          | 2     | `local` or `api` (cloud: audio sent as Opus)                                                |
+| `STT_BASE_URL`             | `http://localhost:8000`                                                          | 1     | Base URL; the server calls `${STT_BASE_URL}/v1/audio/transcriptions`                        |
+| `STT_MODEL`                | `Systran/faster-whisper-large-v3`                                                | 1     | `model` form field                                                                          |
+| `STT_MODEL_TTL`            | `30`                                                                             | 3     | Seconds speaches keeps Whisper loaded after use (`WHISPER__TTL` in `compose.yaml`) (§7.5)   |
+| `AI_TAKE_TURNS`            | `false`                                                                          | 3     | Default of "take turns" on the GPU; the installer sets it when the models do not fit (§7.5) |
+| `STT_LANGUAGE`             | _(empty = auto-detect)_                                                          | 1     | ISO 639-1 code sent as `language`                                                           |
+| `STT_API_KEY`              | _(empty)_                                                                        | 1     | Sent as `Authorization: Bearer …` when set                                                  |
+| `STT_TIMEOUT_MS`           | `3600000`                                                                        | 1     | Per-request timeout                                                                         |
+| `STT_VAD_FILTER`           | `true`                                                                           | 3     | Send speaches' `vad_filter=true` in local mode (skips silence, prevents Whisper loops)      |
+| `LLM_MODE`                 | `local`                                                                          | 2     | `local`, `api` or `off` (no summaries)                                                      |
+| `LLM_BASE_URL`             | `http://localhost:11434`                                                         | 2     | Base URL; calls `${LLM_BASE_URL}/v1/chat/completions`                                       |
+| `LLM_MODEL`                | `llama3.1:8b`                                                                    | 2     | `model` field                                                                               |
+| `LLM_API_KEY`              | _(empty)_                                                                        | 2     | Bearer token when set                                                                       |
+| `LLM_TIMEOUT_MS`           | `600000`                                                                         | 2     | Per-request timeout                                                                         |
+| `LLM_CHUNK_CHARS`          | `4000`                                                                           | 2     | Longer transcripts are summarized in parts, then merged; fits a 4096-token window (§8)      |
+| `AI_DISCOVERY_HOSTS`       | `localhost,host.docker.internal`                                                 | 2     | Hosts probed for local AI servers (names or IPs, no ports)                                  |
+| `BASE_PATH`                | _(empty = root)_                                                                 | 3     | Serve UI and API under this path, e.g. `/homescribe` (§11.2)                                |
+| `WEB_DIST_DIR`             | `apps/web/dist` (resolved from the repo root)                                    | 1     | Built UI to serve; skipped if missing                                                       |
+| `FRAME_ANCESTORS`          | _(empty = only the app itself)_                                                  | 1     | Space-separated origins (`http://hub.lan:3000`) allowed to show the UI in an iframe         |
+| `YTDLP_PATH`               | `yt-dlp`                                                                         | 3     | yt-dlp binary for links (§7.7)                                                              |
+| `YTDLP_AUTO_UPDATE`        | `true`                                                                           | 3     | Run `yt-dlp -U` at startup and daily (sites change often)                                   |
+| `YTDLP_COOKIES_FILE`       | `<DATA_DIR>/cookies.txt`                                                         | 3     | Where YouTube cookies are kept (§7.8); a file put there by hand is used too                 |
+| `HOMESCRIBE_VERSION`       | `0.0.0`                                                                          | 3     | Set by the image build from the release tag; the extension's version (§7.8)                 |
+| `EXTENSION_FOLDER`         | _(empty)_                                                                        | 3     | Where the installer unpacked the browser extension on the host; shown in Settings (§7.8)    |
+| `DOWNLOAD_TIMEOUT_MS`      | `7200000`                                                                        | 3     | Longest a link download may take                                                            |
+| `URL_IMPORT_ALLOW_PRIVATE` | `false`                                                                          | 3     | Allow links to private/loopback addresses (e.g. a NAS on the LAN)                           |
+| `LOG_LEVEL`                | `info`                                                                           | 1     | Fastify/pino log level                                                                      |
 
 The `STT_*` and `LLM_*` values are defaults: once a backend is chosen in the
 UI (§7.5), the saved choice wins until it is reset.
@@ -955,7 +998,7 @@ export class AppError extends Error {
 - [x] Published multi-arch image (`linux/amd64`, `linux/arm64`) on GHCR from GitHub Actions: `latest` from `main`, `X.Y.Z`/`X.Y` from tags; CI (lint, typecheck, test, build, installer parse, compose config) on every PR.
 - [x] `compose.yaml` pulls the image; `compose.dev.yaml` builds from source; profiles `gpu`/`cpu` (speaches) and `llm-gpu`/`llm-cpu` (Ollama), settable through `COMPOSE_PROFILES` in `.env`.
 - [x] `install.sh` (Linux, macOS) and `install.ps1` (Windows): install Docker with consent (get.docker.com, Homebrew `docker-desktop`, winget `Docker.DockerDesktop`), NVIDIA Container Toolkit with consent (apt/dnf), GPU/CPU choice, optional Ollama with a model, free port, `.env` that keeps user lines, start, wait for health and the speech model, print LAN addresses and the self-check. Re-running updates.
-- [x] The installer lets you choose what to download before anything is pulled: where speech recognition runs (GPU, CPU or not here), the Whisper model (`large-v3`, `large-v3-turbo`, `medium`, `small`, with sizes) and the local summary model (`qwen2.5:7b`, `llama3.1:8b`, `qwen2.5:3b` or none). Each option shows its download size and the memory it uses; the two models take turns but each stays loaded for about 5 minutes (speaches `stt_model_ttl`, Ollama `keep_alive`), so the summary adds both up, compares with the GPU's memory and asks to confirm. Models already in the volumes are detected first (a throwaway container from the local Homescribe image reads `hf-hub-cache` and `ollama-models`) and marked as downloaded; an unfinished Whisper download is marked as continuing. The installer asks speaches to download the chosen model (`POST /v1/models/{id}`, detached inside the container with retries until it listens) rather than relying on `PRELOAD_MODELS` alone. While speaches downloads, the installer shows the bytes on disk against the expected size; `ollama pull` shows its own progress. Interrupted downloads resume (Hugging Face `.incomplete` files, Ollama partial blobs) and the Whisper download runs in the container, so closing the window does not stop it. Afterwards the installer removes image versions an update replaced, stops services of an earlier choice (GPU↔CPU, no LLM) and offers to delete models, finished or not, that are no longer chosen. The choice goes to `.env` as `STT_MODEL`/`LLM_MODEL`; `compose.yaml` preloads `STT_MODEL`. Flags (`--stt-model`, `--llm-model`, `-SttModel`, `-LlmModel`) skip the questions.
+- [x] The installer lets you choose what to download before anything is pulled: where speech recognition runs (GPU, CPU or not here), the Whisper model (`large-v3`, `large-v3-turbo`, `medium`, `small`, with sizes) and the local summary model (`qwen2.5:7b`, `llama3.1:8b`, `qwen2.5:3b` or none). Each option shows its download size and the memory it uses; the two models take turns but each stays loaded for a while after use (speaches `whisper.ttl`, `STT_MODEL_TTL` = 30 s; Ollama `keep_alive`, 5 minutes), so the summary adds both up, compares with the GPU's memory and asks to confirm; when they do not fit it sets `AI_TAKE_TURNS=true` (§7.5). Models already in the volumes are detected first (a throwaway container from the local Homescribe image reads `hf-hub-cache` and `ollama-models`) and marked as downloaded; an unfinished Whisper download is marked as continuing. The installer asks speaches to download the chosen model (`POST /v1/models/{id}`, detached inside the container with retries until it listens) rather than relying on `PRELOAD_MODELS` alone. While speaches downloads, the installer shows the bytes on disk against the expected size; `ollama pull` shows its own progress. Interrupted downloads resume (Hugging Face `.incomplete` files, Ollama partial blobs) and the Whisper download runs in the container, so closing the window does not stop it. Afterwards the installer removes image versions an update replaced, stops services of an earlier choice (GPU↔CPU, no LLM) and offers to delete models, finished or not, that are no longer chosen. The choice goes to `.env` as `STT_MODEL`/`LLM_MODEL`; `compose.yaml` preloads `STT_MODEL`. Flags (`--stt-model`, `--llm-model`, `-SttModel`, `-LlmModel`) skip the questions.
 - [x] Start and stop without knowing Docker: the installer puts a control script next to `compose.yaml` (`homescribe` with `start | stop | status | update` on Linux and macOS; `homescribe.ps1` plus `Start Homescribe.cmd`, `Stop Homescribe.cmd`, `Homescribe status.cmd`, `Update Homescribe.cmd` on Windows, and on request Start menu shortcuts). `start` runs `compose up -d`, waits for `/health`, prints the address and opens the browser (and starts Docker Desktop on Windows if needed); `stop` runs `compose down` (never `-v`) and says that recordings, models and settings are kept; `status` shows `compose ps` and the self-check; `update` pulls and restarts (model choices stay with the installer). Starting with the computer is a question (default no, `--autostart`/`-Autostart`), stored as `HOMESCRIBE_RESTART` (`no` or `unless-stopped`), which `compose.yaml` uses as every service's restart policy; on Windows it also needs Docker Desktop to start at sign-in, which the installer says.
 
 ### Stage 4 — record in the browser, PWA, offline

@@ -49,6 +49,17 @@ source of truth for the version.
   instead of asking again; part summaries are merged in rounds that each fit
   the window. When even small parts are cut off the job fails with
   `LLM_CONTEXT_EXCEEDED` and says what to change.
+- Summaries no longer fail when the summary model only just fits the GPU
+  ("llama-server process has terminated … CUDA error"). Whisper now leaves
+  video memory 30 s after use (`STT_MODEL_TTL`, passed to speaches as
+  `WHISPER__TTL`) instead of 5 minutes. With "Take turns on the GPU" (Settings
+  → Video memory; the installer turns it on when the chosen models do not fit,
+  `AI_TAKE_TURNS`), a job waits for Whisper to leave before the summary and
+  unloads the Ollama model after it; cloud APIs are never touched. A model
+  that fails to load is tried once more after that wait; if it fails again
+  the job says so as `LLM_OUT_OF_MEMORY`, with the server's text under
+  Details. The transcript is kept either way.
+- Settings → Video memory no longer calls an idle Ollama "speaches".
 - Chrome no longer lists "'background.scripts' requires manifest version of 2
   or lower" for the extension: the zip and the unpacked folder keep only
   what Chrome understands, and Firefox gets its own zip

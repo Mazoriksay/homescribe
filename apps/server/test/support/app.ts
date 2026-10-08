@@ -117,7 +117,10 @@ export async function createTestApp(
     cookies,
     aiSettings,
     discover: async () => ai$.discovery,
-    memory: new AiMemoryService(aiSettings, () => runner.busy),
+    memory: new AiMemoryService(aiSettings, () => runner.busy, {
+      repo,
+      gpu: config.gpu,
+    }),
     listModels: async (baseUrl, apiKey) => {
       ai$.modelCalls.push({ baseUrl, apiKey });
       if (ai$.modelsError) throw ai$.modelsError;

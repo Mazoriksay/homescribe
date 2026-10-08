@@ -150,11 +150,14 @@ export const ru: Record<MessageKey, string> = {
   'error.PAIRING_INVALID': 'Код неверный или устарел.',
   'error.TOKEN_INVALID': 'Подключите расширение заново.',
   'settings.memory.title': 'Видеопамять',
-  'settings.memory.auto': 'выгрузится сама через 5 минут простоя',
+  'settings.memory.auto': 'выгружается сама после {seconds} с простоя',
   'settings.memory.unloaded': 'не загружена',
   'settings.memory.unsupported': 'этот сервер не умеет выгружать модели по запросу',
   'settings.memory.unreachable': 'сервер не отвечает',
   'settings.memory.size': '{gb} ГБ',
+  'settings.memory.takeTurns': 'Модели по очереди',
+  'settings.memory.takeTurnsCost':
+    'Распознавание освобождает видеопамять перед итогами, модель итогов — после них. Каждая запись обрабатывается примерно на {seconds} с дольше.',
   'settings.memory.free': 'Освободить видеопамять',
   'settings.memory.busy': 'Идёт обработка записи. Дождитесь её конца или отмените.',
   'settings.memory.empty': 'Модели выгружены.',
@@ -197,6 +200,8 @@ export const ru: Record<MessageKey, string> = {
   'error.LLM_FAILED': 'Языковая модель не выдала пригодных итогов.',
   'error.LLM_CONTEXT_EXCEEDED':
     'Модели не хватило контекста: ответ обрезался даже на коротких частях. Уменьшите LLM_CHUNK_CHARS или увеличьте окно на сервере ИИ.',
+  'error.LLM_OUT_OF_MEMORY':
+    'Модели итогов не хватило видеопамяти рядом с распознаванием, и повтор не помог. Включите «Модели по очереди» в настройках или выберите модель поменьше.',
   'error.SUMMARIES_OFF': 'Итоги выключены в настройках.',
   'error.VALIDATION_ERROR': 'Проверьте введённые значения.',
 };

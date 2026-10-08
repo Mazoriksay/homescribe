@@ -33,6 +33,9 @@ async function fakeOllama(loaded: { name: string; size_vram: number }[]) {
     if (req.method === 'GET' && req.url === '/api/ps') {
       return res.end(JSON.stringify({ models: loaded }));
     }
+    if (req.method === 'GET' && req.url === '/api/version') {
+      return res.end(JSON.stringify({ version: '0.12.0' }));
+    }
     const body = req.json as { model?: string; keep_alive?: number } | null;
     if (req.method === 'POST' && req.url === '/api/generate' && body?.keep_alive === 0) {
       loaded.splice(
@@ -45,6 +48,20 @@ async function fakeOllama(loaded: { name: string; size_vram: number }[]) {
   });
   closers.push(fake.close);
   return fake;
+}
+
+/** In-memory app_settings and fast waits. */
+function options(takeTurns = false) {
+  const stored = new Map<string, unknown>();
+  return {
+    repo: {
+      getAppSetting: <T>(key: string) => (stored.has(key) ? (stored.get(key) as T) : null),
+      setAppSetting: (key: string, value: unknown) => void stored.set(key, value),
+    },
+    gpu: { takeTurns, sttIdleSeconds: 30 },
+    pollMs: 10,
+    fallbackWaitMs: 10,
+  };
 }
 
 function settings(stt: Partial<EffectiveAiSettings>, llm: Partial<EffectiveAiSettings>) {
@@ -61,10 +78,13 @@ describe('AiMemoryService', () => {
     const memory = new AiMemoryService(
       settings({ baseUrl: speaches.baseUrl }, { baseUrl: ollama.baseUrl }),
       () => false,
+      options(),
     );
 
     expect(await memory.status()).toEqual({
       busy: false,
+      takeTurns: false,
+      sttIdleSeconds: 30,
       stt: {
         state: 'auto',
         server: 'speaches',
@@ -79,7 +99,8 @@ describe('AiMemoryService', () => {
 
     const { memory: after, failed } = await memory.unload();
     expect(failed).toEqual([]);
-    expect(after.llm.loaded).toEqual([]);
+    // Nothing loaded is still Ollama, not speaches (both answer { models: [] }).
+    expect(after.llm).toEqual({ state: 'ok', server: 'ollama', loaded: [] });
     // speaches 0.8.1 stops working after DELETE /api/ps; it unloads by itself.
     expect(after.stt.loaded).toHaveLength(1);
     expect(speaches.received.some((r) => r.method === 'DELETE')).toBe(false);
@@ -91,6 +112,7 @@ describe('AiMemoryService', () => {
     const memory = new AiMemoryService(
       settings({ baseUrl: lmStudio.baseUrl }, { mode: 'api', baseUrl: 'https://api.example.com' }),
       () => true,
+      options(),
     );
     expect(await memory.status()).toMatchObject({
       busy: true,
@@ -101,6 +123,7 @@ describe('AiMemoryService', () => {
     const offline = new AiMemoryService(
       settings({ baseUrl: 'http://127.0.0.1:9' }, { mode: 'off', baseUrl: 'http://x' }),
       () => false,
+      options(),
     );
     expect(await offline.status()).toMatchObject({
       stt: { state: 'unreachable' },
@@ -119,7 +142,61 @@ describe('AiMemoryService', () => {
     const memory = new AiMemoryService(
       settings({ mode: 'api', baseUrl: 'https://api.example.com' }, { baseUrl: busy.baseUrl }),
       () => false,
+      options(),
     );
     expect((await memory.unload()).failed).toEqual(['qwen2.5:7b']);
+  });
+
+  it('tells an idle speaches from an idle Ollama', async () => {
+    const speaches = await fakeSpeaches([]);
+    const ollama = await fakeOllama([]);
+    const memory = new AiMemoryService(
+      settings({ baseUrl: speaches.baseUrl }, { baseUrl: ollama.baseUrl }),
+      () => false,
+      options(),
+    );
+    expect(await memory.status()).toMatchObject({
+      stt: { state: 'auto', server: 'speaches', loaded: [] },
+      llm: { state: 'ok', server: 'ollama', loaded: [] },
+    });
+  });
+
+  it('takes turns: waits for speaches to let Whisper go and unloads Ollama', async () => {
+    const whisper = ['Systran/faster-whisper-large-v3'];
+    const speaches = await fakeSpeaches(whisper);
+    const ollama = await fakeOllama([{ name: 'gemma4:26b', size_vram: 14_000_000_000 }]);
+    const memory = new AiMemoryService(
+      settings({ baseUrl: speaches.baseUrl }, { baseUrl: ollama.baseUrl }),
+      () => false,
+      options(true),
+    );
+    expect(memory.takeTurns()).toBe(true);
+    // speaches unloads by its TTL a moment later; it is never asked to.
+    setTimeout(() => whisper.splice(0), 50);
+    await expect(memory.waitForSttIdle()).resolves.toBe(true);
+    expect(whisper).toEqual([]);
+    expect(speaches.received.filter((r) => r.url === '/api/ps').length).toBeGreaterThan(1);
+    expect(speaches.received.some((r) => r.method === 'DELETE')).toBe(false);
+
+    await memory.unloadLlm();
+    expect((await memory.status()).llm.loaded).toEqual([]);
+
+    // The switch in the settings overrides the installer's default.
+    expect((await memory.setTakeTurns(false)).takeTurns).toBe(false);
+    expect(memory.takeTurns()).toBe(false);
+  });
+
+  it('leaves cloud APIs alone and has nothing to wait for without a local speaches', async () => {
+    const cloud = await startFakeOpenAi((_, res) => res.end('{}'));
+    closers.push(cloud.close);
+    const memory = new AiMemoryService(
+      settings({ mode: 'api', baseUrl: cloud.baseUrl }, { mode: 'api', baseUrl: cloud.baseUrl }),
+      () => false,
+      options(true),
+    );
+    await expect(memory.waitForSttIdle()).resolves.toBe(false);
+    await memory.unloadLlm();
+    await memory.waitBeforeRetry();
+    expect(cloud.received).toEqual([]);
   });
 });

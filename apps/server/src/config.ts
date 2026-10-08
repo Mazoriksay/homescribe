@@ -80,6 +80,8 @@ const envSchema = z.object({
   WEB_DIST_DIR: optional(z.string().optional()),
   HOMESCRIBE_VERSION: optional(z.string().default('0.0.0')),
   EXTENSION_FOLDER: optional(z.string().optional()),
+  STT_MODEL_TTL: optional(z.coerce.number().int().min(0).default(30)),
+  AI_TAKE_TURNS: optional(z.stringbool().default(false)),
   BASE_PATH: optional(
     z
       .string()
@@ -147,6 +149,8 @@ export interface Config {
   extensionDir: string;
   /** The host's unpacked copy, only shown to the user. */
   extensionFolder: string | null;
+  /** Whisper and the summary model on one GPU (SPEC.md §7.5). */
+  gpu: { takeTurns: boolean; sttIdleSeconds: number };
   /** Set from the release tag when the image is built. */
   version: string;
   /** Path everything is served under, e.g. "/homescribe"; "" for the root. */
@@ -207,6 +211,7 @@ export function loadConfig(env: Record<string, string | undefined>, rootDir: str
     webDistDir: path.resolve(rootDir, e.WEB_DIST_DIR ?? 'apps/web/dist'),
     extensionDir: path.resolve(rootDir, 'apps/extension'),
     extensionFolder: e.EXTENSION_FOLDER || null,
+    gpu: { takeTurns: e.AI_TAKE_TURNS, sttIdleSeconds: e.STT_MODEL_TTL },
     version: e.HOMESCRIBE_VERSION,
     basePath: e.BASE_PATH,
     frameAncestors: e.FRAME_ANCESTORS,

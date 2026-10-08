@@ -42,11 +42,15 @@ asks what to download and shows a summary before anything is pulled:
   Settings, or no summaries).
 
 Each option shows its download size and how much memory it uses (video
-memory on a GPU). The two models take turns, transcription first and the
-summary after it, but each stays loaded for about 5 minutes after use, so
-plan for both at once: for example `large-v3` (~4.5 GB) plus `qwen2.5:7b`
-(~6 GB) need about 10.5 GB. The summary before downloading adds this up and
-warns when it is more than the GPU has (Ollama then runs partly on the CPU).
+memory on a GPU). Transcription runs first and the summary after it, but
+each model stays loaded for a while after use (Whisper 30 s, Ollama about 5
+minutes), so plan for both at once: for example `large-v3` (~4.5 GB) plus
+`qwen2.5:7b` (~6 GB) need about 10.5 GB. The summary before downloading adds
+this up; when it is more than the GPU has, the models take turns: Whisper
+leaves video memory before the summary and the summary model after it, which
+makes each recording about 30 s longer. The same switch, "Take turns on the
+GPU", is in Settings → Video memory, for example for a large model you run in
+Ollama outside Homescribe.
 
 Models you already have are marked as downloaded and are not fetched again.
 Downloads show their progress and resume where they stopped if the
@@ -71,7 +75,7 @@ irm https://raw.githubusercontent.com/mazoriksay/homescribe/main/install.ps1 | i
 
 At the end it prints the addresses to open, for example
 `http://192.168.1.20:8080`, and what the self-check found. The first start
-downloads the speech model (about 3 GB). Everything restarts with the machine.
+downloads the speech model (about 3 GB).
 
 To update, run the same command again. It keeps your port and settings.
 

@@ -50,6 +50,7 @@ export const jobErrorCodes = [
   'LLM_TIMEOUT',
   'LLM_FAILED',
   'LLM_CONTEXT_EXCEEDED',
+  'LLM_OUT_OF_MEMORY',
   'INTERNAL_ERROR',
 ] as const;
 export type JobErrorCode = (typeof jobErrorCodes)[number];

@@ -201,3 +201,10 @@
   user-select: all;
   overflow-wrap: anywhere;
 }
+
+.switchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap);
+}

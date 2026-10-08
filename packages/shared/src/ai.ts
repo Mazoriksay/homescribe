@@ -130,6 +130,10 @@ export const aiMemorySchema = z.object({
   llm: backendMemorySchema,
   /** A job is running: unloading would fail or slow it down. */
   busy: z.boolean(),
+  /** Whisper and the summary model take turns on the GPU (SPEC.md §7.5). */
+  takeTurns: z.boolean(),
+  /** How long speaches keeps Whisper after use (STT_MODEL_TTL). */
+  sttIdleSeconds: z.number().int().nonnegative(),
 });
 export type AiMemory = z.infer<typeof aiMemorySchema>;
 
@@ -138,6 +142,9 @@ export const aiUnloadResultSchema = aiMemorySchema.extend({
   failed: z.array(z.string()),
 });
 export type AiUnloadResult = z.infer<typeof aiUnloadResultSchema>;
+
+export const takeTurnsBodySchema = z.object({ enabled: z.boolean() });
+export type TakeTurnsBody = z.infer<typeof takeTurnsBodySchema>;
 
 /** Well-known local ports of OpenAI-compatible servers, probed by discovery. */
 export const localServerPorts: readonly { port: number; product: string }[] = [

@@ -49,6 +49,9 @@ services:
       LOG_LEVEL: info
       # No Gradio UI: it is not used and it checks gradio.app for updates.
       ENABLE_UI: 'false'
+      # Seconds Whisper stays loaded after use (whisper.ttl); short, so the
+      # summary model can have the GPU soon after (SPEC.md §7.5).
+      WHISPER__TTL: ${STT_MODEL_TTL:-30}
     volumes:
       - hf-hub-cache:/home/ubuntu/.cache/huggingface/hub
     networks:
@@ -71,6 +74,7 @@ services:
       PRELOAD_MODELS: '["${STT_MODEL:-Systran/faster-whisper-large-v3}"]'
       LOG_LEVEL: info
       ENABLE_UI: 'false'
+      WHISPER__TTL: ${STT_MODEL_TTL:-30}
     volumes:
       - hf-hub-cache:/home/ubuntu/.cache/huggingface/hub
     networks:
