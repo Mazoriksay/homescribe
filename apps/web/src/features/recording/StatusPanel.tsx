@@ -2,7 +2,11 @@ import type { Recording } from '@homescribe/shared';
 import { Button } from 'antd';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { useCreateJobMutation, useDeleteRecordingMutation } from '../../api/api';
+import {
+  useCancelJobMutation,
+  useCreateJobMutation,
+  useDeleteRecordingMutation,
+} from '../../api/api';
 import { errorMessageKey, useT } from '../../i18n/useT';
 import { ProgressBar } from '../../ui/ProgressBar';
 import { StatusBadge } from '../../ui/StatusBadge';
@@ -24,6 +28,7 @@ export function StatusPanel({ recording }: { recording: Recording }) {
           {job.status === 'failed' && (
             <RetryButton recordingId={recording.id} summaryOnly={summaryFailed} />
           )}
+          {!isFinal && <CancelButton recordingId={recording.id} jobId={job.id} />}
           <DeleteButton recordingId={recording.id} disabled={!isFinal && job.status !== 'queued'} />
         </div>
       </div>
@@ -63,17 +68,42 @@ function RetryButton({ recordingId, summaryOnly }: { recordingId: string; summar
 }
 
 /** Two taps instead of a modal: easy on a phone, hard to trigger by accident. */
-function DeleteButton({ recordingId, disabled }: { recordingId: string; disabled: boolean }) {
-  const t = useT();
-  const navigate = useNavigate();
+function useArmed() {
   const [armed, setArmed] = useState(false);
-  const [deleteRecording, { isLoading }] = useDeleteRecordingMutation();
-
   useEffect(() => {
     if (!armed) return;
     const timer = setTimeout(() => setArmed(false), 4000);
     return () => clearTimeout(timer);
   }, [armed]);
+  return [armed, setArmed] as const;
+}
+
+function CancelButton({ recordingId, jobId }: { recordingId: string; jobId: string }) {
+  const t = useT();
+  const [armed, setArmed] = useArmed();
+  const [cancelJob, { isLoading }] = useCancelJobMutation();
+  return (
+    <button
+      type="button"
+      className="link-action"
+      data-armed={armed || undefined}
+      disabled={isLoading}
+      onClick={() => {
+        if (!armed) return setArmed(true);
+        setArmed(false);
+        void cancelJob({ recordingId, jobId });
+      }}
+    >
+      {armed ? t('recording.cancelJobConfirm') : t('recording.cancelJob')}
+    </button>
+  );
+}
+
+function DeleteButton({ recordingId, disabled }: { recordingId: string; disabled: boolean }) {
+  const t = useT();
+  const navigate = useNavigate();
+  const [armed, setArmed] = useArmed();
+  const [deleteRecording, { isLoading }] = useDeleteRecordingMutation();
 
   return (
     <button

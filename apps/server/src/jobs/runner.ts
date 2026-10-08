@@ -51,6 +51,8 @@ class JobFailure extends Error {
 export class JobRunner {
   private loop: Promise<void> | null = null;
   private readonly abort = new AbortController();
+  /** The job being run and its own abort (cancel). */
+  private current: { jobId: string; cancel: AbortController } | null = null;
   private readonly progressIntervalMs: number;
 
   constructor(private readonly deps: JobRunnerDeps) {
@@ -91,6 +93,33 @@ export class JobRunner {
     await this.idle();
   }
 
+  /**
+   * Cancels a job: a queued one at once, a running one by aborting its current
+   * step. It ends as failed/CANCELLED and can be retried. Returns the job as it
+   * is now, or null when it was not active.
+   */
+  cancel(jobId: string): Job | null {
+    const job = this.deps.repo.getJob(jobId);
+    if (!job || job.status === 'done' || job.status === 'failed') return null;
+    if (this.current?.jobId === jobId) {
+      this.current.cancel.abort();
+      return job;
+    }
+    return this.update(jobId, {
+      status: 'failed',
+      progress: null,
+      error: { code: 'CANCELLED', message: 'Cancelled' },
+      finished: true,
+    });
+  }
+
+  /** Aborts on shutdown or when the running job is cancelled. */
+  private get signal(): AbortSignal {
+    return this.current
+      ? AbortSignal.any([this.abort.signal, this.current.cancel.signal])
+      : this.abort.signal;
+  }
+
   private async drain(): Promise<void> {
     for (let job = this.deps.repo.nextQueuedJob(); job; job = this.deps.repo.nextQueuedJob()) {
       if (this.abort.signal.aborted) return;
@@ -125,6 +154,7 @@ export class JobRunner {
     const storedName = repo.getStoredName(recordingId);
     if (storedName === null) return; // recording deleted meanwhile; its job went with it
 
+    this.current = { jobId: job.id, cancel: new AbortController() };
     try {
       if (job.kind === 'process') {
         // A recording made from a link has no media until it is downloaded.
@@ -149,6 +179,7 @@ export class JobRunner {
         });
       }
     } finally {
+      this.current = null;
       await store.removeWorkDir(recordingId).catch(() => undefined);
     }
   }
@@ -172,11 +203,11 @@ export class JobRunner {
       file = await downloader.download(recording.sourceUrl, {
         dir,
         maxBytes: download.maxBytes,
-        signal: AbortSignal.any([this.abort.signal, timeout]),
+        signal: AbortSignal.any([this.signal, timeout]),
         onProgress: this.progressReporter(job.id),
       });
     } catch (error) {
-      if (timeout.aborted && !this.abort.signal.aborted) {
+      if (timeout.aborted && !this.signal.aborted) {
         throw new JobFailure(
           'DOWNLOAD_FAILED',
           `The download took longer than ${download.timeoutMs} ms`,
@@ -199,7 +230,7 @@ export class JobRunner {
 
   private async transcribe(job: Job, storedName: string, alreadyStarted: boolean): Promise<void> {
     const { repo, store, media } = this.deps;
-    const signal = this.abort.signal;
+    const signal = this.signal;
     const recordingId = job.recordingId;
     const { transcriber, format } = this.deps.ai.stt();
     const input = store.originalPath(recordingId, storedName);
@@ -254,11 +285,12 @@ export class JobRunner {
       progress: 0,
       ...(job.kind === 'summarize' && { error: null, started: true }),
     });
+    const signal = this.signal;
     const result = await summarizer.summarize(
       { text: transcript.text, language: transcript.language },
-      { signal: this.abort.signal, onProgress: this.progressReporter(job.id) },
+      { signal, onProgress: this.progressReporter(job.id) },
     );
-    if (this.abort.signal.aborted) throw this.abort.signal.reason;
+    if (signal.aborted) throw signal.reason;
     repo.saveSummary(job.recordingId, { ...result, model: summarizer.model });
   }
 
@@ -266,6 +298,7 @@ export class JobRunner {
     if (this.abort.signal.aborted) {
       return new JobFailure('INTERRUPTED', 'The server stopped while this job was running');
     }
+    if (this.current?.cancel.signal.aborted) return new JobFailure('CANCELLED', 'Cancelled');
     if (error instanceof MediaError) {
       return new JobFailure(
         'MEDIA_UNREADABLE',

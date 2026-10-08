@@ -40,6 +40,8 @@ export const ru: Record<MessageKey, string> = {
   'recording.notFound': 'Такой записи нет или она удалена.',
   'recording.loadError': 'Не удалось загрузить запись.',
   'recording.retry': 'Обработать заново',
+  'recording.cancelJob': 'Отменить',
+  'recording.cancelJobConfirm': 'Нажмите ещё раз',
   'recording.delete': 'Удалить',
   'recording.deleteConfirm': 'Нажмите ещё раз',
   'recording.deleteBlocked': 'Удалить можно после окончания обработки.',
@@ -51,6 +53,7 @@ export const ru: Record<MessageKey, string> = {
   'recording.transcriptPending': 'Расшифровка появится здесь после обработки.',
   'recording.language': 'Язык: {language}',
 
+  'error.CANCELLED': 'Обработка отменена.',
   'error.INTERRUPTED': 'Сервер перезапустился во время обработки этой записи.',
   'error.MEDIA_UNREADABLE': 'Файл не удалось прочитать как аудио или видео.',
   'error.STT_UNAVAILABLE': 'Сервер распознавания речи недоступен.',
