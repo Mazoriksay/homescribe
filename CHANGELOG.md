@@ -13,6 +13,9 @@ source of truth for the version.
   bot") end with a clear `DOWNLOAD_BLOCKED` error, and browser cookies in
   `cookies.txt` in the data folder (`YTDLP_COOKIES_FILE`) are passed to
   yt-dlp.
+- Processing can be cancelled: a "Cancel" button (tap twice) on the recording
+  page and `POST /api/v1/jobs/:id/cancel`. The job ends as `CANCELLED` and can
+  be retried.
 - `STT_VAD_FILTER` (on by default): a local speaches server is asked to skip
   silence, which stops Whisper from repeating one phrase on long recordings.
 - The installer asks what to download before pulling anything: speech

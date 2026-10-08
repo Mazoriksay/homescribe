@@ -251,6 +251,7 @@ Job failures are not HTTP errors; they live on the job (`error.code`):
 | `code`                                           | Meaning                                                     |
 | ------------------------------------------------ | ----------------------------------------------------------- |
 | `INTERRUPTED`                                    | Server stopped while the job was running                    |
+| `CANCELLED`                                      | Cancelled from the UI or `POST …/jobs/:id/cancel`           |
 | `DOWNLOAD_FAILED`                                | yt-dlp could not fetch the link; the message has its reason |
 | `DOWNLOAD_BLOCKED`                               | The site wants a signed-in visitor; add cookies (§7.7)      |
 | `MEDIA_UNREADABLE`                               | ffprobe/ffmpeg could not read or convert the upload         |
@@ -326,6 +327,7 @@ interface Page<T> {
 | `DELETE /api/v1/recordings/:id`         | 1     | —                                                                                                                      | `204`; a queued job is dropped                                          | 404, 409 `JOB_ACTIVE` if running                                    |
 | `GET /api/v1/recordings/:id/transcript` | 1     | —                                                                                                                      | `200 Transcript`                                                        | 404, 409 `TRANSCRIPT_NOT_READY`                                     |
 | `POST /api/v1/recordings/:id/jobs`      | 1     | `{ kind: 'process' \| 'summarize' }`                                                                                   | `202 Job`                                                               | 400, 404, 409 `JOB_ACTIVE`, `TRANSCRIPT_NOT_READY`, `SUMMARIES_OFF` |
+| `POST /api/v1/jobs/:id/cancel`          | 3     | —                                                                                                                      | `200 Job`; an inactive job is returned unchanged                        | 404                                                                 |
 | `GET /api/v1/jobs/:id`                  | 1     | —                                                                                                                      | `200 Job`                                                               | 404                                                                 |
 | `GET /api/v1/events`                    | 1     | `Accept: text/event-stream`                                                                                            | SSE stream, see §7.4                                                    |                                                                     |
 | `PATCH /api/v1/recordings/:id`          | 2     | `{ title }`                                                                                                            | `200 Recording`                                                         | 400, 404                                                            |
@@ -507,6 +509,10 @@ summarizing → done`; `downloading` only for a recording made from a link
   `created_at`). A recording has at most one job in a non-final state.
 - On startup, jobs in `converting`, `transcribing` or `summarizing` are set to
   `failed` with code `INTERRUPTED`; jobs still `queued` stay queued and run.
+- Cancelling ends a queued job at once and aborts the running step of a
+  running one (the request to the AI server is closed; ffmpeg and yt-dlp are
+  killed); either way the job is `failed` with code `CANCELLED` and can be
+  retried. The UI asks for a second tap, like deleting.
 - The temporary WAV is deleted when the job ends, success or failure.
 - A transcript (and later a summary) is written in one SQLite transaction,
   so a reader never sees half of it.

@@ -282,4 +282,31 @@ describe('JobRunner', () => {
     await runner.stop();
     expect(repo.getJob(job.id)?.error?.code).toBe('INTERRUPTED');
   });
+
+  it('cancels the running job and goes on with the next one', async () => {
+    transcriber.gate = deferred().promise; // never released
+    const running = await upload();
+    const next = await upload();
+    runner.start();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(runner.cancel(running.job.id)?.status).toBe('transcribing');
+    transcriber.gate = null;
+    await runner.idle();
+
+    expect(repo.getJob(running.job.id)).toMatchObject({
+      status: 'failed',
+      error: { code: 'CANCELLED' },
+    });
+    expect(repo.getJob(next.job.id)?.status).toBe('done');
+  });
+
+  it('cancels a queued job without running it, and ignores finished ones', async () => {
+    const { job } = await upload();
+    expect(runner.cancel(job.id)).toMatchObject({ status: 'failed', error: { code: 'CANCELLED' } });
+    runner.start();
+    await runner.idle();
+    expect(transcriber.calls).toBe(0);
+    expect(runner.cancel(job.id)).toBeNull();
+  });
 });

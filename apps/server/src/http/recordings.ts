@@ -212,6 +212,13 @@ export function registerRecordingRoutes(app: FastifyInstance, deps: AppDeps): vo
     return reply.status(202).send(job);
   });
 
+  app.post(`${API_PREFIX}/jobs/:id/cancel`, async (request) => {
+    const { id } = parseInput(idParamsSchema, request.params, 'job id');
+    const job = repo.getJob(id);
+    if (!job) throw notFound('Job');
+    return runner.cancel(id) ?? job;
+  });
+
   app.get(`${API_PREFIX}/jobs/:id`, async (request) => {
     const { id } = parseInput(idParamsSchema, request.params, 'job id');
     return repo.getJob(id) ?? Promise.reject(notFound('Job'));

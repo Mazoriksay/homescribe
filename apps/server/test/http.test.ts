@@ -291,9 +291,35 @@ describe('HTTP API', () => {
       expect(res.json().error.code).toBe('VALIDATION_ERROR');
     });
 
+    it('cancels a running job, after which it can be retried', async () => {
+      t.transcriber.gate = deferred().promise;
+      const { id, job } = (await upload()).json<Recording>();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      const res = await t.app.inject({ method: 'POST', url: `/api/v1/jobs/${job.id}/cancel` });
+      expect(res.statusCode).toBe(200);
+      t.transcriber.gate = null;
+      await t.runner.idle();
+      expect(t.repo.getJob(job.id)?.error?.code).toBe('CANCELLED');
+
+      const again = await t.app.inject({ method: 'POST', url: `/api/v1/jobs/${job.id}/cancel` });
+      expect(again.json<Job>().status).toBe('failed');
+      const retry = await t.app.inject({
+        method: 'POST',
+        url: `/api/v1/recordings/${id}/jobs`,
+        payload: { kind: 'process' },
+      });
+      expect(retry.statusCode).toBe(202);
+    });
+
     it('returns 404 for an unknown job', async () => {
       const res = await t.app.inject('/api/v1/jobs/0b9f1a8e-3c6d-4f7a-8e2b-5d4c3b2a1f00');
       expect(res.statusCode).toBe(404);
+      const cancel = await t.app.inject({
+        method: 'POST',
+        url: '/api/v1/jobs/0b9f1a8e-3c6d-4f7a-8e2b-5d4c3b2a1f00/cancel',
+      });
+      expect(cancel.statusCode).toBe(404);
     });
   });
 

@@ -37,6 +37,8 @@ export const en = {
   'recording.notFound': 'This recording does not exist or was deleted.',
   'recording.loadError': 'Could not load this recording.',
   'recording.retry': 'Process again',
+  'recording.cancelJob': 'Cancel',
+  'recording.cancelJobConfirm': 'Tap again to cancel',
   'recording.delete': 'Delete',
   'recording.deleteConfirm': 'Tap again to delete',
   'recording.deleteBlocked': 'Wait for processing to finish before deleting.',
@@ -48,6 +50,7 @@ export const en = {
   'recording.transcriptPending': 'The transcript appears here when processing is done.',
   'recording.language': 'Language: {language}',
 
+  'error.CANCELLED': 'Processing was cancelled.',
   'error.INTERRUPTED': 'The server restarted while this recording was being processed.',
   'error.MEDIA_UNREADABLE': 'The file could not be read as audio or video.',
   'error.STT_UNAVAILABLE': 'The speech-to-text server is unreachable.',

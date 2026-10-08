@@ -109,6 +109,12 @@ export const api = createApi({
         { type: 'Recording', id: recordingId },
       ],
     }),
+    cancelJob: build.mutation<Job, { recordingId: string; jobId: string }>({
+      query: ({ jobId }) => ({ url: `/jobs/${jobId}/cancel`, method: 'POST' }),
+      invalidatesTags: (_result, _error, { recordingId }) => [
+        { type: 'Recording', id: recordingId },
+      ],
+    }),
   }),
 });
 
@@ -118,6 +124,7 @@ export const {
   useGetTranscriptQuery,
   useGetHealthQuery,
   useGetSummaryQuery,
+  useCancelJobMutation,
   useRenameRecordingMutation,
   useSearchQuery,
   useGetAiSettingsQuery,
