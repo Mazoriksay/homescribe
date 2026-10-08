@@ -7,6 +7,8 @@ source of truth for the version.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-08
+
 ### Added
 
 - Transcription shows an estimated progress bar instead of an endless one,
@@ -138,5 +140,6 @@ source of truth for the version.
   Inside another app's frame the app hides its own chrome. Explanatory hints
   were removed from the pages.
 
-[Unreleased]: https://github.com/Mazoriksay/homescribe/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Mazoriksay/homescribe/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/Mazoriksay/homescribe/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Mazoriksay/homescribe/releases/tag/v0.3.0
