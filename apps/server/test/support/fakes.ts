@@ -2,10 +2,17 @@ import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { DownloadBlockedError, DownloadError } from '../../src/media/downloader';
 import { LlmError } from '../../src/llm/summarizer';
-import { MediaError, type ConvertOptions, type MediaTool } from '../../src/media/media-tool';
+import {
+  MediaError,
+  type ConvertOptions,
+  type CutOptions,
+  type MediaTool,
+  type Silence,
+} from '../../src/media/media-tool';
 import {
   SttError,
   type SttErrorCode,
+  type TranscribeOptions,
   type TranscriptionResult,
   type Transcriber,
 } from '../../src/stt/transcriber';
@@ -34,6 +41,19 @@ export class FakeMediaTool implements MediaTool {
     await writeFile(output, options.format === 'ogg' ? 'OggS' : 'RIFF');
     this.converted.push({ input, output, format: options.format });
   }
+
+  silences: Silence[] = [];
+
+  async findSilences(): Promise<Silence[]> {
+    return this.silences;
+  }
+
+  readonly cuts: { output: string; start: number; end: number; format: string }[] = [];
+
+  async cutAudio(_input: string, output: string, options: CutOptions): Promise<void> {
+    await writeFile(output, options.format === 'ogg' ? 'OggS' : 'RIFF');
+    this.cuts.push({ output, start: options.start, end: options.end, format: options.format });
+  }
 }
 
 /** Pretends to be the STT server. `gate` lets a test hold a job in `transcribing`. */
@@ -50,9 +70,18 @@ export class FakeTranscriber implements Transcriber {
   failWith: SttErrorCode | null = null;
   gate: Promise<void> | null = null;
   calls = 0;
+  readonly requests: { file: string; options: TranscribeOptions }[] = [];
+  /** Answers per request when set (e.g. a loop that goes away on retry). */
+  respond: ((request: { file: string; options: TranscribeOptions }) => TranscriptionResult) | null =
+    null;
 
-  async transcribe(_wavPath: string, signal?: AbortSignal): Promise<TranscriptionResult> {
+  async transcribe(
+    file: string,
+    signal?: AbortSignal,
+    options: TranscribeOptions = {},
+  ): Promise<TranscriptionResult> {
     this.calls += 1;
+    this.requests.push({ file, options });
     if (this.gate) {
       signal?.throwIfAborted();
       await Promise.race([
@@ -61,7 +90,7 @@ export class FakeTranscriber implements Transcriber {
       ]);
     }
     if (this.failWith) throw new SttError(this.failWith, 'fake failure');
-    return this.result;
+    return this.respond ? this.respond({ file, options }) : this.result;
   }
 }
 

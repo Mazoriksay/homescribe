@@ -52,6 +52,7 @@ export const ru: Record<MessageKey, string> = {
   'recording.noSpeech': 'В этой записи не распознано речи.',
   'recording.transcriptPending': 'Расшифровка появится здесь после обработки.',
   'recording.language': 'Язык: {language}',
+  'recording.gaps': 'Здесь речь не распозналась: {ranges}.',
 
   'error.CANCELLED': 'Обработка отменена.',
   'error.INTERRUPTED': 'Сервер перезапустился во время обработки этой записи.',

@@ -113,4 +113,16 @@ describe('RecordingPage', () => {
       expect(fetchMock.mock.calls.some(([r]) => (r as Request).method === 'DELETE')).toBe(true),
     );
   });
+
+  it('says where speech could not be recognized', async () => {
+    mockApi([
+      { path: recordingPath, body: recording() },
+      {
+        path: `${recordingPath}/transcript`,
+        body: transcript({ gaps: [{ start: 91, end: 120 }] }),
+      },
+    ]);
+    renderPage(<RecordingPage />, page);
+    expect(await screen.findByText('Speech here could not be recognized: 1:31–2:00.')).toBeTruthy();
+  });
 });

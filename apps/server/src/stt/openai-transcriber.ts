@@ -1,8 +1,13 @@
 import { openAsBlob } from 'node:fs';
 import { Readable } from 'node:stream';
-import { collapseRepeatedSegments, sttVerboseResponseSchema } from '@homescribe/shared';
+import { sttVerboseResponseSchema } from '@homescribe/shared';
 import { authHeaders, httpRequest, withTimeout } from '../ai/http';
-import { SttError, type TranscriptionResult, type Transcriber } from './transcriber';
+import {
+  SttError,
+  type TranscribeOptions,
+  type TranscriptionResult,
+  type Transcriber,
+} from './transcriber';
 
 export interface OpenAiTranscriberOptions {
   baseUrl: string;
@@ -29,7 +34,11 @@ export class OpenAiTranscriber implements Transcriber {
     this.model = options.model;
   }
 
-  async transcribe(audioPath: string, signal?: AbortSignal): Promise<TranscriptionResult> {
+  async transcribe(
+    audioPath: string,
+    signal?: AbortSignal,
+    options: TranscribeOptions = {},
+  ): Promise<TranscriptionResult> {
     const isOgg = audioPath.endsWith('.ogg');
     const form = new FormData();
     form.append(
@@ -40,7 +49,11 @@ export class OpenAiTranscriber implements Transcriber {
     form.append('model', this.options.model);
     form.append('response_format', 'verbose_json');
     form.append('timestamp_granularities[]', 'segment');
-    if (this.options.language) form.append('language', this.options.language);
+    const language = options.language ?? this.options.language;
+    if (language) form.append('language', language);
+    // speaches passes one temperature to faster-whisper, which then has no
+    // higher temperature to fall back to when it loops; the caller retries.
+    if (options.temperature !== undefined) form.append('temperature', String(options.temperature));
     if (this.options.vadFilter) form.append('vad_filter', 'true');
 
     // Let the platform encode the multipart body, then stream it over node:http.
@@ -83,19 +96,13 @@ export class OpenAiTranscriber implements Transcriber {
     if (!parsed.success) {
       throw new SttError('STT_FAILED', `Unexpected response shape: ${parsed.error.message}`);
     }
-    const segments = parsed.data.segments
-      .map((s) => ({ start: Math.max(0, s.start), end: Math.max(0, s.end), text: s.text.trim() }))
-      .filter((s) => s.text.length > 0)
-      .sort((a, b) => a.start - b.start);
-    const collapsed = collapseRepeatedSegments(segments);
     return {
       language: parsed.data.language ?? null,
-      // Whisper's own text keeps the loop; rebuild it when repeats were dropped.
-      text:
-        collapsed.length === segments.length
-          ? parsed.data.text.trim()
-          : collapsed.map((s) => s.text).join(' '),
-      segments: collapsed,
+      text: parsed.data.text.trim(),
+      segments: parsed.data.segments
+        .map((s) => ({ start: Math.max(0, s.start), end: Math.max(0, s.end), text: s.text.trim() }))
+        .filter((s) => s.text.length > 0)
+        .sort((a, b) => a.start - b.start),
     };
   }
 }

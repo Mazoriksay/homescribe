@@ -84,3 +84,9 @@
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
+
+.gaps {
+  margin: 0;
+  color: var(--accent);
+  font-size: 14px;
+}

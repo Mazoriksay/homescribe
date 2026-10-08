@@ -196,8 +196,84 @@ describe('JobRunner', () => {
     await upload();
     runner.start();
     await runner.idle();
-    expect(media.converted[0]?.output.endsWith('audio.ogg')).toBe(true);
-    expect(media.converted[0]?.format).toBe('ogg');
+    expect(media.converted[0]?.format).toBe('wav');
+    expect(media.cuts).toEqual([expect.objectContaining({ start: 0, end: 42, format: 'ogg' })]);
+    expect(transcriber.requests[0]?.file.endsWith('chunk-0.ogg')).toBe(true);
+  });
+
+  it('sends a long recording in chunks cut in pauses, with absolute times', async () => {
+    media.duration = 150;
+    media.silences = [{ start: 58, end: 59 }];
+    transcriber.respond = ({ file }) => ({
+      language: 'ru',
+      text: file,
+      segments: [{ start: 1, end: 2, text: path.basename(file) }],
+    });
+    const { id } = await upload();
+    runner.start();
+    await runner.idle();
+
+    expect(media.cuts.map((c) => [c.start, c.end])).toEqual([
+      [0, 58.5],
+      [58.5, 118.5],
+      [118.5, 150],
+    ]);
+    // The language found in the first chunk is passed on to the others.
+    expect(transcriber.requests.map((r) => r.options.language)).toEqual([null, 'ru', 'ru']);
+    expect(repo.getTranscript(id)?.segments.map((s) => [s.start, s.text])).toEqual([
+      [1, 'chunk-0.wav'],
+      [59.5, 'chunk-1.wav'],
+      [119.5, 'chunk-2.wav'],
+    ]);
+  });
+
+  it('asks again at a higher temperature when Whisper loops', async () => {
+    const loop = Array.from({ length: 5 }, (_, i) => ({
+      start: 10 + i,
+      end: 11 + i,
+      text: 'Борис.',
+    }));
+    transcriber.respond = ({ options }) => ({
+      language: 'ru',
+      text: '',
+      segments: options.temperature
+        ? [
+            { start: 0, end: 10, text: 'Начало.' },
+            { start: 10, end: 20, text: 'Конец.' },
+          ]
+        : [{ start: 0, end: 10, text: 'Начало.' }, ...loop],
+    });
+    const { id } = await upload();
+    runner.start();
+    await runner.idle();
+
+    expect(transcriber.requests.map((r) => r.options.temperature)).toEqual([undefined, 0.4]);
+    expect(repo.getTranscript(id)).toMatchObject({ text: 'Начало. Конец.', gaps: [] });
+  });
+
+  it('reports a loop that survives the retry as a gap and keeps one copy', async () => {
+    transcriber.respond = () => ({
+      language: 'ru',
+      text: '',
+      segments: [
+        { start: 0, end: 10, text: 'Начало.' },
+        ...Array.from({ length: 6 }, (_, i) => ({
+          start: 10 + i * 5,
+          end: 15 + i * 5,
+          text: 'Борис.',
+        })),
+      ],
+    });
+    const { id, job } = await upload();
+    runner.start();
+    await runner.idle();
+
+    expect(repo.getJob(job.id)?.status).toBe('done');
+    const transcript = repo.getTranscript(id);
+    expect(transcript?.segments.map((s) => s.text)).toEqual(['Начало.', 'Борис.']);
+    expect(transcript?.text).toBe('Начало. Борис.');
+    // From the end of the kept copy to the end of the recording (42 s).
+    expect(transcript?.gaps).toEqual([{ start: 15, end: 42 }]);
   });
 
   it('fails with MEDIA_UNREADABLE when ffmpeg cannot read the file', async () => {

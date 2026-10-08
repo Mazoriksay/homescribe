@@ -39,6 +39,7 @@ export function transcript(overrides: Partial<Transcript> = {}): Transcript {
     language: 'en',
     model: 'whisper',
     text: 'Good morning. Let us start.',
+    gaps: [],
     segments: [
       { index: 0, start: 0, end: 2, text: 'Good morning.' },
       { index: 1, start: 3725, end: 3727, text: 'Let us start.' },

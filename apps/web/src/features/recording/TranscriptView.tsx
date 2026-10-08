@@ -91,6 +91,15 @@ export function TranscriptView({ recording, currentTime, focusTime, onSeek }: Pr
               {t('recording.language', { language: languageName(transcript.language, locale) })}
             </p>
           )}
+          {transcript.gaps.length > 0 && (
+            <p className={styles.gaps} role="note">
+              {t('recording.gaps', {
+                ranges: transcript.gaps
+                  .map((gap) => `${formatTimestamp(gap.start)}–${formatTimestamp(gap.end)}`)
+                  .join(', '),
+              })}
+            </p>
+          )}
           <ol ref={list} className={styles.segments} lang={transcript.language ?? undefined}>
             {segments.map((segment, index) => {
               const time = formatTimestamp(segment.start);

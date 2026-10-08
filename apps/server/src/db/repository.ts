@@ -65,6 +65,8 @@ export interface NewTranscript {
   model: string;
   text: string;
   segments: { start: number; end: number; text: string }[];
+  /** Stretches left out because Whisper looped there; none when omitted. */
+  gaps?: { start: number; end: number }[];
 }
 
 interface JobRow {
@@ -376,10 +378,17 @@ export class Repository {
       this.db.prepare('DELETE FROM segments WHERE recording_id = ?').run(recordingId);
       this.db
         .prepare(
-          `INSERT OR REPLACE INTO transcripts (recording_id, language, text, model, created_at)
-           VALUES (?, ?, ?, ?, ?)`,
+          `INSERT OR REPLACE INTO transcripts (recording_id, language, text, model, gaps, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
         )
-        .run(recordingId, transcript.language, transcript.text, transcript.model, this.timestamp());
+        .run(
+          recordingId,
+          transcript.language,
+          transcript.text,
+          transcript.model,
+          JSON.stringify(transcript.gaps ?? []),
+          this.timestamp(),
+        );
       const insert = this.db.prepare(
         `INSERT INTO segments (recording_id, idx, start_seconds, end_seconds, text)
          VALUES (?, ?, ?, ?, ?)`,
@@ -484,7 +493,8 @@ export class Repository {
     const row = this.db
       .prepare('SELECT * FROM transcripts WHERE recording_id = ?')
       .get(recordingId) as
-      { language: string | null; text: string; model: string; created_at: string } | undefined;
+      | { language: string | null; text: string; model: string; gaps: string; created_at: string }
+      | undefined;
     if (!row) return null;
     const segments = this.db
       .prepare(
@@ -502,6 +512,7 @@ export class Repository {
       language: row.language,
       model: row.model,
       text: row.text,
+      gaps: JSON.parse(row.gaps) as { start: number; end: number }[],
       createdAt: row.created_at,
       segments: segments.map((s) => ({
         index: s.idx,
