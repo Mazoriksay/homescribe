@@ -1,4 +1,5 @@
-export type LlmErrorCode = 'LLM_UNAVAILABLE' | 'LLM_TIMEOUT' | 'LLM_FAILED';
+export type LlmErrorCode =
+  'LLM_UNAVAILABLE' | 'LLM_TIMEOUT' | 'LLM_FAILED' | 'LLM_CONTEXT_EXCEEDED';
 
 export class LlmError extends Error {
   constructor(

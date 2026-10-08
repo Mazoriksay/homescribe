@@ -41,6 +41,14 @@ source of truth for the version.
 
 ### Fixed
 
+- Summaries of long recordings with a local model (Ollama's default window
+  of 4096 tokens, a reasoning model such as `gemma4`) no longer fail with
+  "The model did not return the requested JSON". Parts are 4000 characters
+  instead of 12 000 (`LLM_CHUNK_CHARS`), so reasoning and the reply fit; a
+  reply the window cut off (`finish_reason: "length"`) halves that part
+  instead of asking again; part summaries are merged in rounds that each fit
+  the window. When even small parts are cut off the job fails with
+  `LLM_CONTEXT_EXCEEDED` and says what to change.
 - Chrome no longer lists "'background.scripts' requires manifest version of 2
   or lower" for the extension: the zip and the unpacked folder keep only
   what Chrome understands, and Firefox gets its own zip

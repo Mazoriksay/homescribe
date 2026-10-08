@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { OpenAiSummarizer, parseSummaryReply, splitText } from '../src/llm/openai-summarizer';
+import {
+  groupNotes,
+  OpenAiSummarizer,
+  parseSummaryReply,
+  splitText,
+} from '../src/llm/openai-summarizer';
 import { chatReply, startFakeOpenAi } from './support/fake-openai';
 
 const good = JSON.stringify({ summary: 'Agreed on the plan.', actionItems: ['Ann: send notes'] });
@@ -22,6 +27,18 @@ describe('splitText', () => {
 
   it('cuts very long words when it must', () => {
     expect(splitText('x'.repeat(250), 100).map((p) => p.length)).toEqual([100, 100, 50]);
+  });
+});
+
+describe('groupNotes', () => {
+  it('keeps groups within the limit with at least two notes each', () => {
+    expect(groupNotes(['aaaa', 'bbbb', 'cccc', 'dddd', 'eeee'], 9)).toEqual([
+      [0, 1],
+      [2, 3, 4],
+    ]);
+    // Notes longer than the limit still pair up, so every round shrinks.
+    expect(groupNotes(['x'.repeat(20), 'y'.repeat(20), 'z'.repeat(20)], 10)).toEqual([[0, 1, 2]]);
+    expect(groupNotes(['a'], 10)).toEqual([[0]]);
   });
 });
 
@@ -140,6 +157,106 @@ describe('OpenAiSummarizer', () => {
     expect(result).toEqual({ summary: 'Whole', actionItems: ['A'] });
     expect(progress.at(-1)).toBe(1);
     expect(progress).toHaveLength(parts + 1);
+  });
+
+  /** What Ollama sends when the window runs out while the model is still reasoning. */
+  const cutOff = {
+    choices: [
+      {
+        index: 0,
+        message: { role: 'assistant', content: '', reasoning: 'Let me think about this…' },
+        finish_reason: 'length',
+      },
+    ],
+  };
+  const userText = (request: { json: unknown }) =>
+    (request.json as { messages: { role: string; content: string }[] }).messages.at(-1)!.content;
+
+  it('halves a part whose reply was cut off instead of asking again', async () => {
+    const fake = await startFakeOpenAi((request, res) => {
+      const content = userText(request);
+      if (content.includes('<notes>')) {
+        res.end(JSON.stringify(chatReply(JSON.stringify({ summary: 'Whole', actionItems: [] }))));
+      } else if (content.length > 2000) {
+        res.end(JSON.stringify(cutOff));
+      } else {
+        res.end(JSON.stringify(chatReply(JSON.stringify({ summary: 'Half', actionItems: [] }))));
+      }
+    });
+    closers.push(fake.close);
+    const text = Array.from({ length: 100 }, (_, i) => `Sentence ${i} is said here.`).join(' ');
+    const progress: number[] = [];
+    const result = await make(fake.baseUrl).summarize(
+      { text, language: 'en' },
+      { onProgress: (r) => progress.push(r) },
+    );
+    expect(result.summary).toBe('Whole');
+    // Whole text (cut off), two halves, one merge; never "That was not valid".
+    expect(fake.received).toHaveLength(4);
+    expect(fake.received.some((r) => userText(r).includes('not valid'))).toBe(false);
+    expect(progress).toEqual([...progress].sort((a, b) => a - b));
+    expect(progress.at(-1)).toBe(1);
+  });
+
+  it('gives up with LLM_CONTEXT_EXCEEDED once parts are small and still cut off', async () => {
+    const fake = await startFakeOpenAi((_, res) => res.end(JSON.stringify(cutOff)));
+    closers.push(fake.close);
+    const text = Array.from({ length: 100 }, (_, i) => `Sentence ${i} is said here.`).join(' ');
+    await expect(make(fake.baseUrl).summarize({ text, language: 'en' })).rejects.toMatchObject({
+      code: 'LLM_CONTEXT_EXCEEDED',
+      message: expect.stringContaining('LLM_CHUNK_CHARS'),
+    });
+  });
+
+  it('keeps reasoning on and reads the JSON that follows it', async () => {
+    const fake = await startFakeOpenAi((_, res) =>
+      res.end(
+        JSON.stringify({
+          choices: [
+            {
+              message: { role: 'assistant', content: good, reasoning: 'Thinking it over.' },
+              finish_reason: 'stop',
+            },
+          ],
+        }),
+      ),
+    );
+    closers.push(fake.close);
+    await expect(make(fake.baseUrl).summarize({ text: 'x', language: null })).resolves.toEqual({
+      summary: 'Agreed on the plan.',
+      actionItems: ['Ann: send notes'],
+    });
+    const body = fake.received[0]!.json as Record<string, unknown>;
+    expect(body).not.toHaveProperty('reasoning_effort');
+  });
+
+  it('merges many parts in rounds that each fit the limit', async () => {
+    let merges = 0;
+    const fake = await startFakeOpenAi((request, res) => {
+      const content = userText(request);
+      if (content.includes('<notes>')) {
+        merges += 1;
+        expect(content.length).toBeLessThan(400 + 300);
+      }
+      res.end(
+        JSON.stringify(
+          chatReply(JSON.stringify({ summary: 'S'.repeat(80), actionItems: ['Do it'] })),
+        ),
+      );
+    });
+    closers.push(fake.close);
+    const text = Array.from({ length: 120 }, (_, i) => `Point ${i} was discussed.`).join(' ');
+    const progress: number[] = [];
+    await make(fake.baseUrl, { chunkChars: 400 }).summarize(
+      { text, language: 'en' },
+      { onProgress: (r) => progress.push(r) },
+    );
+    const parts = fake.received.length - merges;
+    expect(parts).toBeGreaterThan(6);
+    // More than one round: a single merge would carry every note at once.
+    expect(merges).toBeGreaterThan(2);
+    expect(progress).toEqual([...progress].sort((a, b) => a - b));
+    expect(progress.at(-1)).toBe(1);
   });
 
   it('maps HTTP errors, refused connections and timeouts', async () => {
