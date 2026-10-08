@@ -13,6 +13,9 @@
   model, a local summary model or none) and shows a summary before pulling.
 
   With options, download it first:  .\install.ps1 -Cpu -SttModel small -NoLlm -Yes
+
+  -Autostart / -NoAutostart: start Homescribe with Windows or only from the
+  "Start Homescribe" shortcut (default: ask; no).
 #>
 [CmdletBinding()]
 param(
@@ -27,7 +30,9 @@ param(
   [string]$LlmModel = '',
   [string]$Image = '',
   [switch]$Yes,
-  [string]$Source = ''
+  [string]$Source = '',
+  [switch]$Autostart,
+  [switch]$NoAutostart
 )
 
 $ErrorActionPreference = 'Stop'
@@ -263,15 +268,44 @@ if ($Port -eq 0) {
   }
 }
 
+# ------------------------------------------------------------------ autostart
+
+# Keep the answer of an earlier install unless a switch says otherwise.
+$UseAutostart = $null
+if ($Autostart) { $UseAutostart = $true } elseif ($NoAutostart) { $UseAutostart = $false }
+if ($null -eq $UseAutostart -and (Test-Path $envFile)) {
+  $savedRestart = Select-String -Path $envFile -Pattern '^HOMESCRIBE_RESTART=(.+)$' | Select-Object -Last 1
+  if ($savedRestart) { $UseAutostart = $savedRestart.Matches[0].Groups[1].Value.Trim() -eq 'unless-stopped' }
+}
+if ($null -eq $UseAutostart) {
+  $UseAutostart = Ask 'Start Homescribe when Windows starts? (otherwise use the "Start Homescribe" shortcut)' $false
+}
+$Restart = if ($UseAutostart) { 'unless-stopped' } else { 'no' }
+
 # ------------------------------------------------------------------ files
 
 Step "Writing $Dir"
 New-Item -ItemType Directory -Force -Path $Dir | Out-Null
 $composeFile = Join-Path $Dir 'compose.yaml'
+$controlScript = Join-Path $Dir 'homescribe.ps1'
 if ($Source) {
   Copy-Item (Join-Path $Source 'compose.yaml') $composeFile -Force
+  Copy-Item (Join-Path $Source 'scripts/homescribe.ps1') $controlScript -Force
 } else {
   Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/$Repo/$Ref/compose.yaml" -OutFile $composeFile
+  Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/$Repo/$Ref/scripts/homescribe.ps1" -OutFile $controlScript
+}
+
+# Double-click launchers; the window stays open so the result can be read.
+$launchers = [ordered]@{
+  'Start Homescribe.cmd' = 'start'
+  'Stop Homescribe.cmd' = 'stop'
+  'Homescribe status.cmd' = 'status'
+  'Update Homescribe.cmd' = 'update'
+}
+foreach ($name in $launchers.Keys) {
+  $body = "@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -File `"%~dp0homescribe.ps1`" $($launchers[$name])`r`npause`r`n"
+  [IO.File]::WriteAllText((Join-Path $Dir $name), $body, (New-Object Text.ASCIIEncoding))
 }
 
 $profiles = @()
@@ -281,12 +315,13 @@ if ($UseLlm) { $profiles += $(if ($Stt -eq 'gpu') { 'llm-gpu' } else { 'llm-cpu'
 # Our keys are rewritten; anything else in .env is kept.
 $kept = @()
 if (Test-Path $envFile) {
-  $kept = Get-Content $envFile | Where-Object { $_ -notmatch $(if ($Stt -ne 'none') { '^(COMPOSE_PROFILES|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|LLM_MODE|LLM_MODEL|STT_MODEL)=' } else { '^(COMPOSE_PROFILES|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|LLM_MODE|LLM_MODEL)=' }) }
+  $kept = Get-Content $envFile | Where-Object { $_ -notmatch $(if ($Stt -ne 'none') { '^(COMPOSE_PROFILES|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL|STT_MODEL)=' } else { '^(COMPOSE_PROFILES|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL)=' }) }
 }
 $lines = @($kept) + @(
   "COMPOSE_PROFILES=$($profiles -join ',')",
   "HOMESCRIBE_IMAGE=$Image",
-  "HOMESCRIBE_PORT=$Port"
+  "HOMESCRIBE_PORT=$Port",
+  "HOMESCRIBE_RESTART=$Restart"
 )
 if ($Stt -ne 'none') { $lines += "STT_MODEL=$($SttChoice.Id)" }
 $lines += $(if ($UseLlm) { @('LLM_MODE=local', "LLM_MODEL=$LlmModel") } else { @('LLM_MODE=off') })
@@ -440,7 +475,29 @@ try {
       ForEach-Object { Write-Host "  http://$($_.IPAddress):$Port" }
   }
   if ($Stt -eq 'none') { Write-Host "`nChoose your speech-to-text server in Settings -> Speech recognition." }
-  Write-Host "`nUpdate later by running the installer again, or: cd $Dir; docker compose pull; docker compose up -d"
+
+  # Start menu shortcuts to the launchers.
+  $menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Homescribe'
+  if (Ask 'Add "Homescribe: start" and "Homescribe: stop" to the Start menu?' $true) {
+    New-Item -ItemType Directory -Force -Path $menu | Out-Null
+    $shell = New-Object -ComObject WScript.Shell
+    foreach ($pair in @(@('Homescribe - start', 'Start Homescribe.cmd'), @('Homescribe - stop', 'Stop Homescribe.cmd'), @('Homescribe - status', 'Homescribe status.cmd'))) {
+      $link = $shell.CreateShortcut((Join-Path $menu "$($pair[0]).lnk"))
+      $link.TargetPath = Join-Path $Dir $pair[1]
+      $link.WorkingDirectory = $Dir
+      $link.Save()
+    }
+    Ok "Start menu: $menu"
+  }
+
+  Write-Host "`nStart, stop and check it with the shortcuts in $Dir"
+  Write-Host '  Start Homescribe, Stop Homescribe, Homescribe status, Update Homescribe'
+  if ($UseAutostart) {
+    Write-Host 'It starts with Windows when Docker Desktop does (Docker Desktop -> Settings -> General -> Start Docker Desktop when you sign in).'
+  } else {
+    Write-Host 'It does not start with Windows. Run the installer with -Autostart to change that.'
+  }
+  Write-Host 'Change models or the GPU/CPU choice by running the installer again.'
   Write-Host 'Other devices on your network may need a Windows Firewall rule for this port.'
 } finally {
   Pop-Location

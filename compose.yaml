@@ -7,6 +7,7 @@
 #   docker compose up -d                                   # only Homescribe; AI servers elsewhere
 #
 # Profiles can also be set once in .env: COMPOSE_PROFILES=gpu,llm-gpu
+# HOMESCRIBE_RESTART=no in .env: nothing starts with the computer (the installer asks).
 # To build the image from source instead: add -f compose.dev.yaml (see that file).
 #
 # AI addresses below are defaults for the bundled services. Any other server
@@ -17,7 +18,7 @@ name: homescribe
 services:
   homescribe:
     image: ${HOMESCRIBE_IMAGE:-ghcr.io/mazoriksay/homescribe:latest}
-    restart: unless-stopped
+    restart: ${HOMESCRIBE_RESTART:-unless-stopped}
     ports:
       - '${HOMESCRIBE_PORT:-8080}:8080'
     # Optional: BASE_PATH, ALLOWED_NETWORKS, FRAME_ANCESTORS, LLM_MODE, ...
@@ -40,7 +41,7 @@ services:
     profiles: [gpu]
     # Pinned: a new speaches release can change the API or the models it accepts.
     image: ${SPEACHES_CUDA_IMAGE:-ghcr.io/speaches-ai/speaches:0.8.1-cuda}
-    restart: unless-stopped
+    restart: ${HOMESCRIBE_RESTART:-unless-stopped}
     environment:
       # Downloaded on first start so the first recording does not fail.
       PRELOAD_MODELS: '["${STT_MODEL:-Systran/faster-whisper-large-v3}"]'
@@ -65,7 +66,7 @@ services:
   stt-cpu:
     profiles: [cpu]
     image: ${SPEACHES_CPU_IMAGE:-ghcr.io/speaches-ai/speaches:0.8.3-cpu}
-    restart: unless-stopped
+    restart: ${HOMESCRIBE_RESTART:-unless-stopped}
     environment:
       PRELOAD_MODELS: '["${STT_MODEL:-Systran/faster-whisper-large-v3}"]'
       LOG_LEVEL: info
@@ -81,7 +82,7 @@ services:
   ollama-gpu:
     profiles: [llm-gpu]
     image: ollama/ollama:latest
-    restart: unless-stopped
+    restart: ${HOMESCRIBE_RESTART:-unless-stopped}
     volumes:
       - ollama-models:/root/.ollama
     networks:
@@ -98,7 +99,7 @@ services:
   ollama-cpu:
     profiles: [llm-cpu]
     image: ollama/ollama:latest
-    restart: unless-stopped
+    restart: ${HOMESCRIBE_RESTART:-unless-stopped}
     volumes:
       - ollama-models:/root/.ollama
     networks:

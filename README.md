@@ -10,6 +10,24 @@ choose: on this machine (found automatically) or a cloud API. See
 deployment with a one-command installer).
 In-browser recording and offline support come next.
 
+## Start and stop
+
+After installing, the install folder (`~/homescribe`, on Windows
+`%USERPROFILE%\homescribe`) has everything you need:
+
+| What                   | Windows (double-click)  | Linux, macOS                     |
+| ---------------------- | ----------------------- | -------------------------------- |
+| Start, open in browser | `Start Homescribe.cmd`  | `~/homescribe/homescribe start`  |
+| Stop, free the memory  | `Stop Homescribe.cmd`   | `~/homescribe/homescribe stop`   |
+| What is running        | `Homescribe status.cmd` | `~/homescribe/homescribe status` |
+| Get the newest version | `Update Homescribe.cmd` | `~/homescribe/homescribe update` |
+
+On Windows the installer can also add "Homescribe - start" and
+"Homescribe - stop" to the Start menu. Stopping keeps all recordings, models
+and settings. The installer asks whether Homescribe should start with the
+computer (default: no); run it again with `--autostart` / `-Autostart` or
+`--no-autostart` / `-NoAutostart` to change that.
+
 ## Install
 
 One command sets everything up. It checks Docker and offers to install it,

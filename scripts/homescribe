@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Start, stop and check Homescribe. The installer puts this next to
+# compose.yaml and .env in the install folder.
+#
+#   ./homescribe start    start everything, wait until it answers, open the browser
+#   ./homescribe stop     stop everything and free memory; data is kept
+#   ./homescribe status   what is running, the address and the self-check
+#   ./homescribe update   download newer images and restart
+
+set -euo pipefail
+SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+cd "$(dirname "$SELF")"
+
+case "${1:-}" in
+  start|stop|status|update) ;;
+  *) sed -n '2,9p' "$SELF" | sed 's/^# \{0,1\}//'; [ -z "${1:-}" ]; exit ;;
+esac
+
+if [ -t 1 ]; then
+  GREEN=$'\033[32m'; RED=$'\033[31m'; RESET=$'\033[0m'
+else
+  GREEN=""; RED=""; RESET=""
+fi
+ok()  { printf '%s✓%s %s\n' "$GREEN" "$RESET" "$*"; }
+die() { printf '%s✗ %s%s\n' "$RED" "$*" "$RESET" >&2; exit 1; }
+
+[ -f compose.yaml ] || die "No compose.yaml here. Run this from the Homescribe install folder."
+command -v docker >/dev/null 2>&1 || die "Docker is not installed."
+
+DOCKER="docker"
+if ! docker info >/dev/null 2>&1; then
+  if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && sudo docker info >/dev/null 2>&1; then
+    DOCKER="sudo docker"  # this user is not in the docker group yet
+  else
+    die "Docker is not running. Start Docker (Docker Desktop on macOS) and try again."
+  fi
+fi
+
+PORT="$(sed -n 's/^HOMESCRIBE_PORT=//p' .env 2>/dev/null | tail -1)"
+PORT="${PORT:-8080}"
+URL="http://localhost:$PORT"
+
+health() { curl -fsS --max-time 5 "http://127.0.0.1:$PORT/api/v1/health" 2>/dev/null || true; }
+
+checks() {
+  local text
+  text="$(health | sed -n 's/.*"checks":{\([^}]*\)}.*/\1/p' | tr -d '"' | tr ',' ' ')"
+  echo "Self-check: ${text:-not available}"
+}
+
+wait_ready() {
+  printf 'Waiting for Homescribe'
+  local waited=0
+  until [ -n "$(health)" ]; do
+    [ "$waited" -ge 180 ] && { echo; die "Homescribe did not answer. Logs: $DOCKER compose logs homescribe"; }
+    printf '.'; sleep 3; waited=$((waited + 3))
+  done
+  echo
+}
+
+open_browser() {
+  if [ "$(uname -s)" = Darwin ]; then open "$URL" >/dev/null 2>&1 || true
+  elif [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$URL" >/dev/null 2>&1 || true
+  fi
+}
+
+case "${1:-}" in
+  start)
+    $DOCKER compose up -d
+    wait_ready
+    ok "Homescribe is running: $URL"
+    open_browser
+    ;;
+  stop)
+    # down without -v: containers go, volumes with recordings and models stay.
+    $DOCKER compose down
+    ok "Homescribe is stopped and no longer uses memory."
+    echo "Recordings, models and settings are kept. Start again with: $SELF start"
+    ;;
+  status)
+    $DOCKER compose ps
+    if [ -n "$(health)" ]; then
+      ok "Homescribe answers at $URL"
+      checks
+    else
+      echo "Homescribe is not running. Start it with: $SELF start"
+    fi
+    ;;
+  update)
+    $DOCKER compose pull
+    $DOCKER compose up -d --remove-orphans
+    wait_ready
+    ok "Updated and running: $URL"
+    echo "To change models or the GPU/CPU choice, run the installer again."
+    ;;
+esac
