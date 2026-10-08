@@ -23,6 +23,7 @@ STT_MODEL=""      # short name from the list below or any model id
 LLM_MODEL="${HOMESCRIBE_LLM_MODEL:-}"
 ASSUME_YES=0
 SOURCE_DIR=""     # use compose.yaml from a local checkout instead of downloading
+AUTOSTART=""      # yes | no
 
 usage() {
   cat <<'USAGE'
@@ -36,6 +37,9 @@ Usage: install.sh [options]
   --llm | --no-llm Run a local LLM (Ollama) for summaries, or not (default: ask)
   --llm-model M    Ollama model for summaries, e.g. qwen2.5:7b (implies --llm)
   --image IMAGE    Homescribe image (default: ghcr.io/<repo>:latest)
+  --autostart | --no-autostart
+                   Start Homescribe with the computer, or only with ./homescribe start
+                   (default: ask; no)
   --yes, -y        Accept all defaults and consents without asking
   --source DIR     Use compose.yaml from a local checkout (for development)
   -h, --help       Show this help
@@ -54,6 +58,8 @@ while [ $# -gt 0 ]; do
     --stt-model) STT_MODEL="$2"; shift 2 ;;
     --llm-model) LLM_MODEL="$2"; shift 2 ;;
     --image) IMAGE="$2"; shift 2 ;;
+    --autostart) AUTOSTART=yes; shift ;;
+    --no-autostart) AUTOSTART=no; shift ;;
     -y|--yes) ASSUME_YES=1; shift ;;
     --source) SOURCE_DIR="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -411,16 +417,38 @@ if [ -z "$PORT" ]; then
   while port_in_use "$PORT"; do PORT=$((PORT + 1)); done
 fi
 
+# ---------------------------------------------------------------- autostart
+
+# Keep the answer of an earlier install unless asked again with a flag.
+if [ -z "$AUTOSTART" ] && [ -f "$DIR/.env" ]; then
+  case "$(sed -n 's/^HOMESCRIBE_RESTART=//p' "$DIR/.env" | tail -1)" in
+    no) AUTOSTART=no ;;
+    unless-stopped) AUTOSTART=yes ;;
+  esac
+fi
+if [ -z "$AUTOSTART" ]; then
+  if ask_yes_no "Start Homescribe when the computer starts? (otherwise: ./homescribe start)" n; then
+    AUTOSTART=yes
+  else
+    AUTOSTART=no
+  fi
+fi
+RESTART="$([ "$AUTOSTART" = yes ] && echo unless-stopped || echo no)"
+
 # ---------------------------------------------------------------- files
 
 step "Writing $DIR"
 mkdir -p "$DIR"
 if [ -n "$SOURCE_DIR" ]; then
   cp "$SOURCE_DIR/compose.yaml" "$DIR/compose.yaml"
+  cp "$SOURCE_DIR/scripts/homescribe" "$DIR/homescribe"
 else
-  curl -fsSL "https://raw.githubusercontent.com/$REPO/$REF/compose.yaml" -o "$DIR/compose.yaml.new"
-  mv "$DIR/compose.yaml.new" "$DIR/compose.yaml"
+  for file in compose.yaml scripts/homescribe; do
+    curl -fsSL "https://raw.githubusercontent.com/$REPO/$REF/$file" -o "$DIR/$(basename "$file").new"
+    mv "$DIR/$(basename "$file").new" "$DIR/$(basename "$file")"
+  done
 fi
+chmod +x "$DIR/homescribe"
 
 profiles=""
 [ "$STT" != none ] && profiles="$STT"
@@ -429,7 +457,7 @@ profiles=""
 # Our keys are rewritten; anything else you put into .env is kept.
 touch "$DIR/.env"
 tmp="$(mktemp)"
-ours='COMPOSE_PROFILES|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|LLM_MODE|LLM_MODEL'
+ours='COMPOSE_PROFILES|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL'
 [ "$STT" != none ] && ours="$ours|STT_MODEL"
 grep -vE "^($ours)=" "$DIR/.env" > "$tmp" || true
 {
@@ -437,6 +465,7 @@ grep -vE "^($ours)=" "$DIR/.env" > "$tmp" || true
   echo "COMPOSE_PROFILES=$profiles"
   echo "HOMESCRIBE_IMAGE=$IMAGE"
   echo "HOMESCRIBE_PORT=$PORT"
+  echo "HOMESCRIBE_RESTART=$RESTART"
   [ "$STT" != none ] && echo "STT_MODEL=$STT_ID"
   if [ "$LLM" = yes ]; then echo "LLM_MODE=local"; echo "LLM_MODEL=$LLM_MODEL"; else echo "LLM_MODE=off"; fi
 } > "$DIR/.env"
@@ -593,4 +622,11 @@ elif [ "$OS" = Darwin ]; then
 fi
 echo
 [ "$STT" = none ] && echo "Choose your speech-to-text server in Settings → Speech recognition."
-echo "Update later by running the installer again, or: cd $DIR && docker compose pull && docker compose up -d"
+echo "Start, stop, check or update it with:"
+echo "  $DIR/homescribe start | stop | status | update"
+if [ "$AUTOSTART" = yes ]; then
+  echo "It starts with the computer; stopping it with ./homescribe stop keeps it off until you start it."
+else
+  echo "It does not start with the computer. Run the installer with --autostart to change that."
+fi
+echo "Change models or the GPU/CPU choice by running the installer again."

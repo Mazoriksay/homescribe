@@ -13,6 +13,17 @@ source of truth for the version.
   and Ollama hold and unloads them at once instead of after about 5 minutes
   (`GET /api/v1/ai/memory`, `POST /api/v1/ai/unload`). Servers without that
   API, such as LM Studio, are named as such.
+- Start and stop without Docker commands: the installer leaves
+  `Start Homescribe.cmd`, `Stop Homescribe.cmd`, `Homescribe status.cmd` and
+  `Update Homescribe.cmd` (Windows, plus optional Start menu shortcuts) or
+  `./homescribe start | stop | status | update` (Linux, macOS) in the install
+  folder. Stopping frees all memory and keeps the data.
+- The installer asks whether Homescribe starts with the computer
+  (`--autostart`, `-Autostart`); the answer is kept in `HOMESCRIBE_RESTART`.
+
+### Changed
+
+- New installs no longer start with the computer unless you say so.
 
 ## [0.3.1] - 2026-10-08
 

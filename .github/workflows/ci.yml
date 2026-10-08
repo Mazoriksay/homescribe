@@ -33,14 +33,16 @@ jobs:
       - run: npm run build
       - name: Linux/macOS installer
         run: |
-          bash -n install.sh
-          shellcheck install.sh
+          bash -n install.sh scripts/homescribe
+          shellcheck install.sh scripts/homescribe
       - name: Windows installer parses
         shell: pwsh
         run: |
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile("$PWD/install.ps1", [ref]$null, [ref]$errors) | Out-Null
-          if ($errors) { $errors; exit 1 }
+          foreach ($file in 'install.ps1', 'scripts/homescribe.ps1') {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile("$PWD/$file", [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) { $errors; exit 1 }
+          }
       - name: Compose files are valid
         run: |
           docker compose -f compose.yaml config --quiet
