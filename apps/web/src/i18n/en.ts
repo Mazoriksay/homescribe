@@ -129,8 +129,6 @@ export const en = {
     'Then choose "Load Temporary Add-on" and pick manifest.json in that folder. It stays only until Firefox restarts.',
   'settings.youtube.pickFolder':
     'Turn on developer mode, choose "Load unpacked", paste this folder into the "Folder" field at the bottom of the window (not the address bar at the top, which picks a folder inside it) and choose "Select Folder":',
-  'settings.youtube.firefoxFolder':
-    'Choose "Load Temporary Add-on" and pick manifest.json in this folder. It stays only until Firefox restarts.',
   'settings.youtube.elsewhere': 'to install it on another computer, and unpack the zip there.',
   'settings.youtube.notInstalled':
     'The extension is not installed in this browser yet. Install it (steps 1–2), then:',
@@ -138,8 +136,9 @@ export const en = {
   'settings.youtube.pairLink': 'Connect this browser',
   'settings.youtube.manual':
     "Or click the Homescribe icon in the browser's toolbar and enter {server} and the code {code} (valid for 10 minutes).",
+  'settings.youtube.firefoxZip': 'Firefox version',
   'settings.youtube.firefox':
-    'Firefox: about:debugging → This Firefox → Load Temporary Add-on → manifest.json. It stays only until Firefox restarts.',
+    ': unpack it, then about:debugging → This Firefox → Load Temporary Add-on → manifest.json. It stays only until Firefox restarts.',
   'recording.connectYoutube': 'Connect YouTube',
   'recording.orUpload': 'or download the video yourself and upload the file.',
   'error.DOWNLOAD_COOKIES_EXPIRED':
