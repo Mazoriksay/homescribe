@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { DownloadError } from '../../src/media/downloader';
+import { DownloadBlockedError, DownloadError } from '../../src/media/downloader';
 import { LlmError } from '../../src/llm/summarizer';
 import { MediaError, type ConvertOptions, type MediaTool } from '../../src/media/media-tool';
 import {
@@ -110,6 +110,7 @@ export function fakeAi(
 export class FakeDownloader {
   isAvailable = true;
   failWith: string | null = null;
+  blocked = false;
   result = {
     ext: 'webm',
     title: 'Talk: Building a Home Server',
@@ -137,7 +138,11 @@ export class FakeDownloader {
         ),
       ]);
     }
-    if (this.failWith) throw new DownloadError(this.failWith);
+    if (this.failWith) {
+      throw this.blocked
+        ? new DownloadBlockedError(this.failWith)
+        : new DownloadError(this.failWith);
+    }
     options.onProgress?.(0.5);
     options.onProgress?.(1);
     const file = path.join(options.dir, `download.${this.result.ext}`);

@@ -1,7 +1,9 @@
 import { spawn } from 'node:child_process';
+import { access, copyFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import {
+  DownloadBlockedError,
   DownloadError,
   type DownloadedFile,
   type DownloadOptions,
@@ -66,13 +68,25 @@ function errorLine(stderr: string): string {
   );
 }
 
+const BLOCKED = /confirm you.re not a bot|sign in to confirm|--cookies-from-browser/i;
+
+const exists = (file: string) =>
+  access(file).then(
+    () => true,
+    () => false,
+  );
+
 /**
  * Downloads with yt-dlp (SPEC.md §7.7): best audio of a single video, size
  * capped, no config files, URL after "--", arguments as an array. Option
  * names follow the yt-dlp README.
  */
 export class YtDlpDownloader implements MediaDownloader {
-  constructor(private readonly bin: string) {}
+  constructor(
+    private readonly bin: string,
+    /** A Netscape cookies.txt passed to yt-dlp when the file exists. */
+    private readonly cookiesFile: string | null = null,
+  ) {}
 
   async available(): Promise<boolean> {
     try {
@@ -84,7 +98,12 @@ export class YtDlpDownloader implements MediaDownloader {
 
   async download(url: string, options: DownloadOptions): Promise<DownloadedFile> {
     const { dir, maxBytes, signal, onProgress } = options;
+    // yt-dlp writes cookies back on exit: give it a copy, keep the original as is.
+    const cookies = this.cookiesFile && (await exists(this.cookiesFile)) ? this.cookiesFile : null;
+    const cookiesCopy = path.join(dir, '.cookies.txt');
+    if (cookies) await copyFile(cookies, cookiesCopy);
     const args = [
+      ...(cookies ? ['--cookies', cookiesCopy] : []),
       '--ignore-config',
       '--no-playlist',
       '--no-mtime',
@@ -128,9 +147,14 @@ export class YtDlpDownloader implements MediaDownloader {
       throw new DownloadError(`Cannot run ${path.basename(this.bin)}: is yt-dlp installed?`, {
         cause: error,
       });
+    } finally {
+      if (cookies) await rm(cookiesCopy, { force: true });
     }
 
-    if (result.code !== 0) throw new DownloadError(errorLine(result.stderr));
+    if (result.code !== 0) {
+      const line = errorLine(result.stderr);
+      throw BLOCKED.test(line) ? new DownloadBlockedError(line) : new DownloadError(line);
+    }
     const file = done as z.infer<typeof doneSchema> | null;
     if (!file) {
       // --max-filesize skips a file without failing.

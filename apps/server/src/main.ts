@@ -27,7 +27,7 @@ async function main(): Promise<void> {
   const events = new EventBus();
   const aiSettings = new AiSettingsService(repo, config);
   const media = new FfmpegMediaTool(config.ffmpegPath, config.ffprobePath);
-  const downloader = new YtDlpDownloader(config.ytdlp.path);
+  const downloader = new YtDlpDownloader(config.ytdlp.path, config.ytdlp.cookiesFile);
   let app: FastifyInstance | undefined;
   const runner = new JobRunner({
     repo,
