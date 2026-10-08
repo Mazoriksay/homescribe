@@ -3,6 +3,7 @@ import {
   groupNotes,
   OpenAiSummarizer,
   parseSummaryReply,
+  retryAfterMs,
   splitText,
 } from '../src/llm/openai-summarizer';
 import { chatReply, startFakeOpenAi } from './support/fake-openai';
@@ -27,6 +28,16 @@ describe('splitText', () => {
 
   it('cuts very long words when it must', () => {
     expect(splitText('x'.repeat(250), 100).map((p) => p.length)).toEqual([100, 100, 50]);
+  });
+});
+
+describe('retryAfterMs', () => {
+  it('reads seconds and dates, caps at a minute and ignores junk', () => {
+    expect(retryAfterMs('3')).toBe(3000);
+    expect(retryAfterMs('600')).toBe(60_000);
+    expect(retryAfterMs(new Date(10_000).toUTCString(), 4_000)).toBe(6_000);
+    expect(retryAfterMs('soon')).toBeNull();
+    expect(retryAfterMs(undefined)).toBeNull();
   });
 });
 
@@ -120,14 +131,56 @@ describe('OpenAiSummarizer', () => {
     expect(calls).toBe(2);
   });
 
-  it('gives up with LLM_FAILED after the retry', async () => {
+  it('gives up with LLM_BAD_REPLY after the retry', async () => {
     const fake = await startFakeOpenAi((_, res) => res.end(JSON.stringify(chatReply('nope'))));
     closers.push(fake.close);
     await expect(make(fake.baseUrl).summarize({ text: 'x', language: null })).rejects.toMatchObject(
       {
-        code: 'LLM_FAILED',
+        code: 'LLM_BAD_REPLY',
+        message: expect.stringContaining('nope'),
       },
     );
+  });
+
+  it('tries again when the server is overloaded, honouring Retry-After', async () => {
+    let calls = 0;
+    const fake = await startFakeOpenAi((_, res) => {
+      calls += 1;
+      if (calls === 1) return res.writeHead(429, { 'retry-after': '0' }).end('slow down');
+      if (calls === 2) return res.writeHead(503).end('busy');
+      res.end(JSON.stringify(chatReply(good)));
+    });
+    closers.push(fake.close);
+    const summarizer = new OpenAiSummarizer({
+      baseUrl: fake.baseUrl,
+      model: 'm',
+      apiKey: null,
+      timeoutMs: 5000,
+      chunkChars: 10_000,
+      busyRetryDelaysMs: [10, 10],
+    });
+    await expect(summarizer.summarize({ text: 'x', language: null })).resolves.toMatchObject({
+      summary: 'Agreed on the plan.',
+    });
+    expect(calls).toBe(3);
+  });
+
+  it('gives up with LLM_BUSY after three overloaded answers', async () => {
+    const fake = await startFakeOpenAi((_, res) => res.writeHead(503).end('overloaded'));
+    closers.push(fake.close);
+    const summarizer = new OpenAiSummarizer({
+      baseUrl: fake.baseUrl,
+      model: 'm',
+      apiKey: null,
+      timeoutMs: 5000,
+      chunkChars: 10_000,
+      busyRetryDelaysMs: [10, 10],
+    });
+    await expect(summarizer.summarize({ text: 'x', language: null })).rejects.toMatchObject({
+      code: 'LLM_BUSY',
+      message: expect.stringContaining('overloaded'),
+    });
+    expect(fake.received).toHaveLength(3);
   });
 
   it('summarizes long transcripts in parts, then merges them', async () => {

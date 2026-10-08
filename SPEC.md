@@ -257,21 +257,23 @@ on `code` only.
 
 Job failures are not HTTP errors; they live on the job (`error.code`):
 
-| `code`                                           | Meaning                                                                                        |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `INTERRUPTED`                                    | Server stopped while the job was running                                                       |
-| `CANCELLED`                                      | Cancelled from the UI or `POST …/jobs/:id/cancel`                                              |
-| `DOWNLOAD_FAILED`                                | yt-dlp could not fetch the link; the message has its reason                                    |
-| `DOWNLOAD_BLOCKED`                               | The site wants a signed-in visitor; add cookies (§7.8)                                         |
-| `DOWNLOAD_COOKIES_EXPIRED`                       | The YouTube cookies are no longer valid; renew them (§7.8)                                     |
-| `MEDIA_UNREADABLE`                               | ffprobe/ffmpeg could not read or convert the upload                                            |
-| `STT_UNAVAILABLE`                                | Speech-to-text server unreachable                                                              |
-| `STT_TIMEOUT`                                    | No answer within `STT_TIMEOUT_MS`                                                              |
-| `STT_FAILED`                                     | Non-2xx answer or a response that does not match the schema                                    |
-| `LLM_UNAVAILABLE` / `LLM_TIMEOUT` / `LLM_FAILED` | Same for the LLM; the transcript is kept                                                       |
-| `LLM_CONTEXT_EXCEEDED`                           | Replies stayed cut off even for small parts (§8); the transcript is kept                       |
-| `LLM_OUT_OF_MEMORY`                              | The summary model did not load on the GPU, also after one retry (§7.5); the transcript is kept |
-| `INTERNAL_ERROR`                                 | Bug; details in the server log                                                                 |
+| `code`                                           | Meaning                                                                                                    |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `INTERRUPTED`                                    | Server stopped while the job was running                                                                   |
+| `CANCELLED`                                      | Cancelled from the UI or `POST …/jobs/:id/cancel`                                                          |
+| `DOWNLOAD_FAILED`                                | yt-dlp could not fetch the link; the message has its reason                                                |
+| `DOWNLOAD_BLOCKED`                               | The site wants a signed-in visitor; add cookies (§7.8)                                                     |
+| `DOWNLOAD_COOKIES_EXPIRED`                       | The YouTube cookies are no longer valid; renew them (§7.8)                                                 |
+| `MEDIA_UNREADABLE`                               | ffprobe/ffmpeg could not read or convert the upload                                                        |
+| `STT_UNAVAILABLE`                                | Speech-to-text server unreachable                                                                          |
+| `STT_TIMEOUT`                                    | No answer within `STT_TIMEOUT_MS`                                                                          |
+| `STT_FAILED`                                     | Non-2xx answer or a response that does not match the schema                                                |
+| `LLM_UNAVAILABLE` / `LLM_TIMEOUT` / `LLM_FAILED` | Same for the LLM; the transcript is kept                                                                   |
+| `LLM_CONTEXT_EXCEEDED`                           | Replies stayed cut off even for small parts (§8); the transcript is kept                                   |
+| `LLM_BAD_REPLY`                                  | The model answered, but not in the requested JSON format, also when asked again; the transcript is kept    |
+| `LLM_BUSY`                                       | The LLM server stayed overloaded or rate-limited (HTTP 429/503) after 3 tries (§8); the transcript is kept |
+| `LLM_OUT_OF_MEMORY`                              | The summary model did not load on the GPU, also after one retry (§7.5); the transcript is kept             |
+| `INTERNAL_ERROR`                                 | Bug; details in the server log                                                                             |
 
 ### 7.2 Types
 
@@ -713,7 +715,14 @@ summarizing → done`; `downloading` only for a recording made from a link
     only then the job fails with `LLM_CONTEXT_EXCEEDED` (lower
     `LLM_CHUNK_CHARS` or raise the server's window). A cut-off reply is
     never answered with "that was not valid", which only adds text.
-  - A complete reply that is not the requested JSON is asked once more.
+  - A complete reply that is not the requested JSON is asked once more;
+    then the job fails with `LLM_BAD_REPLY` (the UI suggests "Summarize
+    again" or another model: small models often get the format wrong).
+  - HTTP 429 or 503 (overloaded, rate-limited) is tried again twice, after
+    `Retry-After` when the server sends it (at most 60 s), else after 5 s
+    and 15 s; then the job fails with `LLM_BUSY` (the UI suggests trying
+    later). A 5xx that says the model could not load is
+    `LLM_OUT_OF_MEMORY` instead (§7.5).
   - Merging: the part summaries are grouped so each group's notes stay
     within `LLM_CHUNK_CHARS`, each group is merged, and that repeats until
     one summary is left (at least two notes per group, so it always ends).

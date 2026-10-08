@@ -41,6 +41,11 @@ source of truth for the version.
 
 ### Fixed
 
+- Summary errors say what to do. A model that keeps answering in the wrong
+  format fails with `LLM_BAD_REPLY` and suggests regenerating or another
+  model; an overloaded or rate-limited server (HTTP 429/503) is tried again
+  twice, after `Retry-After` when given, then fails with `LLM_BUSY` and
+  suggests trying later.
 - Summaries of long recordings with a local model (Ollama's default window
   of 4096 tokens, a reasoning model such as `gemma4`) no longer fail with
   "The model did not return the requested JSON". Parts are 4000 characters
