@@ -14,6 +14,7 @@ export function SummaryView({ recording }: { recording: Recording }) {
   const { data: summary } = useGetSummaryQuery(recording.id, { skip: !settings || llmOff });
   const [createJob, { isLoading }] = useCreateJobMutation();
   const canRegenerate =
+    Boolean(settings) &&
     !llmOff &&
     (job.status === 'done' || job.status === 'failed') &&
     (Boolean(summary) || job.status === 'done');
@@ -36,7 +37,8 @@ export function SummaryView({ recording }: { recording: Recording }) {
         )}
       </div>
 
-      {!summary && (
+      {/* Nothing until the settings say whether summaries are on, so it does not flicker. */}
+      {settings && !summary && (
         <p className={styles.placeholder}>
           {llmOff ? t('recording.summaryOff') : t('recording.summaryPending')}
         </p>
