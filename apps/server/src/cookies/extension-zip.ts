@@ -8,6 +8,17 @@ export function manifestVersion(version: string): string {
   return /^\d+(\.\d+){0,3}$/.test(plain) ? plain : '0.0.0';
 }
 
+/**
+ * An MS-DOS date and time (APPNOTE 4.4.6). Zero is not a valid date, and
+ * Windows Explorer refuses to unpack entries that carry it.
+ */
+export function dosDateTime(at: Date): { time: number; date: number } {
+  return {
+    time: (at.getHours() << 11) | (at.getMinutes() << 5) | Math.floor(at.getSeconds() / 2),
+    date: ((at.getFullYear() - 1980) << 9) | ((at.getMonth() + 1) << 5) | at.getDate(),
+  };
+}
+
 async function listFiles(dir: string, prefix = ''): Promise<string[]> {
   const entries = await readdir(path.join(dir, prefix), { withFileTypes: true });
   const files: string[] = [];
@@ -24,7 +35,8 @@ async function listFiles(dir: string, prefix = ''): Promise<string[]> {
  * kilobytes), with the server's version in manifest.json. Minimal ZIP
  * (PKWARE APPNOTE 4.3.7, 4.3.12, 4.3.16), UTF-8 names, no extra fields.
  */
-export async function extensionZip(dir: string, version: string): Promise<Buffer> {
+export async function extensionZip(dir: string, version: string, at = new Date()): Promise<Buffer> {
+  const { time, date } = dosDateTime(at);
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
   let offset = 0;
@@ -44,7 +56,8 @@ export async function extensionZip(dir: string, version: string): Promise<Buffer
     local.writeUInt16LE(20, 4); // version needed
     local.writeUInt16LE(0x0800, 6); // UTF-8 names
     local.writeUInt16LE(0, 8); // stored
-    local.writeUInt32LE(0, 10); // time, date
+    local.writeUInt16LE(time, 10);
+    local.writeUInt16LE(date, 12);
     local.writeUInt32LE(crc, 14);
     local.writeUInt32LE(data.length, 18);
     local.writeUInt32LE(data.length, 22);
@@ -58,7 +71,8 @@ export async function extensionZip(dir: string, version: string): Promise<Buffer
     central.writeUInt16LE(20, 6); // needed
     central.writeUInt16LE(0x0800, 8);
     central.writeUInt16LE(0, 10);
-    central.writeUInt32LE(0, 12);
+    central.writeUInt16LE(time, 12);
+    central.writeUInt16LE(date, 14);
     central.writeUInt32LE(crc, 16);
     central.writeUInt32LE(data.length, 20);
     central.writeUInt32LE(data.length, 24);
