@@ -38,11 +38,15 @@ source of truth for the version.
 
 - speaches images are pinned (`0.8.1-cuda`, `0.8.3-cpu`; override with
   `SPEACHES_CUDA_IMAGE`/`SPEACHES_CPU_IMAGE`) instead of following `latest`,
-  and log at `info` instead of `debug`. Health checks are no longer written
+  and log at `info` instead of `debug`, without their Gradio UI (which
+  called gradio.app on start). Health checks are no longer written
   to Homescribe's request log.
 
 ### Fixed
 
+- A cancelled job is shown as "Cancelled", not as an error; a recording whose
+  summary failed before summaries were turned off is shown as ready; the
+  summary section no longer flashes the wrong text while settings load.
 - "Find AI on this computer" finds Ollama running on the Docker host. Each
   host is looked up once, IPv4 first, so an unresolvable name such as a
   stopped `ollama` service no longer makes the other probes time out.

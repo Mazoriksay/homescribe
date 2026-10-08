@@ -35,6 +35,7 @@ export const ru: Record<MessageKey, string> = {
   'status.summarizing': 'Итоги',
   'status.done': 'Готово',
   'status.failed': 'Ошибка',
+  'status.cancelled': 'Отменено',
 
   'recording.back': 'Все записи',
   'recording.notFound': 'Такой записи нет или она удалена.',

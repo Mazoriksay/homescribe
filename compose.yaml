@@ -46,6 +46,8 @@ services:
       PRELOAD_MODELS: '["${STT_MODEL:-Systran/faster-whisper-large-v3}"]'
       # speaches logs every audio window at its default level, debug.
       LOG_LEVEL: info
+      # No Gradio UI: it is not used and it checks gradio.app for updates.
+      ENABLE_UI: 'false'
     volumes:
       - hf-hub-cache:/home/ubuntu/.cache/huggingface/hub
     networks:
@@ -67,6 +69,7 @@ services:
     environment:
       PRELOAD_MODELS: '["${STT_MODEL:-Systran/faster-whisper-large-v3}"]'
       LOG_LEVEL: info
+      ENABLE_UI: 'false'
     volumes:
       - hf-hub-cache:/home/ubuntu/.cache/huggingface/hub
     networks:

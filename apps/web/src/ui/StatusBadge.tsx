@@ -10,10 +10,12 @@ export function StatusBadge({ job }: { job: Job }) {
     (job.status === 'converting' || job.status === 'downloading') && job.progress !== null
       ? Math.round(job.progress * 100)
       : null;
+  // Cancelled on purpose: not an error, so it reads as stopped, not failed.
+  const cancelled = job.status === 'failed' && job.error?.code === 'CANCELLED';
   return (
-    <span className={styles.badge} data-status={job.status}>
+    <span className={styles.badge} data-status={cancelled ? 'cancelled' : job.status}>
       <span className={styles.dot} data-running={running || undefined} aria-hidden="true" />
-      {t(`status.${job.status}`)}
+      {cancelled ? t('status.cancelled') : t(`status.${job.status}`)}
       {percent !== null && <span className={styles.percent}>{percent}%</span>}
     </span>
   );

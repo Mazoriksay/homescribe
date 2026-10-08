@@ -6,7 +6,7 @@ import { LibraryPage } from '../src/features/library/LibraryPage';
 import { activeSegmentIndex } from '../src/features/recording/TranscriptView';
 import { RecordingPage } from '../src/features/recording/RecordingPage';
 import { SettingsPage } from '../src/features/settings/SettingsPage';
-import { RECORDING_ID, recording, transcript } from './fixtures';
+import { job, RECORDING_ID, recording, transcript } from './fixtures';
 import { mockApi, renderPage } from './render';
 
 afterEach(() => {
@@ -180,6 +180,46 @@ describe('RecordingPage, stage 2', () => {
     expect(container.querySelector('img')).toBeNull();
     expect(screen.getByText('Ann: send the notes')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Summarize again' })).toBeTruthy();
+  });
+
+  it('shows a cancelled job as cancelled, not failed', async () => {
+    mockApi([
+      {
+        path: recordingPath,
+        body: recording({
+          job: job({ status: 'failed', error: { code: 'CANCELLED', message: 'Cancelled' } }),
+        }),
+      },
+      { path: `${recordingPath}/transcript`, status: 409, body: {} },
+      { path: `${API_PREFIX}/settings/ai`, body: settings },
+    ]);
+    const { container } = renderPage(<RecordingPage />, page);
+    expect(await screen.findByText('Processing was cancelled.')).toBeTruthy();
+    expect(container.querySelector('[data-status="cancelled"]')?.textContent).toBe('Cancelled');
+  });
+
+  it('does not offer a failed summary again once summaries are off', async () => {
+    mockApi([
+      {
+        path: recordingPath,
+        body: recording({
+          job: job({
+            status: 'failed',
+            error: { code: 'LLM_UNAVAILABLE', message: 'Cannot reach http://ollama:11434' },
+          }),
+        }),
+      },
+      { path: `${recordingPath}/transcript`, body: transcript() },
+      {
+        path: `${API_PREFIX}/settings/ai`,
+        body: { ...settings, llm: { ...settings.llm, mode: 'off' } },
+      },
+    ]);
+    renderPage(<RecordingPage />, page);
+    expect(await screen.findByText('Summaries are turned off in the settings.')).toBeTruthy();
+    expect(screen.getByText('Ready')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Summarize again' })).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('seeks the player when a timestamp is tapped', async () => {

@@ -3,6 +3,7 @@ import { Button } from 'antd';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
+  useGetAiSettingsQuery,
   useCancelJobMutation,
   useCreateJobMutation,
   useDeleteRecordingMutation,
@@ -15,10 +16,15 @@ import styles from './RecordingPage.module.css';
 
 export function StatusPanel({ recording }: { recording: Recording }) {
   const t = useT();
-  const { job } = recording;
-  const isFinal = job.status === 'done' || job.status === 'failed';
+  const { data: settings } = useGetAiSettingsQuery();
   // A failed summary keeps the transcript; retrying only needs the summary step.
-  const summaryFailed = job.error?.code.startsWith('LLM_') ?? false;
+  const summaryFailed = recording.job.error?.code.startsWith('LLM_') ?? false;
+  // Summaries turned off since: the transcript is all that was asked for.
+  const job =
+    summaryFailed && settings?.llm.mode === 'off'
+      ? { ...recording.job, status: 'done' as const, error: null }
+      : recording.job;
+  const isFinal = job.status === 'done' || job.status === 'failed';
 
   return (
     <section className={styles.status} aria-live="polite">

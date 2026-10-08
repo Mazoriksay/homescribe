@@ -32,6 +32,7 @@ export const en = {
   'status.summarizing': 'Summarizing',
   'status.done': 'Ready',
   'status.failed': 'Failed',
+  'status.cancelled': 'Cancelled',
 
   'recording.back': 'All recordings',
   'recording.notFound': 'This recording does not exist or was deleted.',
