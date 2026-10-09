@@ -2,6 +2,7 @@ import { openAsBlob } from 'node:fs';
 import { Readable } from 'node:stream';
 import { sttVerboseResponseSchema } from '@homescribe/shared';
 import { authHeaders, httpRequest, withTimeout } from '../ai/http';
+import { segmentsFromWords } from './sentences';
 import {
   SttError,
   type TranscribeOptions,
@@ -17,6 +18,11 @@ export interface OpenAiTranscriberOptions {
   timeoutMs: number;
   /** Send speaches' `vad_filter=true` (skip silence, avoids Whisper loops). */
   vadFilter?: boolean;
+  /**
+   * Ask for word timestamps and build sentence-sized segments from them. For
+   * a batched speaches, whose own segments are whole 30-second windows.
+   */
+  sentenceSegments?: boolean;
 }
 
 /**
@@ -49,6 +55,7 @@ export class OpenAiTranscriber implements Transcriber {
     form.append('model', this.options.model);
     form.append('response_format', 'verbose_json');
     form.append('timestamp_granularities[]', 'segment');
+    if (this.options.sentenceSegments) form.append('timestamp_granularities[]', 'word');
     const language = options.language ?? this.options.language;
     if (language) form.append('language', language);
     // speaches passes one temperature to faster-whisper, which then has no
@@ -96,13 +103,16 @@ export class OpenAiTranscriber implements Transcriber {
     if (!parsed.success) {
       throw new SttError('STT_FAILED', `Unexpected response shape: ${parsed.error.message}`);
     }
+    const windows = parsed.data.segments
+      .map((s) => ({ start: Math.max(0, s.start), end: Math.max(0, s.end), text: s.text.trim() }))
+      .filter((s) => s.text.length > 0)
+      .sort((a, b) => a.start - b.start);
+    // A server that ignores the word granularity still gets its own segments.
+    const sentences = this.options.sentenceSegments ? segmentsFromWords(parsed.data.words) : [];
     return {
       language: parsed.data.language ?? null,
       text: parsed.data.text.trim(),
-      segments: parsed.data.segments
-        .map((s) => ({ start: Math.max(0, s.start), end: Math.max(0, s.end), text: s.text.trim() }))
-        .filter((s) => s.text.length > 0)
-        .sort((a, b) => a.start - b.start),
+      segments: sentences.length > 0 ? sentences : windows,
     };
   }
 }

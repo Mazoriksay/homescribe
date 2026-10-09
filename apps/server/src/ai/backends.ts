@@ -34,6 +34,8 @@ export function createAiBackends(
           // A speaches extension; cloud APIs get only the standard OpenAI fields.
           // Batched mode cuts the audio by voice activity, so it needs the filter.
           vadFilter: s.mode === 'local' && (config.stt.vadFilter || batched),
+          // Its segments are whole windows; sentences come from word times.
+          sentenceSegments: batched,
         }),
         // Cloud APIs cap uploads (~25 MB); compressed audio fits far longer recordings.
         format: s.mode === 'api' ? 'ogg' : 'wav',
