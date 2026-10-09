@@ -7,6 +7,8 @@ source of truth for the version.
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-10-09
+
 ### Fixed
 
 - The published image no longer fails to build when Docker Hub rate-limits
@@ -310,7 +312,8 @@ source of truth for the version.
   Inside another app's frame the app hides its own chrome. Explanatory hints
   were removed from the pages.
 
-[Unreleased]: https://github.com/Mazoriksay/homescribe/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/Mazoriksay/homescribe/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/Mazoriksay/homescribe/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/Mazoriksay/homescribe/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/Mazoriksay/homescribe/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/Mazoriksay/homescribe/compare/v0.3.1...v0.3.2
