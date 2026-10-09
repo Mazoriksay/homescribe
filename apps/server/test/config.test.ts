@@ -31,7 +31,7 @@ describe('loadConfig', () => {
       model: 'llama3.1:8b',
       apiKey: null,
       timeoutMs: 600_000,
-      chunkChars: 4_000,
+      chunkChars: null,
     });
     expect(config.discoveryHosts).toEqual(['localhost', 'host.docker.internal']);
     expect(config.basePath).toBe('');

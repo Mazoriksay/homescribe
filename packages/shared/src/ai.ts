@@ -97,6 +97,8 @@ export const loadedModelSchema = z.object({
   model: z.string(),
   /** GPU memory it holds, when the server says (Ollama does, speaches does not). */
   vramBytes: z.number().nonnegative().nullable(),
+  /** Whole size; above vramBytes means part of it runs on the CPU (Ollama). */
+  sizeBytes: z.number().nonnegative().nullable().optional(),
 });
 export type LoadedModel = z.infer<typeof loadedModelSchema>;
 
@@ -208,4 +210,33 @@ export function classifyModel(id: string, task?: string | null): AiKind | null {
   if (STT_MODEL.test(id)) return 'stt';
   if (NOT_CHAT.test(id)) return null;
   return 'llm';
+}
+
+// ---------------------------------------------------------------- context window
+
+export const CONTEXT_MIN = 2048;
+/** Above this a typed size is refused when the model does not say its own maximum. */
+export const CONTEXT_FALLBACK_MAX = 262_144;
+export const CONTEXT_PRESETS = [4096, 8192, 16384, 32768, 65536, 131072, 262144] as const;
+
+/** Settings → Summaries → Context window (SPEC.md §7.5). */
+export const llmContextSchema = z.object({
+  supported: z.boolean(),
+  value: z.number().int().nullable(),
+  min: z.number().int(),
+  max: z.number().int().nullable(),
+  presets: z.array(z.number().int()),
+  loaded: z.number().int().nullable(),
+  chunkChars: z.number().int(),
+});
+export type LlmContext = z.infer<typeof llmContextSchema>;
+
+export const llmContextBodySchema = z.object({
+  value: z.number().int().positive().nullable(),
+});
+export type LlmContextBody = z.infer<typeof llmContextBodySchema>;
+
+/** Part size for a window: 0.3 of it for the transcript, ~3.3 characters per token. */
+export function chunkCharsForWindow(tokens: number): number {
+  return Math.max(1000, Math.round((tokens * 0.3 * 3.3) / 100) * 100);
 }

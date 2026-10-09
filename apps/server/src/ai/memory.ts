@@ -13,7 +13,7 @@ type Probe = { server: 'speaches' | 'ollama'; loaded: LoadedModel[] } | 'unsuppo
  * (`docs/api.md`, "List Running Models") lists objects with `name` and
  * `size_vram`. Anything else means the server cannot unload on request.
  */
-async function probe(baseUrl: string, apiKey: string | null): Promise<Probe> {
+export async function probe(baseUrl: string, apiKey: string | null): Promise<Probe> {
   const timer = withTimeout(TIMEOUT_MS);
   const { status, body } = await httpRequest(new URL(`${baseUrl}/api/ps`), {
     headers: { accept: 'application/json', ...authHeaders(apiKey) },
@@ -39,16 +39,17 @@ async function probe(baseUrl: string, apiKey: string | null): Promise<Probe> {
   if (models.every((m) => typeof m === 'object' && m !== null && 'name' in m)) {
     return {
       server: 'ollama',
-      loaded: (models as { name: unknown; size_vram?: unknown }[]).map((m) => ({
+      loaded: (models as { name: unknown; size_vram?: unknown; size?: unknown }[]).map((m) => ({
         model: String(m.name),
         vramBytes: typeof m.size_vram === 'number' ? m.size_vram : null,
+        sizeBytes: typeof m.size === 'number' ? m.size : null,
       })),
     };
   }
   return 'unsupported';
 }
 
-async function isOllama(baseUrl: string, apiKey: string | null): Promise<boolean> {
+export async function isOllama(baseUrl: string, apiKey: string | null): Promise<boolean> {
   const timer = withTimeout(TIMEOUT_MS);
   try {
     const { status, body } = await httpRequest(new URL(`${baseUrl}/api/version`), {

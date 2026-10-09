@@ -389,6 +389,48 @@ describe('OpenAiSummarizer', () => {
     expect(systemText(fake.received.at(-1)!)).toContain('one short overview paragraph');
   });
 
+  it("sends a chosen window to Ollama's own chat API", async () => {
+    let calls = 0;
+    const fake = await startFakeOpenAi((request, res) => {
+      calls += 1;
+      const body = request.json as { messages: { content: string }[] };
+      const last = body.messages.at(-1)!.content;
+      // The whole text does not fit: Ollama says so with done_reason.
+      if (calls === 1) {
+        return res.end(JSON.stringify({ message: { content: '' }, done_reason: 'length' }));
+      }
+      res.end(
+        JSON.stringify({
+          message: { role: 'assistant', content: last.includes('<notes>') ? good : good },
+          done: true,
+          done_reason: 'stop',
+        }),
+      );
+    });
+    closers.push(fake.close);
+    const summarizer = new OpenAiSummarizer({
+      baseUrl: fake.baseUrl,
+      model: 'gemma',
+      apiKey: null,
+      timeoutMs: 5000,
+      chunkChars: null,
+      ollamaContext: 16384,
+      window: async () => 16384,
+    });
+    const text = Array.from({ length: 100 }, (_, i) => `Sentence ${i} is said here.`).join(' ');
+    await expect(summarizer.summarize({ text, language: 'en' })).resolves.toMatchObject({
+      summary: 'Agreed on the plan.',
+    });
+    expect(fake.received[0]).toMatchObject({ url: '/api/chat' });
+    expect(fake.received[0]!.json).toMatchObject({
+      model: 'gemma',
+      stream: false,
+      options: { num_ctx: 16384 },
+    });
+    // Cut off once: halved, then merged.
+    expect(fake.received.length).toBeGreaterThan(2);
+  });
+
   it('maps HTTP errors, refused connections and timeouts', async () => {
     const failing = await startFakeOpenAi((_, res) => res.writeHead(404).end('model not found'));
     closers.push(failing.close);

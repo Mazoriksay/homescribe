@@ -217,6 +217,44 @@ describe('SettingsPage', () => {
     expect(within(section).getByText(/Запустите «Update Homescribe»/)).toBeTruthy();
   });
 
+  it('lets the user choose the context window within the model limits', async () => {
+    const context = {
+      supported: true,
+      value: null,
+      min: 2048,
+      max: 131072,
+      presets: [4096, 8192, 16384, 32768, 65536, 131072],
+      loaded: 4096,
+      chunkChars: 4100,
+    };
+    const fetchMock = mockApi([
+      { path: `${API_PREFIX}/settings/ai`, body: settings },
+      { path: `${API_PREFIX}/settings/llm-context`, body: context },
+      {
+        method: 'PUT',
+        path: `${API_PREFIX}/settings/llm-context`,
+        body: { ...context, value: 16384, chunkChars: 16200 },
+      },
+    ]);
+    renderPage(<SettingsPage />, { prefs: { locale: 'ru', theme: 'auto' } });
+    const group = await screen.findByRole('group', { name: 'Окно контекста' });
+    expect(
+      within(group).getByRole('button', { name: 'Как в Ollama (4k)' }).getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(within(group).queryByRole('button', { name: '256k' })).toBeNull();
+    fireEvent.click(within(group).getByRole('button', { name: '16k' }));
+    await waitFor(() =>
+      expect(within(group).getByRole('button', { name: '16k' }).getAttribute('aria-pressed')).toBe(
+        'true',
+      ),
+    );
+    expect(await screen.findByText(/частями примерно по 16 200 символов/)).toBeTruthy();
+    const put = fetchMock.mock.calls
+      .map(([r]) => r as Request)
+      .find((r) => r.method === 'PUT' && r.url.endsWith('/settings/llm-context'))!;
+    expect(await put.json()).toEqual({ value: 16384 });
+  });
+
   it('lets the models take turns on the GPU', async () => {
     const memory = {
       busy: false,

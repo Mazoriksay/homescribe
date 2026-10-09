@@ -62,7 +62,7 @@ const envSchema = z.object({
   LLM_MODEL: optional(z.string().default('llama3.1:8b')),
   LLM_API_KEY: optional(z.string().optional()),
   LLM_TIMEOUT_MS: optional(z.coerce.number().int().positive().default(600_000)),
-  LLM_CHUNK_CHARS: optional(z.coerce.number().int().min(1000).default(4_000)),
+  LLM_CHUNK_CHARS: optional(z.coerce.number().int().min(1000).optional()),
   AI_DISCOVERY_HOSTS: optional(
     z
       .string()
@@ -142,7 +142,8 @@ export interface Config {
     apiKey: string | null;
     timeoutMs: number;
     /** Transcripts longer than this are summarized in parts, then combined. */
-    chunkChars: number;
+    /** Set by hand; null = from the context window (SPEC.md §7.5). */
+    chunkChars: number | null;
   };
   /** Hosts probed for local AI servers. */
   discoveryHosts: string[];
@@ -209,7 +210,7 @@ export function loadConfig(env: Record<string, string | undefined>, rootDir: str
       model: e.LLM_MODEL,
       apiKey: e.LLM_API_KEY ?? null,
       timeoutMs: e.LLM_TIMEOUT_MS,
-      chunkChars: e.LLM_CHUNK_CHARS,
+      chunkChars: e.LLM_CHUNK_CHARS ?? null,
     },
     discoveryHosts: e.AI_DISCOVERY_HOSTS,
     webDistDir: path.resolve(rootDir, e.WEB_DIST_DIR ?? 'apps/web/dist'),

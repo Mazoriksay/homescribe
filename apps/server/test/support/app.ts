@@ -10,6 +10,7 @@ import { buildApp } from '../../src/http/app';
 import { JobRunner } from '../../src/jobs/runner';
 import { MediaStore } from '../../src/storage';
 import type { AiModel, Discovery } from '@homescribe/shared';
+import { LlmContextService } from '../../src/ai/context';
 import { AiMemoryService } from '../../src/ai/memory';
 import { CookieService, retryRecordings } from '../../src/cookies/service';
 import { AiSettingsService } from '../../src/ai/settings';
@@ -117,6 +118,7 @@ export async function createTestApp(
     cookies,
     aiSettings,
     discover: async () => ai$.discovery,
+    context: new LlmContextService(aiSettings, repo, config.llm.chunkChars),
     memory: new AiMemoryService(aiSettings, () => runner.busy, {
       repo,
       gpu: config.gpu,

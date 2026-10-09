@@ -181,7 +181,7 @@ ALTER TABLE recordings ADD COLUMN source_url TEXT;           -- link the media c
 ALTER TABLE recordings ADD COLUMN title_from_source INTEGER NOT NULL DEFAULT 0;
                                                              -- 1: replace title with the page's title
 CREATE TABLE app_settings (                  -- small switches set in the UI
-  key   TEXT PRIMARY KEY,                     -- 'take_turns', 'summary_instructions'
+  key   TEXT PRIMARY KEY,                     -- 'take_turns', 'summary_instructions', 'llm_context'
   value TEXT NOT NULL                         -- JSON
 );
 CREATE TABLE ai_settings (                   -- one row per kind once chosen in the UI
@@ -359,6 +359,8 @@ interface Page<T> {
 | `PUT /api/v1/ai/take-turns`             | 3     | `{ enabled: boolean }`                                                                                                 | `200 AiMemory`                                                          | 400 `VALIDATION_ERROR`                                              |
 | `GET /api/v1/settings/summary`          | 3     | —                                                                                                                      | `200 { instructions: string }`                                          | —                                                                   |
 | `GET /api/v1/updates`                   | 3     | —                                                                                                                      | `200 UpdateStatus` (§7.9)                                               | —                                                                   |
+| `GET /api/v1/settings/llm-context`      | 3     | —                                                                                                                      | `200 LlmContext` (§7.5)                                                 | —                                                                   |
+| `PUT /api/v1/settings/llm-context`      | 3     | `{ value: number \| null }`                                                                                            | `200 LlmContext`                                                        | 400 `VALIDATION_ERROR` (outside min–max, not Ollama)                |
 | `PUT /api/v1/settings/summary`          | 3     | `{ instructions: string }` (≤ 2000)                                                                                    | `200 { instructions: string }`                                          | 400 `VALIDATION_ERROR`                                              |
 
 `SearchHit` is `{ recording, snippet: { text, match }[], segment: { index, start } | null }`:
@@ -507,6 +509,40 @@ empty, else 60 s: in the live case the second try a minute later loaded)
 and tries the summary again; a second failure ends the job. The UI says
 the summary model did not fit next to speech recognition and suggests
 "Take turns" or a smaller model, with the server's text under "Details".
+
+**Context window (Ollama).** Ollama runs a model with a window it picks
+from the GPU's memory (4k, 32k or 256k tokens; 4k on a 16 GB card), and its
+OpenAI-compatible API cannot change it. Settings → Summaries therefore has
+"Context window" when the summary server is Ollama: "As in Ollama"
+(default) or a size of the user's choice, from presets (4k, 8k, 16k, 32k,
+64k, 128k, 256k; only those the model supports) or typed in, between 2048
+and the model's own maximum (`POST /api/show`: `details.context_length`,
+else `model_info["<arch>.context_length"]`). It is stored in `app_settings`
+with the server and model it was chosen for and applies only to them.
+With a size set, summaries go to Ollama's own `POST /api/chat` with
+`options.num_ctx` (and `done_reason: "length"` for a cut-off reply) instead
+of `/v1/chat/completions`. A larger window takes more video memory: when
+`/api/ps` reports `size_vram` below `size`, the "Video memory" section says
+that part of the model runs on the CPU, which is much slower.
+
+```ts
+// GET /api/v1/settings/llm-context, PUT { value: number | null }
+interface LlmContext {
+  supported: boolean; // the summary server is a local Ollama
+  value: number | null; // chosen size; null = as in Ollama
+  min: number; // 2048
+  max: number | null; // the model's maximum
+  presets: number[];
+  loaded: number | null; // window of the model Ollama holds now
+  chunkChars: number; // part size the next summary uses
+}
+```
+
+The part size follows the window unless `LLM_CHUNK_CHARS` is set: about
+1 character per token of window (0.3 of the window for the transcript at
+about 3.3 characters per token of Russian), so 4096 → about 4000 and 16k →
+about 16 000 characters. The window is the chosen size, else the one Ollama
+reports for the loaded model (`/api/ps` `context_length`), else 4096.
 
 ### 7.6 Health and self-check
 
@@ -748,7 +784,7 @@ summarizing → done`; `downloading` only for a recording made from a link
   go into the system prompt after the fixed rules and can change length,
   focus and style, not the reply format or the rule that the transcript is
   data. Reasoning stays on (it makes summaries more
-  accurate), so a part must leave room for it: the default of 4000
+  accurate), so a part must leave room for it: the part size follows the window (§7.5), and 4000
   characters is about 1100 tokens of Russian and fits a 4096-token window
   with the system prompt, reasoning and the reply (measured with
   `gemma4:26b`: 2400 tokens in all; 12 000 characters ran out).
@@ -812,7 +848,7 @@ startup with a message naming the variable.
 | `LLM_MODEL`                | `llama3.1:8b`                                                                    | 2     | `model` field                                                                               |
 | `LLM_API_KEY`              | _(empty)_                                                                        | 2     | Bearer token when set                                                                       |
 | `LLM_TIMEOUT_MS`           | `600000`                                                                         | 2     | Per-request timeout                                                                         |
-| `LLM_CHUNK_CHARS`          | `4000`                                                                           | 2     | Longer transcripts are summarized in parts, then merged; fits a 4096-token window (§8)      |
+| `LLM_CHUNK_CHARS`          | _(empty = from the context window, §7.5)_                                        | 2     | Part size in characters for long transcripts; set it to override                            |
 | `AI_DISCOVERY_HOSTS`       | `localhost,host.docker.internal`                                                 | 2     | Hosts probed for local AI servers (names or IPs, no ports)                                  |
 | `BASE_PATH`                | _(empty = root)_                                                                 | 3     | Serve UI and API under this path, e.g. `/homescribe` (§11.2)                                |
 | `WEB_DIST_DIR`             | `apps/web/dist` (resolved from the repo root)                                    | 1     | Built UI to serve; skipped if missing                                                       |

@@ -3,12 +3,14 @@ import {
   API_PREFIX,
   listModelsBodySchema,
   takeTurnsBodySchema,
+  llmContextBodySchema,
   summarySettingsSchema,
   updateAiSettingsBodySchema,
   type AiModel,
   type Discovery,
 } from '@homescribe/shared';
 import type { FastifyInstance } from 'fastify';
+import { ContextError, type LlmContextService } from '../ai/context';
 import type { AiMemoryService } from '../ai/memory';
 import type { Repository } from '../db/repository';
 import { SUMMARY_INSTRUCTIONS } from '../jobs/runner';
@@ -23,6 +25,7 @@ export interface AiRouteDeps {
   onSettingsChanged?: () => void;
   memory: AiMemoryService;
   repo: Pick<Repository, 'getAppSetting' | 'setAppSetting'>;
+  context: LlmContextService;
 }
 
 /** Choosing speech-to-text and LLM backends (SPEC.md §7.5). */
@@ -78,6 +81,18 @@ export function registerAiRoutes(app: FastifyInstance, deps: AiRouteDeps): void 
     const body = parseInput(summarySettingsSchema, request.body ?? {}, 'body');
     deps.repo.setAppSetting(SUMMARY_INSTRUCTIONS, body.instructions);
     return body;
+  });
+
+  app.get(`${API_PREFIX}/settings/llm-context`, async () => deps.context.status());
+
+  app.put(`${API_PREFIX}/settings/llm-context`, async (request) => {
+    const body = parseInput(llmContextBodySchema, request.body ?? {}, 'body');
+    try {
+      return await deps.context.set(body.value);
+    } catch (error) {
+      if (error instanceof ContextError) throw new AppError(400, 'VALIDATION_ERROR', error.message);
+      throw error;
+    }
   });
 
   app.put(`${API_PREFIX}/ai/take-turns`, async (request) => {

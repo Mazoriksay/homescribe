@@ -2,10 +2,15 @@ import type { Config } from '../config';
 import type { AiBackends } from '../jobs/runner';
 import { OpenAiSummarizer } from '../llm/openai-summarizer';
 import { OpenAiTranscriber } from '../stt/openai-transcriber';
+import type { LlmContextService } from './context';
 import type { AiSettingsService } from './settings';
 
 /** Builds clients from the current settings, so a change applies from the next job on. */
-export function createAiBackends(settings: AiSettingsService, config: Config): AiBackends {
+export function createAiBackends(
+  settings: AiSettingsService,
+  config: Config,
+  context?: LlmContextService,
+): AiBackends {
   return {
     stt() {
       const s = settings.effective('stt');
@@ -32,6 +37,9 @@ export function createAiBackends(settings: AiSettingsService, config: Config): A
         apiKey: s.apiKey,
         timeoutMs: config.llm.timeoutMs,
         chunkChars: config.llm.chunkChars,
+        // A chosen window goes to Ollama's own API; the part size follows it (SPEC.md §7.5).
+        ollamaContext: context?.chosen() ?? null,
+        window: context ? () => context.window() : undefined,
       });
     },
   };
