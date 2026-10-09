@@ -72,9 +72,8 @@ describe('SettingsPage', () => {
     const summaries = (await screen.findByRole('heading', { name: 'Summaries' })).closest(
       'section',
     )!;
-    fireEvent.click(
-      await within(summaries).findByRole('button', { name: 'Find AI on this computer' }),
-    );
+    fireEvent.click(await within(summaries).findByRole('button', { name: 'Change' }));
+    fireEvent.click(within(summaries).getByRole('button', { name: 'Find AI on this computer' }));
     expect(await within(summaries).findByText('LM Studio')).toBeTruthy();
     expect(within(summaries).queryByText('text-embedding-nomic')).toBeNull();
     // A server without models is still listed, with how to get one.
@@ -147,7 +146,9 @@ describe('SettingsPage', () => {
       },
     ]);
     renderPage(<SettingsPage />);
-    expect(await screen.findByText('q · 4.7 GB')).toBeTruthy();
+    expect(
+      await screen.findByText((_, el) => el?.tagName === 'SPAN' && el.textContent === 'q · 4.7 GB'),
+    ).toBeTruthy();
     expect(
       (screen.getByRole('button', { name: 'Free video memory' }) as HTMLButtonElement).disabled,
     ).toBe(true);
@@ -168,12 +169,11 @@ describe('SettingsPage', () => {
     ]);
     renderPage(<SettingsPage />);
     const field = await screen.findByLabelText('Your instructions for summaries');
-    const save = within(field.closest('label')!.parentElement!).getByRole('button', {
-      name: 'Save',
-    });
-    expect((save as HTMLButtonElement).disabled).toBe(true);
+    const part = field.closest('div')!.parentElement!;
+    // Nothing to save until the text changes.
+    expect(within(part).queryByRole('button', { name: 'Save' })).toBeNull();
     fireEvent.change(field, { target: { value: '  Quote key phrases. ' } });
-    fireEvent.click(save);
+    fireEvent.click(within(part).getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some(
@@ -237,17 +237,13 @@ describe('SettingsPage', () => {
       },
     ]);
     renderPage(<SettingsPage />, { prefs: { locale: 'ru', theme: 'auto' } });
-    const group = await screen.findByRole('group', { name: 'Окно контекста' });
-    expect(
-      within(group).getByRole('button', { name: 'Как в Ollama (4k)' }).getAttribute('aria-pressed'),
-    ).toBe('true');
-    expect(within(group).queryByRole('button', { name: '256k' })).toBeNull();
-    fireEvent.click(within(group).getByRole('button', { name: '16k' }));
-    await waitFor(() =>
-      expect(within(group).getByRole('button', { name: '16k' }).getAttribute('aria-pressed')).toBe(
-        'true',
-      ),
-    );
+    const select = await screen.findByRole('combobox', { name: 'Окно контекста' });
+    const chosen = () => select.closest('.ant-select')!.textContent;
+    expect(chosen()).toBe('Как в Ollama (4k)');
+    fireEvent.mouseDown(select);
+    expect(screen.queryByTitle('256k')).toBeNull();
+    fireEvent.click(await screen.findByTitle('16k'));
+    await waitFor(() => expect(chosen()).toBe('16k'));
     expect(await screen.findByText(/частями примерно по 16 200 символов/)).toBeTruthy();
     const put = fetchMock.mock.calls
       .map(([r]) => r as Request)
@@ -278,7 +274,10 @@ describe('SettingsPage', () => {
     )!;
     expect(
       within(section).getByText(
-        'Systran/faster-whisper-large-v3 · выгружается сама после 30 с простоя',
+        (_, el) =>
+          el?.tagName === 'SPAN' &&
+          el.textContent ===
+            'Systran/faster-whisper-large-v3 · выгружается сама после 30 с простоя',
       ),
     ).toBeTruthy();
     const toggle = within(section).getByRole('switch', { name: 'Модели по очереди' });
@@ -439,9 +438,8 @@ describe('SettingsPage', () => {
     const stt = (await screen.findByRole('heading', { name: 'Распознавание речи' })).closest(
       'section',
     )!;
-    fireEvent.click(
-      await within(stt).findByRole('button', { name: 'Найти ИИ на этом компьютере' }),
-    );
+    fireEvent.click(await within(stt).findByRole('button', { name: 'Изменить' }));
+    fireEvent.click(within(stt).getByRole('button', { name: 'Найти ИИ на этом компьютере' }));
     expect(
       await within(stt).findByText('ИИ-серверы не найдены. Проверено: http://localhost:11434'),
     ).toBeTruthy();
@@ -456,7 +454,8 @@ describe('SettingsPage', () => {
     const stt = (await screen.findByRole('heading', { name: 'Speech recognition' })).closest(
       'section',
     )!;
-    fireEvent.click(await within(stt).findByText('Cloud API'));
+    fireEvent.click(await within(stt).findByRole('button', { name: 'Change' }));
+    fireEvent.click(within(stt).getByText('Cloud'));
     fireEvent.change(within(stt).getByLabelText(/API key/), { target: { value: 'sk-test' } });
     expect(within(stt).getByRole('link', { name: 'Get a key' }).getAttribute('href')).toBe(
       'https://platform.openai.com/api-keys',
@@ -476,6 +475,29 @@ describe('SettingsPage', () => {
     );
   });
 
+  it('shows the current choice and opens the form only on demand', async () => {
+    const fetchMock = mockApi([{ path: `${API_PREFIX}/settings/ai`, body: settings }]);
+    renderPage(<SettingsPage />);
+    const stt = (await screen.findByRole('heading', { name: 'Speech recognition' })).closest(
+      'section',
+    )!;
+    expect(await within(stt).findByText('Systran/faster-whisper-large-v3')).toBeTruthy();
+    expect(within(stt).getByText('This computer · localhost:8000')).toBeTruthy();
+    expect(within(stt).queryByLabelText('Server address')).toBeNull();
+
+    fireEvent.click(within(stt).getByRole('button', { name: 'Change' }));
+    fireEvent.change(within(stt).getByLabelText('Server address'), {
+      target: { value: 'http://other:8000' },
+    });
+    fireEvent.click(within(stt).getByRole('button', { name: 'Cancel' }));
+    expect(within(stt).queryByLabelText('Server address')).toBeNull();
+    fireEvent.click(within(stt).getByRole('button', { name: 'Change' }));
+    expect((within(stt).getByLabelText('Server address') as HTMLInputElement).value).toBe(
+      'http://localhost:8000',
+    );
+    expect(await putBodies(fetchMock)).toEqual([]);
+  });
+
   it('offers no "off" switch for speech recognition', async () => {
     mockApi([{ path: `${API_PREFIX}/settings/ai`, body: settings }]);
     renderPage(<SettingsPage />);
@@ -483,7 +505,9 @@ describe('SettingsPage', () => {
       'section',
     )!;
     const llm = screen.getByRole('heading', { name: 'Summaries' }).closest('section')!;
-    expect(await within(llm).findByText('Off')).toBeTruthy();
+    fireEvent.click(await within(stt).findByRole('button', { name: 'Change' }));
+    fireEvent.click(within(llm).getByRole('button', { name: 'Change' }));
+    expect(within(llm).getByText('Off')).toBeTruthy();
     expect(within(stt).queryByText('Off')).toBeNull();
   });
 });

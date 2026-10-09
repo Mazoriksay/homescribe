@@ -1,5 +1,5 @@
 import type { CookieStatus, Pairing } from '@homescribe/shared';
-import { Button } from 'antd';
+import { Button, Popconfirm } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import {
@@ -84,32 +84,47 @@ export function YouTubeSection() {
         </p>
       )}
       <p className={styles.muted}>{t('settings.youtube.account')}</p>
-      <div className={styles.buttons}>
+      <div className={styles.actions}>
         <Button type="primary" loading={pairingLoading} onClick={() => void createPairing()}>
           {t('settings.youtube.connect')}
         </Button>
-        <Button loading={uploading} onClick={() => file.current?.click()}>
-          {t('settings.youtube.upload')}
-        </Button>
         {cookies && (cookies.status !== 'none' || cookies.paired) && (
-          <Button loading={removing} onClick={() => void remove()}>
-            {t('settings.youtube.remove')}
-          </Button>
+          <Popconfirm
+            title={t('settings.youtube.removeConfirm')}
+            okText={t('settings.youtube.remove')}
+            cancelText={t('settings.cancel')}
+            onConfirm={() => void remove()}
+          >
+            <button type="button" className="link-action" disabled={removing}>
+              {t('settings.youtube.remove')}
+            </button>
+          </Popconfirm>
         )}
-        <input
-          ref={file}
-          type="file"
-          accept=".txt,text/plain"
-          hidden
-          onChange={(event) => void onFile(event.target.files?.[0])}
-        />
       </div>
+      {pairing && <ExtensionSteps pairing={pairing} />}
+      <details className={styles.more}>
+        <summary>{t('settings.youtube.file')}</summary>
+        <div className={styles.form}>
+          <p className={styles.muted}>{t('settings.youtube.fileHow')}</p>
+          <div>
+            <Button loading={uploading} onClick={() => file.current?.click()}>
+              {t('settings.youtube.upload')}
+            </Button>
+          </div>
+          <input
+            ref={file}
+            type="file"
+            accept=".txt,text/plain"
+            hidden
+            onChange={(event) => void onFile(event.target.files?.[0])}
+          />
+        </div>
+      </details>
       {uploadFailed && (
-        <p className={styles.muted} role="alert">
+        <p className={styles.error} role="alert">
           {t('settings.youtube.badFile')}
         </p>
       )}
-      {pairing && <ExtensionSteps pairing={pairing} />}
     </section>
   );
 }
@@ -239,20 +254,27 @@ function ExtensionSteps({ pairing }: { pairing: Pairing }) {
           {pair}
         </ol>
       )}
-      {folder && (
-        <p className={styles.muted}>
-          {download} {t('settings.youtube.elsewhere')}
-        </p>
-      )}
-      <p className={styles.muted}>{t('settings.youtube.manual', { server, code: pairing.code })}</p>
-      {!page.firefox && (
-        <p className={styles.muted}>
-          <a href={firefoxZip} download>
-            {t('settings.youtube.firefoxZip')}
-          </a>
-          {t('settings.youtube.firefox')}
-        </p>
-      )}
+      <details className={styles.more}>
+        <summary>{t('settings.youtube.moreWays')}</summary>
+        <div className={styles.form}>
+          <p className={styles.muted}>
+            {t('settings.youtube.manual', { server, code: pairing.code })}
+          </p>
+          {folder && (
+            <p className={styles.muted}>
+              {download} {t('settings.youtube.elsewhere')}
+            </p>
+          )}
+          {!page.firefox && (
+            <p className={styles.muted}>
+              <a href={firefoxZip} download>
+                {t('settings.youtube.firefoxZip')}
+              </a>
+              {t('settings.youtube.firefox')}
+            </p>
+          )}
+        </div>
+      </details>
     </div>
   );
 }

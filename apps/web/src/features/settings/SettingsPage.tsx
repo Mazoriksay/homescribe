@@ -40,11 +40,9 @@ export function SettingsPage() {
         </section>
       ))}
 
-      <MemorySection />
-
       <YouTubeSection />
 
-      <UpdatesSection />
+      <MemorySection />
 
       <section className={styles.section} aria-labelledby="settings-appearance">
         <h2 id="settings-appearance" className={styles.heading}>
@@ -74,6 +72,8 @@ export function SettingsPage() {
           />
         </div>
       </section>
+
+      <UpdatesSection />
     </div>
   );
 }

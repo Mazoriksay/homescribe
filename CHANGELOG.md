@@ -50,6 +50,14 @@ source of truth for the version.
 
 ### Changed
 
+- Settings are easier to read: each AI backend shows its model and where it
+  runs, and opens its form only on "Change" (with "Cancel"); the context
+  window is one list with "Custom…" and warns there when the model spills
+  to the CPU; "Save" for your instructions appears only after an edit;
+  YouTube keeps cookies.txt and the other ways folded, and asks before
+  deleting cookies; mono type is left for model names only; Updates moved
+  last. Muted text and placeholders have readable contrast, and the chosen
+  segment stands out in the dark theme.
 - New installs no longer start with the computer unless you say so.
 
 ### Fixed

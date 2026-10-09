@@ -33,6 +33,15 @@ function initialState(settings: AiSettings): FormState {
   };
 }
 
+/** "http://host:port" → "host:port" for reading; anything else as is. */
+function hostOf(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).host;
+  } catch {
+    return baseUrl;
+  }
+}
+
 /** Choose where one AI backend runs: found locally, a cloud API, or off (LLM only). */
 export function AiBackendForm({ settings }: { settings: AiSettings }) {
   const t = useT();
@@ -44,6 +53,8 @@ export function AiBackendForm({ settings }: { settings: AiSettings }) {
   const [save, saving] = useUpdateAiSettingsMutation();
   const [reset, resetting] = useResetAiSettingsMutation();
   const [savedOk, setSavedOk] = useState(false);
+  // The choice is read far more often than changed: the form opens on demand.
+  const [editing, setEditing] = useState(false);
 
   const presets = aiPresets.filter((preset) => preset.models[kind]);
   const preset = presets.find((p) => p.id === form.provider);
@@ -84,13 +95,22 @@ export function AiBackendForm({ settings }: { settings: AiSettings }) {
     });
     if (!result.error) {
       setSavedOk(true);
+      setEditing(false);
       setForm((current) => ({ ...current, apiKey: '' }));
     }
   };
 
   const onReset = async () => {
     const result = await reset(kind);
-    if (result.data) setForm(initialState(result.data));
+    if (result.data) {
+      setForm(initialState(result.data));
+      setEditing(false);
+    }
+  };
+
+  const onCancel = () => {
+    setForm(initialState(settings));
+    setEditing(false);
   };
 
   const modelOptions = (models.data?.models ?? [])
@@ -100,158 +120,207 @@ export function AiBackendForm({ settings }: { settings: AiSettings }) {
 
   return (
     <div className={styles.form}>
-      <p className={styles.current}>
-        {settings.mode === 'off'
-          ? t('settings.currentOff')
-          : t('settings.current', { model: settings.model, url: settings.baseUrl })}
-        <span className={styles.source}>{t(`settings.source.${settings.source}`)}</span>
-      </p>
-
-      <Segmented<AiMode>
-        block
-        value={form.mode}
-        options={modes}
-        onChange={(mode) =>
-          update(
-            mode === 'api' && form.mode !== 'api' && presets[0]
-              ? {
-                  mode,
-                  provider: presets[0].id,
-                  baseUrl: presets[0].baseUrl,
-                  model: presets[0].models[kind] ?? '',
-                }
-              : { mode },
-          )
-        }
-      />
-
-      {form.mode === 'local' && (
-        <>
-          <Button onClick={() => void discover()} loading={discovery.isFetching}>
-            {discovery.isFetching ? t('settings.finding') : t('settings.find')}
-          </Button>
-          {discovery.data && !discovery.isFetching && (
-            <DiscoveryList
-              kind={kind}
-              discovery={discovery.data}
-              selected={form}
-              onPick={(baseUrl, model) => update({ baseUrl, model })}
-            />
-          )}
-        </>
-      )}
-
-      {form.mode === 'api' && (
-        <>
-          <label className={styles.field} htmlFor={`${id}-provider`}>
-            <span>{t('settings.provider')}</span>
-            <Select
-              id={`${id}-provider`}
-              value={form.provider}
-              onChange={choosePreset}
-              options={[
-                ...presets.map((p) => ({ value: p.id, label: p.name })),
-                { value: CUSTOM, label: t('settings.provider.custom') },
-              ]}
-            />
-          </label>
-          <label className={styles.field} htmlFor={`${id}-key`}>
-            <span>
-              {t('settings.apiKey')}
-              {preset && (
-                <a className={styles.keyLink} href={preset.keyUrl} target="_blank" rel="noreferrer">
-                  {t('settings.getKey')}
-                </a>
-              )}
-            </span>
-            <Input.Password
-              id={`${id}-key`}
-              value={form.apiKey}
-              autoComplete="off"
-              placeholder={keyIsSaved ? t('settings.apiKeySaved') : undefined}
-              onChange={(event) => update({ apiKey: event.target.value })}
-            />
-          </label>
-        </>
-      )}
-
-      {form.mode !== 'off' && (
-        <>
-          {(form.mode === 'local' || form.provider === CUSTOM) && (
-            <label className={styles.field} htmlFor={`${id}-url`}>
-              <span>{t('settings.address')}</span>
-              <Input
-                id={`${id}-url`}
-                value={form.baseUrl}
-                inputMode="url"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                placeholder={t('settings.addressHint')}
-                onChange={(event) => update({ baseUrl: event.target.value.trim() })}
-              />
-            </label>
-          )}
-          <div className={styles.field}>
-            <label htmlFor={`${id}-model`}>{t('settings.model')}</label>
-            <div className={styles.modelRow}>
-              <AutoComplete
-                id={`${id}-model`}
-                className={styles.grow}
-                value={form.model}
-                options={modelOptions}
-                onChange={(model: string) => update({ model })}
-                filterOption={(input, option) =>
-                  option?.value.toLowerCase().includes(input.toLowerCase()) ?? false
-                }
-              />
-              <Button onClick={loadModels} loading={models.isLoading} disabled={!form.baseUrl}>
-                {t('settings.loadModels')}
-              </Button>
-            </div>
-            {models.data && (
-              <small className={styles.muted}>
-                {t('settings.modelsLoaded', { count: modelOptions.length })}
-              </small>
-            )}
+      <dl className={styles.summary}>
+        {settings.mode === 'off' ? (
+          <div>
+            <dt>{t('settings.state')}</dt>
+            <dd>{t('settings.currentOff')}</dd>
           </div>
-        </>
-      )}
-
-      {form.mode === 'api' && <p className={styles.muted}>{t('settings.cloudNote')}</p>}
-
-      {error && (
-        <p className={styles.error} role="alert">
-          {t(errorMessageKey(errorCode(error)))}
-          {errorText(error) && <span className={styles.errorDetail}>{errorText(error)}</span>}
-        </p>
-      )}
-      {savedOk && (
+        ) : (
+          <>
+            <div>
+              <dt>{t('settings.model')}</dt>
+              <dd className={styles.value}>{settings.model}</dd>
+            </div>
+            <div>
+              <dt>{t('settings.where')}</dt>
+              <dd>
+                {settings.mode === 'api'
+                  ? t('settings.where.api', {
+                      name:
+                        aiPresets.find((p) => p.id === settings.provider)?.name ??
+                        hostOf(settings.baseUrl),
+                    })
+                  : t('settings.where.local', { host: hostOf(settings.baseUrl) })}
+                <span className={styles.source}>
+                  {' · '}
+                  {t(`settings.source.${settings.source}`)}
+                </span>
+              </dd>
+            </div>
+          </>
+        )}
+      </dl>
+      {savedOk && !editing && (
         <p className={styles.ok} role="status">
           {t('settings.saved')}
         </p>
       )}
-
-      <div className={styles.actions}>
-        <Button
-          type="primary"
-          loading={saving.isLoading}
-          disabled={form.mode !== 'off' && (!form.baseUrl || !form.model.trim())}
-          onClick={() => void onSave()}
-        >
-          {t('settings.save')}
-        </Button>
-        {settings.source === 'saved' && (
-          <button
-            type="button"
-            className="link-action"
-            disabled={resetting.isLoading}
-            onClick={() => void onReset()}
+      {!editing && (
+        <div>
+          <Button
+            onClick={() => {
+              setSavedOk(false);
+              setEditing(true);
+            }}
           >
-            {t('settings.reset')}
-          </button>
-        )}
-      </div>
+            {t('settings.change')}
+          </Button>
+        </div>
+      )}
+      {editing && (
+        <div className={styles.form}>
+          <Segmented<AiMode>
+            block
+            value={form.mode}
+            options={modes}
+            onChange={(mode) =>
+              update(
+                mode === 'api' && form.mode !== 'api' && presets[0]
+                  ? {
+                      mode,
+                      provider: presets[0].id,
+                      baseUrl: presets[0].baseUrl,
+                      model: presets[0].models[kind] ?? '',
+                    }
+                  : { mode },
+              )
+            }
+          />
+
+          {form.mode === 'local' && (
+            <>
+              <div>
+                <Button onClick={() => void discover()} loading={discovery.isFetching}>
+                  {discovery.isFetching ? t('settings.finding') : t('settings.find')}
+                </Button>
+              </div>
+              {discovery.data && !discovery.isFetching && (
+                <DiscoveryList
+                  kind={kind}
+                  discovery={discovery.data}
+                  selected={form}
+                  onPick={(baseUrl, model) => update({ baseUrl, model })}
+                />
+              )}
+            </>
+          )}
+
+          {form.mode === 'api' && (
+            <>
+              <label className={styles.field} htmlFor={`${id}-provider`}>
+                <span>{t('settings.provider')}</span>
+                <Select
+                  id={`${id}-provider`}
+                  value={form.provider}
+                  onChange={choosePreset}
+                  options={[
+                    ...presets.map((p) => ({ value: p.id, label: p.name })),
+                    { value: CUSTOM, label: t('settings.provider.custom') },
+                  ]}
+                />
+              </label>
+              <label className={styles.field} htmlFor={`${id}-key`}>
+                <span>
+                  {t('settings.apiKey')}
+                  {preset && (
+                    <a
+                      className={styles.keyLink}
+                      href={preset.keyUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {t('settings.getKey')}
+                    </a>
+                  )}
+                </span>
+                <Input.Password
+                  id={`${id}-key`}
+                  value={form.apiKey}
+                  autoComplete="off"
+                  placeholder={keyIsSaved ? t('settings.apiKeySaved') : undefined}
+                  onChange={(event) => update({ apiKey: event.target.value })}
+                />
+              </label>
+            </>
+          )}
+
+          {form.mode !== 'off' && (
+            <>
+              {(form.mode === 'local' || form.provider === CUSTOM) && (
+                <label className={styles.field} htmlFor={`${id}-url`}>
+                  <span>{t('settings.address')}</span>
+                  <Input
+                    id={`${id}-url`}
+                    value={form.baseUrl}
+                    inputMode="url"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder={t('settings.addressHint')}
+                    onChange={(event) => update({ baseUrl: event.target.value.trim() })}
+                  />
+                </label>
+              )}
+              <div className={styles.field}>
+                <label htmlFor={`${id}-model`}>{t('settings.model')}</label>
+                <div className={styles.modelRow}>
+                  <AutoComplete
+                    id={`${id}-model`}
+                    className={styles.grow}
+                    value={form.model}
+                    options={modelOptions}
+                    onChange={(model: string) => update({ model })}
+                    filterOption={(input, option) =>
+                      option?.value.toLowerCase().includes(input.toLowerCase()) ?? false
+                    }
+                  />
+                  <Button onClick={loadModels} loading={models.isLoading} disabled={!form.baseUrl}>
+                    {t('settings.loadModels')}
+                  </Button>
+                </div>
+                {models.data && (
+                  <small className={styles.muted}>
+                    {t('settings.modelsLoaded', { count: modelOptions.length })}
+                  </small>
+                )}
+              </div>
+            </>
+          )}
+
+          {form.mode === 'api' && <p className={styles.muted}>{t('settings.cloudNote')}</p>}
+
+          {error && (
+            <p className={styles.error} role="alert">
+              {t(errorMessageKey(errorCode(error)))}
+              {errorText(error) && <span className={styles.errorDetail}>{errorText(error)}</span>}
+            </p>
+          )}
+          <div className={styles.actions}>
+            <Button
+              type="primary"
+              loading={saving.isLoading}
+              disabled={form.mode !== 'off' && (!form.baseUrl || !form.model.trim())}
+              onClick={() => void onSave()}
+            >
+              {t('settings.save')}
+            </Button>
+            <button type="button" className="link-action" onClick={onCancel}>
+              {t('settings.cancel')}
+            </button>
+            {settings.source === 'saved' && (
+              <button
+                type="button"
+                className="link-action"
+                disabled={resetting.isLoading}
+                onClick={() => void onReset()}
+              >
+                {t('settings.reset')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
