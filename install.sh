@@ -319,6 +319,12 @@ if [ -z "$STT" ]; then
   where+=("Not on this computer (a cloud API or another server, chosen in Settings)"); values+=(none)
   STT="${values[$(choose "Speech recognition:" 0 "${where[@]}")]}"
 fi
+# --gpu skips the question, but the GPU's memory still decides batched mode
+# and whether the models must take turns.
+if [ "$STT" = gpu ] && [ -z "$GPU_MEM" ] && need nvidia-smi; then
+  mib="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -dc '0-9')"
+  [ -n "$mib" ] && GPU_MEM="$(awk -v m="$mib" 'BEGIN { printf "%.1f", m / 1024 }')"
+fi
 if [ "$STT" = gpu ]; then MEM="video memory"; else MEM="RAM"; fi
 
 # The Whisper model: a short name from the list or any model id.
