@@ -43,12 +43,13 @@ asks what to download and shows a summary before anything is pulled:
 
 Each option shows its download size and how much memory it uses (video
 memory on a GPU). Transcription runs first and the summary after it, but
-each model stays loaded for a while after use (Whisper 30 s, Ollama about 5
+each model stays loaded for a while after use (Whisper 10 s, Ollama about 5
 minutes), so plan for both at once: for example `large-v3` (~4.5 GB) plus
-`qwen2.5:7b` (~6 GB) need about 10.5 GB. The summary before downloading adds
+`qwen2.5:7b` (~6 GB) need about 10.5 GB, and about 3 GB more on a GPU with
+room for the faster batched recognition. The summary before downloading adds
 this up; when it is more than the GPU has, the models take turns: Whisper
 leaves video memory before the summary and the summary model after it, which
-makes each recording about 30 s longer. The same switch, "Take turns on the
+makes each recording about 10 s longer. The same switch, "Take turns on the
 GPU", is in Settings → Video memory, for example for a large model you run in
 Ollama outside Homescribe.
 
