@@ -18,6 +18,21 @@
   line-height: 1.2;
 }
 
+/* Download links: wrap on a phone, each one a full tap target. */
+.downloads {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-2);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.downloads :global(.link-action) {
+  display: inline-flex;
+  align-items: center;
+}
+
 .placeholder {
   color: var(--text-muted);
 }

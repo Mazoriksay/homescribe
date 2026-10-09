@@ -1,6 +1,13 @@
-import { formatTimestamp, type Recording, type Segment } from '@homescribe/shared';
+import {
+  exportFormats,
+  formatTimestamp,
+  type ExportFormat,
+  type Recording,
+  type Segment,
+} from '@homescribe/shared';
 import { useEffect, useRef, useState } from 'react';
 import { useGetTranscriptQuery } from '../../api/api';
+import { apiBase } from '../../app/base';
 import { useLocale, useT } from '../../i18n/useT';
 import { languageName } from './recording-text';
 import styles from './TranscriptView.module.css';
@@ -75,6 +82,22 @@ export function TranscriptView({ recording, currentTime, focusTime, onSeek }: Pr
           </button>
         )}
       </div>
+
+      {transcript && (transcript.text || segments.length > 0) && (
+        <p className={styles.downloads}>
+          <span>{t('recording.download')}</span>
+          {exportFormats.map((format: ExportFormat) => (
+            <a
+              key={format}
+              className="link-action"
+              href={`${apiBase}/recordings/${recording.id}/export?format=${format}&lang=${locale}`}
+              download
+            >
+              {t(`recording.format.${format}`)}
+            </a>
+          ))}
+        </p>
+      )}
 
       {!transcript && <p className={styles.placeholder}>{t('recording.transcriptPending')}</p>}
 

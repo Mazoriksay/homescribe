@@ -341,6 +341,7 @@ interface Page<T> {
 | `GET /api/v1/recordings/:id`            | 1     | —                                                                                                                      | `200 Recording`                                                         | 404                                                                 |
 | `DELETE /api/v1/recordings/:id`         | 1     | —                                                                                                                      | `204`; a queued job is dropped                                          | 404, 409 `JOB_ACTIVE` if running                                    |
 | `GET /api/v1/recordings/:id/transcript` | 1     | —                                                                                                                      | `200 Transcript`                                                        | 404, 409 `TRANSCRIPT_NOT_READY`                                     |
+| `GET /api/v1/recordings/:id/export`     | 3     | query `format` (`srt` \| `vtt` \| `txt` \| `md`), `lang` (`en` \| `ru`, Markdown headings; default `en`)               | `200` file download, see below                                          | 400, 404, 409 `TRANSCRIPT_NOT_READY`                                |
 | `POST /api/v1/recordings/:id/jobs`      | 1     | `{ kind: 'process' \| 'summarize' }`                                                                                   | `202 Job`                                                               | 400, 404, 409 `JOB_ACTIVE`, `TRANSCRIPT_NOT_READY`, `SUMMARIES_OFF` |
 | `POST /api/v1/jobs/:id/cancel`          | 3     | —                                                                                                                      | `200 Job`; an inactive job is returned unchanged                        | 404                                                                 |
 | `GET /api/v1/jobs/:id`                  | 1     | —                                                                                                                      | `200 Job`                                                               | 404                                                                 |
@@ -362,6 +363,15 @@ interface Page<T> {
 | `GET /api/v1/settings/llm-context`      | 3     | —                                                                                                                      | `200 LlmContext` (§7.5)                                                 | —                                                                   |
 | `PUT /api/v1/settings/llm-context`      | 3     | `{ value: number \| null }`                                                                                            | `200 LlmContext`                                                        | 400 `VALIDATION_ERROR` (outside min–max, not Ollama)                |
 | `PUT /api/v1/settings/summary`          | 3     | `{ instructions: string }` (≤ 2000)                                                                                    | `200 { instructions: string }`                                          | 400 `VALIDATION_ERROR`                                              |
+
+Export (`…/export`) answers with `Content-Disposition: attachment` and the
+title as the file name (path and reserved characters removed, at most 100
+characters, `filename*` in UTF-8 plus an ASCII fallback). SRT and WebVTT
+have one cue per segment, each on one line (`-->` inside WebVTT text becomes
+`->`); without segments the whole text is one cue over the recording.
+`txt` is one line per segment, as "Copy text". `md` is the title, date,
+duration and link, the summary, the to-dos as a task list, the gaps, and the
+transcript with a timestamp per segment.
 
 `SearchHit` is `{ recording, snippet: { text, match }[], segment: { index, start } | null }`:
 a fragment around the first match split into highlighted parts, and the first
