@@ -7,6 +7,11 @@ source of truth for the version.
 
 ## [Unreleased]
 
+### Added
+
+- The project is licensed under MIT (`LICENSE`). The README starts with
+  screenshots and what Homescribe does; issue templates for bugs and ideas.
+
 ## [0.3.3] - 2026-10-09
 
 ### Changed
