@@ -11,9 +11,17 @@ source of truth for the version.
 
 - Speech recognition on an NVIDIA GPU runs speaches in batched mode and
   sends it 10-minute parts instead of 1-minute ones: 10 minutes of audio in
-  about 11 s on an RTX 5070 Ti. The installer and "Update Homescribe" turn it
-  on for GPU installs (`STT_BATCHED=true`); other speech servers keep
-  1-minute parts.
+  about 11 s on an RTX 5070 Ti. It takes about 3 GB more video memory, so
+  the installer and "Update Homescribe" turn it on (`STT_BATCHED=true`) only
+  for a GPU with room for it: the model's memory plus 5 GB, or 10 GB when
+  updating. Other speech servers keep 1-minute parts.
+- Transcripts from batched mode keep sentence-sized segments: Homescribe
+  asks for word timestamps and cuts them at sentence ends, pauses and 15 s,
+  instead of showing one 30-second block per recognition window. Timestamps
+  and search hits land on the phrase as before.
+- Whisper leaves video memory 10 s after use instead of 30 s
+  (`STT_MODEL_TTL`), so "Take turns on the GPU" adds about 10 s to a
+  recording, not 30 s.
 - "Update Homescribe" (`homescribe update`) also downloads the current
   `compose.yaml` and control script, so fixes in them (such as the faster
   speech recognition image) reach existing installs without running the

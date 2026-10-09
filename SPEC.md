@@ -456,23 +456,42 @@ On an RTX 5070 Ti, `large-v3` took 18 s per minute of audio on `0.8.1-cuda`
 text; `float16` (the default) beat `int8_float16` there.
 
 **Batched mode.** `compose.yaml` runs the GPU speaches with
-`WHISPER__USE_BATCHED_MODE` (`STT_BATCHED`, default `true`): faster-whisper's
+`WHISPER__USE_BATCHED_MODE` (`STT_BATCHED`, default `false`): faster-whisper's
 `BatchedInferencePipeline` cuts the audio by voice activity into windows of up
 to 30 s and transcribes 8 at a time, each without the previous text
 (`condition_on_previous_text=False`), so a loop cannot run past its window.
 It needs the VAD filter (otherwise it refuses audio longer than 30 s), so
 Homescribe always sends `vad_filter=true` then. With `STT_BATCHED=true` in
-Homescribe's environment (the installer writes it for a GPU install, `false`
-for the CPU; `update` adds it to older GPU installs) the bundled server
+Homescribe's environment the bundled server
 (`STT_BASE_URL`, mode local) gets 10-minute parts (±60 s, cut in a pause);
 any other server keeps minute parts, since a sequential server loses text
 and loops on long ones. Measured on the same RTX 5070 Ti: 10 minutes in 11 s
 (`float16`); `int8_float16` fails there in batched mode
 (`CUBLAS_STATUS_NOT_SUPPORTED`).
 
+Batched mode holds about 3 GB more video memory than the model alone
+(`large-v3`: about 7 GB at the peak instead of 4), so it is on only where
+that fits next to the desktop. The installer writes `STT_BATCHED=true` when
+the GPU has at least the chosen model's memory plus 5 GB (10 GB when the
+model's size is not known), `false` otherwise and for the CPU; `update`
+adds it to older GPU installs by the same 10 GB rule. Without the variable
+both sides stay sequential.
+
+A batched speaches returns one segment per window, about 26 s each: too
+coarse to click a timestamp or to land a search hit on. So for it
+Homescribe also asks for word timestamps (`timestamp_granularities[]=word`,
+free in batched mode: 10 minutes still take about 12 s) and builds the
+segments itself from the `words` of the answer: a cut after sentence
+punctuation (not after an abbreviation or an initial), at a pause of 0.8 s,
+and at 15 s, there after the latest comma in the second half or at the
+widest pause. The same recording gave 121 segments instead of 23, 4.6 s on
+average, with the same text. A server that returns no `words` keeps its own
+segments. Loop detection, the hallucination filter and gaps (§8) work on
+these segments as on any others.
+
 **Freeing video memory.** speaches keeps Whisper loaded for `STT_MODEL_TTL`
 seconds after use (`compose.yaml` passes it as `WHISPER__TTL`, the
-`whisper.ttl` field of speaches 0.8.1 and 0.8.3; default 30) and Ollama
+`whisper.ttl` field of speaches 0.8.1 and 0.8.3; default 10) and Ollama
 its model for about 5 minutes. `GET /ai/memory` asks each local backend
 `GET {baseUrl}/api/ps`: speaches (`routers/misc.py`) answers
 `{ models: string[] }`, Ollama (`docs/api.md`) `{ models: [{ name,
@@ -524,7 +543,10 @@ the next recording's Whisper cannot load while the summary model is. With
   (`keep_alive: 0`). Cloud APIs use no local memory and are never touched.
 
 It costs about `STT_MODEL_TTL` seconds per recording, plus loading Whisper
-again (a few seconds) for the next one. The default comes from
+again (a few seconds) for the next one. The default is 10 s, not more: a
+batched speaches transcribes 20 minutes in half a minute, and a longer wait
+would outlast the transcription. Parts of one recording follow each other
+within a second, so Whisper is not unloaded between them. The default comes from
 `AI_TAKE_TURNS`, which the installer sets to `true` when the chosen models
 together need more video memory than the GPU has; the switch in the
 "Video memory" section (`PUT /ai/take-turns { enabled }`) overrides it and
@@ -869,7 +891,7 @@ startup with a message naming the variable.
 | `STT_MODE`                 | `local`                                                                          | 2     | `local` or `api` (cloud: audio sent as Opus)                                                |
 | `STT_BASE_URL`             | `http://localhost:8000`                                                          | 1     | Base URL; the server calls `${STT_BASE_URL}/v1/audio/transcriptions`                        |
 | `STT_MODEL`                | `Systran/faster-whisper-large-v3`                                                | 1     | `model` form field                                                                          |
-| `STT_MODEL_TTL`            | `30`                                                                             | 3     | Seconds speaches keeps Whisper loaded after use (`WHISPER__TTL` in `compose.yaml`) (§7.5)   |
+| `STT_MODEL_TTL`            | `10`                                                                             | 3     | Seconds speaches keeps Whisper loaded after use (`WHISPER__TTL` in `compose.yaml`) (§7.5)   |
 | `AI_TAKE_TURNS`            | `false`                                                                          | 3     | Default of "take turns" on the GPU; the installer sets it when the models do not fit (§7.5) |
 | `STT_LANGUAGE`             | _(empty = auto-detect)_                                                          | 1     | ISO 639-1 code sent as `language`                                                           |
 | `STT_API_KEY`              | _(empty)_                                                                        | 1     | Sent as `Authorization: Bearer …` when set                                                  |
@@ -914,7 +936,8 @@ POST {STT_BASE_URL}/v1/audio/transcriptions   multipart/form-data
                     "no_speech_prob" } ] }
 ```
 
-The server only relies on `text`, `language` and `segments[].{start,end,text}`
+The server only relies on `text`, `language`, `segments[].{start,end,text}`
+and, when it asked for word timestamps (§7.5), `words[].{start,end,word}`,
 and treats the response as untrusted input (validated with Zod).
 
 ## 10. Security
