@@ -130,6 +130,15 @@ LLM_MODELS=(
 
 need() { command -v "$1" >/dev/null 2>&1; }
 
+# The speaches build for a driver's CUDA version ("12.4"): empty for 12.9 and
+# newer (compose.yaml's default), else the same release on an older CUDA.
+speaches_cuda_tag() {
+  awk -v v="$1" 'BEGIN {
+    split(v, p, "."); n = p[1] * 100 + p[2]
+    if (n >= 1209) print ""; else if (n >= 1206) print "0.8.3-cuda-12.6.3"; else print "0.8.3-cuda-12.4.1"
+  }'
+}
+
 SUDO=""
 if [ "$(id -u)" -ne 0 ] && need sudo; then SUDO="sudo"; fi
 
@@ -437,6 +446,19 @@ if [ -z "$AUTOSTART" ]; then
 fi
 RESTART="$([ "$AUTOSTART" = yes ] && echo unless-stopped || echo no)"
 
+# speaches' default CUDA image needs a driver that runs CUDA 12.9; an older
+# driver gets the same release built on an older CUDA (SPEC.md §7.5).
+SPEACHES_CUDA=""
+if [ "$STT" = gpu ] && need nvidia-smi; then
+  cuda="$(nvidia-smi 2>/dev/null | sed -n 's/.*CUDA Version: *\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -1)"
+  if [ -n "$cuda" ]; then
+    SPEACHES_CUDA="$(speaches_cuda_tag "$cuda")"
+    if [ -n "$SPEACHES_CUDA" ]; then
+      warn "The NVIDIA driver runs CUDA $cuda; speech recognition uses speaches $SPEACHES_CUDA. A driver for CUDA 12.9 or newer makes it faster on new cards."
+    fi
+  fi
+fi
+
 # ---------------------------------------------------------------- files
 
 step "Writing $DIR"
@@ -462,6 +484,7 @@ touch "$DIR/.env"
 tmp="$(mktemp)"
 ours='AI_TAKE_TURNS|COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL'
 [ "$STT" != none ] && ours="$ours|STT_MODEL"
+[ "$STT" = gpu ] && ours="$ours|SPEACHES_CUDA_IMAGE"
 grep -vE "^($ours)=" "$DIR/.env" > "$tmp" || true
 {
   cat "$tmp"
@@ -472,6 +495,7 @@ grep -vE "^($ours)=" "$DIR/.env" > "$tmp" || true
   echo "EXTENSION_FOLDER=$DIR/browser-extension"
   echo "AI_TAKE_TURNS=$TAKE_TURNS"
   [ "$STT" != none ] && echo "STT_MODEL=$STT_ID"
+  [ -n "$SPEACHES_CUDA" ] && echo "SPEACHES_CUDA_IMAGE=ghcr.io/speaches-ai/speaches:$SPEACHES_CUDA"
   if [ "$LLM" = yes ]; then echo "LLM_MODE=local"; echo "LLM_MODEL=$LLM_MODEL"; else echo "LLM_MODE=off"; fi
 } > "$DIR/.env"
 rm -f "$tmp"

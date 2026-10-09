@@ -445,6 +445,18 @@ interface UpdateAiSettings {
   changing `baseUrl` without a new key drops it, and `POST /ai/models` with
   `useSavedKeyFor` uses it only when `baseUrl` matches.
 
+**speaches image.** `compose.yaml` pins `speaches:0.8.3-cuda` (CUDA 12.9)
+and `0.8.3-cpu`, overridable with `SPEACHES_CUDA_IMAGE`/`SPEACHES_CPU_IMAGE`.
+CUDA 12.9 images need a driver that runs CUDA 12.9 (the container does not
+start otherwise), so the installer reads "CUDA Version" from `nvidia-smi` and
+for an older driver writes the same release built on CUDA 12.6.3 or 12.4.1
+(`0.8.3-cuda-12.6.3`, `0.8.3-cuda-12.4.1`) into `.env`.
+On an RTX 5070 Ti, `large-v3` took 18 s per minute of audio on `0.8.1-cuda`
+(CUDA 12.6, older than RTX 50 cards) and 6 s on `0.8.3-cuda`, with the same
+text; `float16` (the default) beat `int8_float16` there. Batched mode
+(`WHISPER__USE_BATCHED_MODE`) stays off: it is faster still, but only pays
+off on parts much longer than the 60 s ones sent today.
+
 **Freeing video memory.** speaches keeps Whisper loaded for `STT_MODEL_TTL`
 seconds after use (`compose.yaml` passes it as `WHISPER__TTL`, the
 `whisper.ttl` field of speaches 0.8.1 and 0.8.3; default 30) and Ollama

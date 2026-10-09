@@ -40,7 +40,9 @@ services:
   stt-gpu:
     profiles: [gpu]
     # Pinned: a new speaches release can change the API or the models it accepts.
-    image: ${SPEACHES_CUDA_IMAGE:-ghcr.io/speaches-ai/speaches:0.8.1-cuda}
+    # 0.8.3-cuda is built on CUDA 12.9; 0.8.1 (CUDA 12.6) predates RTX 50 cards
+    # and ran Whisper three times slower on them.
+    image: ${SPEACHES_CUDA_IMAGE:-ghcr.io/speaches-ai/speaches:0.8.3-cuda}
     restart: ${HOMESCRIBE_RESTART:-unless-stopped}
     environment:
       # Downloaded on first start so the first recording does not fail.
