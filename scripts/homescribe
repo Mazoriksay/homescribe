@@ -82,7 +82,8 @@ gpu_defaults() {
   # Batched speaches takes long parts and about 3 GB more video memory: on a
   # GPU of 10 GB or more, as the installer decides for the default model.
   if ! grep -q '^STT_BATCHED=' .env; then
-    mib="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -dc '0-9')"
+    # || true: without nvidia-smi the pipeline fails, and set -e would end update here.
+    mib="$( (nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null || true) | head -1 | tr -dc '0-9')"
     batched=false
     [ -n "$mib" ] && [ "$mib" -ge 10000 ] && batched=true
     [ -z "$(tail -c 1 .env)" ] || echo >> .env
