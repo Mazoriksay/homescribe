@@ -9,12 +9,13 @@ source of truth for the version.
 
 ### Changed
 
+- "Update Homescribe" (`homescribe update`) also downloads the current
+  `compose.yaml` and control script, so fixes in them (such as the faster
+  speech recognition image) reach existing installs without running the
+  installer again. A `compose.yaml` Docker cannot read is not used.
 - Speech recognition on an NVIDIA GPU runs on speaches 0.8.3 (CUDA 12.9)
   instead of 0.8.1 (CUDA 12.6). On RTX 50 cards it is about three times
-  faster (a 22-minute recording: 2.5 minutes instead of 7). Existing installs
-  get it by running the installer again ("Update Homescribe" keeps the old
-  `compose.yaml`), or by setting
-  `SPEACHES_CUDA_IMAGE=ghcr.io/speaches-ai/speaches:0.8.3-cuda` in `.env`.
+  faster (a 22-minute recording: 2.5 minutes instead of 7).
   With an NVIDIA driver older than CUDA 12.9 the installer picks the same
   speaches release built on CUDA 12.6 or 12.4, so it still starts.
 

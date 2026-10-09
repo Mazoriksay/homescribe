@@ -11,7 +11,7 @@
     .\homescribe.ps1 start    start everything, wait until it answers, open the browser
     .\homescribe.ps1 stop     stop everything and free memory; data is kept
     .\homescribe.ps1 status   what is running, the address and the self-check
-    .\homescribe.ps1 update   download newer images and restart
+    .\homescribe.ps1 update   download newer files and images and restart
 #>
 param([ValidateSet('start', 'stop', 'status', 'update')][string]$Command = 'status')
 
@@ -85,6 +85,61 @@ function Wait-Ready {
   Write-Host ''
 }
 
+# compose.yaml's speaches image for an NVIDIA GPU needs a driver that runs
+# CUDA 12.9; with an older one .env gets the same release on an older CUDA,
+# as the installer does. A SPEACHES_CUDA_IMAGE already in .env is kept.
+function Select-SpeachesCuda {
+  if (-not (Select-String -Path '.env' -Pattern '^COMPOSE_PROFILES=(.*,)?gpu(,|$)' -Quiet -ErrorAction SilentlyContinue)) { return }
+  if (Select-String -Path '.env' -Pattern '^SPEACHES_CUDA_IMAGE=' -Quiet -ErrorAction SilentlyContinue) { return }
+  if (-not (Get-Command nvidia-smi -ErrorAction SilentlyContinue)) { return }
+  $smi = (& { $ErrorActionPreference = 'Continue'; nvidia-smi 2>$null }) -join "`n"
+  if ($smi -notmatch 'CUDA Version:\s*(\d+)\.(\d+)') { return }
+  $cuda = [int]$Matches[1] * 100 + [int]$Matches[2]
+  $tag = if ($cuda -ge 1209) { $null } elseif ($cuda -ge 1206) { '0.8.3-cuda-12.6.3' } else { '0.8.3-cuda-12.4.1' }
+  if (-not $tag) { return }
+  # UTF-8 without BOM, like the installer writes it, on a line of its own.
+  $envPath = Join-Path $PSScriptRoot '.env'
+  $text = [System.IO.File]::ReadAllText($envPath)
+  $start = if ($text.Length -gt 0 -and -not $text.EndsWith("`n")) { "`r`n" } else { '' }
+  [System.IO.File]::AppendAllText($envPath, "${start}SPEACHES_CUDA_IMAGE=ghcr.io/speaches-ai/speaches:$tag`r`n", (New-Object System.Text.UTF8Encoding $false))
+  Write-Host "The NVIDIA driver runs CUDA $($Matches[1]).$($Matches[2]); speech recognition uses speaches $tag."
+}
+
+# compose.yaml and this script come from where the installer took them
+# (HOMESCRIBE_FILES_URL in .env, empty for an install from a local checkout),
+# so fixes in them reach existing installs too. A compose.yaml that Docker
+# cannot read is not used.
+function Update-Files {
+  $base = 'https://raw.githubusercontent.com/mazoriksay/homescribe/main'
+  $line = Select-String -Path '.env' -Pattern '^HOMESCRIBE_FILES_URL=(.*)$' -ErrorAction SilentlyContinue | Select-Object -Last 1
+  if ($line) { $base = $line.Matches[0].Groups[1].Value.Trim() }
+  if (-not $base) { return }
+  try {
+    Invoke-WebRequest -UseBasicParsing "$base/compose.yaml" -OutFile 'compose.yaml.new' -TimeoutSec 30
+    $ErrorActionPreference = 'Continue'
+    docker compose -f compose.yaml.new config -q *> $null
+    $valid = $LASTEXITCODE -eq 0
+    $ErrorActionPreference = 'Stop'
+    if (-not $valid) { throw 'compose.yaml.new is not valid' }
+    Move-Item -Force 'compose.yaml.new' 'compose.yaml'
+    Ok 'compose.yaml is up to date'
+  } catch {
+    Remove-Item -Force -ErrorAction SilentlyContinue 'compose.yaml.new'
+    Write-Host 'Could not get a newer compose.yaml; keeping this one.'
+  }
+  Select-SpeachesCuda
+  # PowerShell has read this whole script already, so replacing it is safe.
+  try {
+    Invoke-WebRequest -UseBasicParsing "$base/scripts/homescribe.ps1" -OutFile 'homescribe.ps1.new' -TimeoutSec 30
+    $errors = $null
+    [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'homescribe.ps1.new'), [ref]$null, [ref]$errors) | Out-Null
+    if ($errors.Count -gt 0) { throw 'homescribe.ps1.new does not parse' }
+    Move-Item -Force 'homescribe.ps1.new' 'homescribe.ps1'
+  } catch {
+    Remove-Item -Force -ErrorAction SilentlyContinue 'homescribe.ps1.new'
+  }
+}
+
 switch ($Command) {
   'start' {
     Invoke-Docker compose up -d
@@ -118,6 +173,7 @@ switch ($Command) {
     }
   }
   'update' {
+    Update-Files
     Invoke-Docker compose pull
     Invoke-Docker compose up -d --remove-orphans
     Wait-Ready
