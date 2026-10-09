@@ -73,15 +73,20 @@ update_extension() {
 }
 
 # What the installer sets for a GPU install, for installs made before it did:
-# batched mode, and for a driver older than CUDA 12.9 the same speaches
-# release built on an older CUDA. Values already in .env are kept.
+# batched mode on a GPU with room for it, and for a driver older than CUDA
+# 12.9 the same speaches release built on an older CUDA. Values already in
+# .env are kept.
 gpu_defaults() {
-  local cuda tag
+  local cuda tag mib batched
   grep -qE '^COMPOSE_PROFILES=(.*,)?gpu(,|$)' .env 2>/dev/null || return 0
-  # Batched speaches on the GPU takes long parts, as the installer sets it.
+  # Batched speaches takes long parts and about 3 GB more video memory: on a
+  # GPU of 10 GB or more, as the installer decides for the default model.
   if ! grep -q '^STT_BATCHED=' .env; then
+    mib="$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -dc '0-9')"
+    batched=false
+    [ -n "$mib" ] && [ "$mib" -ge 10000 ] && batched=true
     [ -z "$(tail -c 1 .env)" ] || echo >> .env
-    echo "STT_BATCHED=true" >> .env
+    echo "STT_BATCHED=$batched" >> .env
   fi
   grep -q '^SPEACHES_CUDA_IMAGE=' .env 2>/dev/null && return 0
   command -v nvidia-smi >/dev/null 2>&1 || return 0

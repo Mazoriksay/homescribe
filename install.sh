@@ -397,15 +397,23 @@ if [ "$LLM" = yes ]; then
 else
   echo "  Summaries: no local AI"
 fi
+# Batched speaches takes long parts and about 3 GB more video memory than the
+# model alone (SPEC.md §7.5): only on a GPU with room for that and the
+# desktop. Without a known GPU size it stays off.
+BATCHED=false
+if [ "$STT" = gpu ] && [ -n "$GPU_MEM" ] &&
+  awk -v g="$GPU_MEM" -v m="${STT_MEM:-}" 'BEGIN { exit !(g >= (m == "" ? 10 : m + 5)) }'; then
+  BATCHED=true
+fi
 TAKE_TURNS=false
-mem_sum="$(awk -v a="${STT_MEM:-0}" -v b="${llm_mem:-0}" 'BEGIN { s = a + b; if (s > 0) printf "%g", s }')"
+mem_sum="$(awk -v a="${STT_MEM:-0}" -v b="${llm_mem:-0}" -v batched="$BATCHED" 'BEGIN { s = a + b + (batched == "true" && a > 0 ? 3 : 0); if (s > 0) printf "%g", s }')"
 if [ -n "$mem_sum" ]; then
   gpu_note=""
   [ "$STT" = gpu ] && [ -n "$GPU_MEM" ] && gpu_note=" (this GPU has $GPU_MEM GB)"
   echo "  Memory: up to ~$mem_sum GB of $MEM while both are loaded$gpu_note"
   if [ "$STT" = gpu ] && [ -n "$GPU_MEM" ] && awk -v s="$mem_sum" -v g="$GPU_MEM" 'BEGIN { exit !(s > g) }'; then
     TAKE_TURNS=true
-    warn "More than this GPU has, so the two models will take turns: each recording takes about 30 s longer. Pick smaller models to avoid that."
+    warn "More than this GPU has, so the two models will take turns: each recording takes about 10 s longer. Pick smaller models to avoid that."
   fi
 fi
 ask_yes_no "Download and start?" y || { echo "Nothing was downloaded."; exit 0; }
@@ -497,8 +505,7 @@ grep -vE "^($ours)=" "$DIR/.env" > "$tmp" || true
   echo "EXTENSION_FOLDER=$DIR/browser-extension"
   echo "AI_TAKE_TURNS=$TAKE_TURNS"
   [ "$STT" != none ] && echo "STT_MODEL=$STT_ID"
-  # Batched speaches (GPU only) takes long parts (SPEC.md §7.5).
-  [ "$STT" != none ] && echo "STT_BATCHED=$([ "$STT" = gpu ] && echo true || echo false)"
+  [ "$STT" != none ] && echo "STT_BATCHED=$BATCHED"
   [ -n "$SPEACHES_CUDA" ] && echo "SPEACHES_CUDA_IMAGE=ghcr.io/speaches-ai/speaches:$SPEACHES_CUDA"
   if [ "$LLM" = yes ]; then echo "LLM_MODE=local"; echo "LLM_MODEL=$LLM_MODEL"; else echo "LLM_MODE=off"; fi
 } > "$DIR/.env"
