@@ -7,6 +7,12 @@ source of truth for the version.
 
 ## [Unreleased]
 
+### Fixed
+
+- The published image no longer fails to build when Docker Hub rate-limits
+  anonymous pulls: the Node base image comes through Google's mirror
+  (`mirror.gcr.io`), overridable with the `NODE_IMAGE` build argument.
+
 ## [0.3.4] - 2026-10-09
 
 ### Added
