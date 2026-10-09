@@ -189,6 +189,62 @@ describe('OpenAiTranscriber', () => {
     expect(fake.received[1]?.fields.vad_filter).toBe('true');
   });
 
+  it('builds sentence segments from word timestamps when asked to', async () => {
+    const words = [
+      { start: 0, end: 0.4, word: ' Hello', probability: 0.9 },
+      { start: 0.5, end: 1.2, word: ' there.', probability: 0.9 },
+      { start: 1.6, end: 2.4, word: ' Bye.', probability: 0.9 },
+    ];
+    const fake = await startFakeServer((received, res) => {
+      const asked = received.fields['timestamp_granularities[]'] === 'word';
+      res
+        .writeHead(200, { 'content-type': 'application/json' })
+        .end(JSON.stringify(asked ? { ...verbose, words } : verbose));
+    });
+    servers.push(fake.server);
+    const options = {
+      baseUrl: fake.baseUrl,
+      model: 'm',
+      language: null,
+      apiKey: null,
+      timeoutMs: 5000,
+    };
+
+    const sentences = await new OpenAiTranscriber({
+      ...options,
+      sentenceSegments: true,
+    }).transcribe(wav);
+    expect(sentences.segments).toEqual([
+      { start: 0, end: 1.2, text: 'Hello there.' },
+      { start: 1.6, end: 2.4, text: 'Bye.' },
+    ]);
+    expect(sentences.text).toBe('Hello there. Bye.');
+
+    // Without the option the server's own segments are used, as before.
+    const plain = await new OpenAiTranscriber(options).transcribe(wav);
+    expect(fake.received[1]?.fields['timestamp_granularities[]']).toBe('segment');
+    expect(plain.segments.map((s) => s.text)).toEqual(['Hello there.', 'Bye.']);
+  });
+
+  it('keeps the server segments when it returns no words', async () => {
+    const fake = await startFakeServer((_, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(verbose));
+    });
+    servers.push(fake.server);
+    const result = await new OpenAiTranscriber({
+      baseUrl: fake.baseUrl,
+      model: 'm',
+      language: null,
+      apiKey: null,
+      timeoutMs: 5000,
+      sentenceSegments: true,
+    }).transcribe(wav);
+    expect(result.segments).toEqual([
+      { start: 0, end: 1.5, text: 'Hello there.' },
+      { start: 1.5, end: 3, text: 'Bye.' },
+    ]);
+  });
+
   it('sends a per-call language and temperature', async () => {
     const fake = await startFakeServer((_, res) => res.end(JSON.stringify(verbose)));
     servers.push(fake.server);

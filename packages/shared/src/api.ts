@@ -353,6 +353,11 @@ export const sttVerboseResponseSchema = z.object({
     .array(z.object({ start: z.number(), end: z.number(), text: z.string() }))
     .nullish()
     .transform((segments) => segments ?? []),
+  /** Present when word timestamps were asked for (`timestamp_granularities[]=word`). */
+  words: z
+    .array(z.object({ start: z.number(), end: z.number(), word: z.string() }))
+    .nullish()
+    .transform((words) => words ?? []),
 });
 export type SttVerboseResponse = z.infer<typeof sttVerboseResponseSchema>;
 
