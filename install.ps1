@@ -198,6 +198,12 @@ if (-not $Stt) {
   $where += 'Not on this computer (a cloud API or another server, chosen in Settings)'; $values += 'none'
   $Stt = $values[(Choose 'Speech recognition:' $where 0)]
 }
+# -Gpu skips the question, but the GPU's memory still decides batched mode and
+# whether the models must take turns.
+if ($Stt -eq 'gpu' -and -not $GpuMemGb -and (Test-Command nvidia-smi)) {
+  $mib = (& { $ErrorActionPreference = 'Continue'; nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>$null } | Select-Object -First 1)
+  if ($mib -match '^\s*(\d+)') { $GpuMemGb = [math]::Round([int]$Matches[1] / 1024, 1) }
+}
 
 # The Whisper model: a short name from the list or any model id.
 if ($Stt -ne 'none') {
