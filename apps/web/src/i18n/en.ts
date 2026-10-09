@@ -188,6 +188,19 @@ export const en = {
   'settings.summaryInstructionsExample':
     'For example: write in more detail, quote key phrases, add a section on risks.',
   'settings.summaryInstructionsSaved': 'Saved. The next summaries use it.',
+  'settings.updates.title': 'Updates',
+  'settings.updates.check': 'Check for updates',
+  'settings.updates.current': 'Installed: {current}',
+  'settings.updates.behind': 'An update is available: {count} changes since this version.',
+  'settings.updates.release': 'Version {version} is available.',
+  'settings.updates.how':
+    'Run "Update Homescribe" in the install folder (Linux, macOS: homescribe update), then reload this page.',
+  'settings.updates.upToDate': 'This is the newest version.',
+  'settings.updates.error.off': 'Update checks are turned off (UPDATE_REPO).',
+  'settings.updates.error.unknown_build':
+    'This copy was built from source, so its version is unknown.',
+  'settings.updates.error.unreachable':
+    'Could not reach GitHub. Check the internet connection and try again.',
   'settings.reset': 'Back to defaults',
   'settings.cloudNote': 'Audio and transcripts are sent to this provider.',
   'error.DOWNLOAD_FAILED': 'The link could not be downloaded.',

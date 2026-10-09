@@ -9,6 +9,10 @@ source of truth for the version.
 
 ### Added
 
+- "Check for updates" in Settings: compares this version with GitHub (only
+  when pressed) and, when there is a newer one, says how many changes and
+  to run "Update Homescribe". The image records its commit for that
+  (`HOMESCRIBE_COMMIT`); `UPDATE_REPO` sets the repository or turns it off.
 - Your own instructions for summaries (Settings → Summaries, up to 2000
   characters), added to every summary request: length, focus, style.
 - YouTube sign-in without hand-made files: when a link fails with "Sign in to

@@ -358,6 +358,7 @@ interface Page<T> {
 | `POST /api/v1/ai/unload`                | 3     | —                                                                                                                      | `200 AiMemory & { failed: string[] }`                                   | 409 `JOB_ACTIVE`                                                    |
 | `PUT /api/v1/ai/take-turns`             | 3     | `{ enabled: boolean }`                                                                                                 | `200 AiMemory`                                                          | 400 `VALIDATION_ERROR`                                              |
 | `GET /api/v1/settings/summary`          | 3     | —                                                                                                                      | `200 { instructions: string }`                                          | —                                                                   |
+| `GET /api/v1/updates`                   | 3     | —                                                                                                                      | `200 UpdateStatus` (§7.9)                                               | —                                                                   |
 | `PUT /api/v1/settings/summary`          | 3     | `{ instructions: string }` (≤ 2000)                                                                                    | `200 { instructions: string }`                                          | 400 `VALIDATION_ERROR`                                              |
 
 `SearchHit` is `{ recording, snippet: { text, match }[], segment: { index, start } | null }`:
@@ -662,6 +663,36 @@ no other cookies and sends them nowhere but the paired server.
   After an update Chrome takes the new files on its next start or on
   "Reload" in the extensions page.
 
+### 7.9 Checking for updates
+
+Settings → Updates has "Check for updates"; only that button sends a
+request, to GitHub's public API, never in the background. The image
+records the commit it was built from (`HOMESCRIBE_COMMIT`, set by the image
+workflow) next to `HOMESCRIBE_VERSION`. `GET /api/v1/updates`:
+
+- a release image (`X.Y.Z`) is compared with
+  `GET /repos/{UPDATE_REPO}/releases/latest`;
+- a `latest` image (built from main) asks
+  `GET /repos/{UPDATE_REPO}/compare/{commit}...main` and reports how many
+  changes it is behind;
+- `error`: `off` (`UPDATE_REPO` empty), `unknown_build` (no commit, built
+  from source), `unreachable` (GitHub did not answer).
+
+```ts
+interface UpdateStatus {
+  current: { version: string; commit: string | null };
+  latest: { ref: string; date: string | null } | null;
+  behind: number | null;
+  updateAvailable: boolean | null;
+  error: 'off' | 'unknown_build' | 'unreachable' | null;
+}
+```
+
+The page then says what to run: "Update Homescribe" in the install folder
+(`homescribe update` on Linux and macOS). It does not update by itself:
+that would need the Docker socket inside a container, which is root on the
+host (decided 2026-10-09).
+
 ## 8. Job lifecycle
 
 ```
@@ -792,6 +823,8 @@ startup with a message naming the variable.
 | `YTDLP_AUTO_UPDATE`        | `true`                                                                           | 3     | Run `yt-dlp -U` at startup and daily (sites change often)                                   |
 | `YTDLP_COOKIES_FILE`       | `<DATA_DIR>/cookies.txt`                                                         | 3     | Where YouTube cookies are kept (§7.8); a file put there by hand is used too                 |
 | `HOMESCRIBE_VERSION`       | `0.0.0`                                                                          | 3     | Set by the image build from the release tag; the extension's version (§7.8)                 |
+| `HOMESCRIBE_COMMIT`        | _(empty)_                                                                        | 3     | Set by the image build: the commit, for "Check for updates" (§7.9)                          |
+| `UPDATE_REPO`              | `Mazoriksay/homescribe`                                                          | 3     | GitHub repository "Check for updates" asks; empty turns it off (§7.9)                       |
 | `EXTENSION_FOLDER`         | _(empty)_                                                                        | 3     | Where the installer unpacked the browser extension on the host; shown in Settings (§7.8)    |
 | `DOWNLOAD_TIMEOUT_MS`      | `7200000`                                                                        | 3     | Longest a link download may take                                                            |
 | `URL_IMPORT_ALLOW_PRIVATE` | `false`                                                                          | 3     | Allow links to private/loopback addresses (e.g. a NAS on the LAN)                           |

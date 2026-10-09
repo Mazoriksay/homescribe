@@ -20,6 +20,7 @@ import {
   type SearchPage,
   type Summary,
   type SummarySettings,
+  type UpdateStatus,
   type Transcript,
   type UpdateAiSettingsBody,
 } from '@homescribe/shared';
@@ -108,6 +109,11 @@ export const api = createApi({
           }),
         );
       },
+    }),
+    // Asks GitHub, so only when the button is pressed (lazy) and never cached long.
+    checkUpdates: build.query<UpdateStatus, void>({
+      query: () => '/updates',
+      keepUnusedDataFor: 0,
     }),
     getSummarySettings: build.query<SummarySettings, void>({
       query: () => '/settings/summary',
@@ -200,6 +206,7 @@ export const {
   useUnloadAiMutation,
   useSetTakeTurnsMutation,
   useGetSummarySettingsQuery,
+  useLazyCheckUpdatesQuery,
   useSaveSummarySettingsMutation,
   useUpdateAiSettingsMutation,
   useResetAiSettingsMutation,

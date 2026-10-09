@@ -188,6 +188,35 @@ describe('SettingsPage', () => {
     expect(await put.json()).toEqual({ instructions: 'Quote key phrases.' });
   });
 
+  it('checks for updates only when asked', async () => {
+    const fetchMock = mockApi([
+      { path: `${API_PREFIX}/settings/ai`, body: settings },
+      {
+        path: `${API_PREFIX}/updates`,
+        body: {
+          current: { version: 'latest', commit: 'abc1234def' },
+          latest: { ref: '9e8a51e', date: '2026-10-09T01:18:00Z' },
+          behind: 3,
+          updateAvailable: true,
+          error: null,
+        },
+      },
+    ]);
+    renderPage(<SettingsPage />, { prefs: { locale: 'ru', theme: 'auto' } });
+    const section = (await screen.findByRole('heading', { name: 'Обновления' })).closest(
+      'section',
+    )!;
+    const asked = () =>
+      fetchMock.mock.calls.some(([r]) => (r as Request).url.endsWith('/api/v1/updates'));
+    expect(asked()).toBe(false);
+    fireEvent.click(within(section).getByRole('button', { name: 'Проверить обновления' }));
+    expect(
+      await within(section).findByText('Есть обновление: изменений с этой версии — 3.'),
+    ).toBeTruthy();
+    expect(within(section).getByText('Установлено: latest · abc1234')).toBeTruthy();
+    expect(within(section).getByText(/Запустите «Update Homescribe»/)).toBeTruthy();
+  });
+
   it('lets the models take turns on the GPU', async () => {
     const memory = {
       busy: false,

@@ -348,3 +348,18 @@ export const sttVerboseResponseSchema = z.object({
     .transform((segments) => segments ?? []),
 });
 export type SttVerboseResponse = z.infer<typeof sttVerboseResponseSchema>;
+
+// ---------------------------------------------------------------- updates
+
+/** "Check for updates" (SPEC.md §7.9): this build against GitHub. */
+export const updateStatusSchema = z.object({
+  current: z.object({ version: z.string(), commit: z.string().nullable() }),
+  /** The newest release (release images) or the newest commit on main. */
+  latest: z.object({ ref: z.string(), date: z.string().nullable() }).nullable(),
+  /** Changes on main since this build; null for release images or when unknown. */
+  behind: z.number().int().nonnegative().nullable(),
+  updateAvailable: z.boolean().nullable(),
+  /** Why nothing could be compared: off, built from source, GitHub unreachable. */
+  error: z.enum(['off', 'unknown_build', 'unreachable']).nullable(),
+});
+export type UpdateStatus = z.infer<typeof updateStatusSchema>;
