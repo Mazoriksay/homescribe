@@ -740,9 +740,7 @@ summarizing → done`; `downloading` only for a recording made from a link
   with a small context window that the OpenAI API cannot raise: Ollama
   defaults to 4096 tokens). The model gets the transcript as tagged data
   with a fixed JSON reply format `{ summary, actionItems }` in the
-  transcript's language. The summary is detailed by default: an overview of
-  2–4 paragraphs, the key points with their specifics (names, numbers,
-  arguments, examples) and a short conclusion; action items are only real
+  transcript's language. The final summary is detailed: an overview of 2–4 paragraphs, the key points with their specifics (names, numbers, arguments, examples) and a short conclusion. Notes on parts and on intermediate merges are compact (at most 10 one-line points), so that merging them fits a small window with reasoning on; only the request that gives the final summary asks for detail, and if that reply is cut off it is asked once more for a brief summary before the job fails; action items are only real
   tasks, and a lecture or video without any gets none (the recording page
   then shows no "To do" block at all). The user may add their own
   instructions in Settings → Summaries (`PUT /settings/summary

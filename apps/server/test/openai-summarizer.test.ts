@@ -353,6 +353,42 @@ describe('OpenAiSummarizer', () => {
     expect(progress.at(-1)).toBe(1);
   });
 
+  const systemText = (request: { json: unknown }) =>
+    (request.json as { messages: { content: string }[] }).messages[0]!.content;
+
+  it('keeps part notes compact and writes only the final summary in detail', async () => {
+    const fake = await startFakeOpenAi((_, res) =>
+      res.end(JSON.stringify(chatReply(JSON.stringify({ summary: '- point', actionItems: [] })))),
+    );
+    closers.push(fake.close);
+    const text = Array.from({ length: 60 }, (_, i) => `Point ${i} was discussed.`).join(' ');
+    await make(fake.baseUrl, { chunkChars: 400 }).summarize({ text, language: 'en' });
+    const [last, ...rest] = [...fake.received].reverse();
+    expect(userText(last!)).toContain('<notes>');
+    expect(systemText(last!)).toContain('Be detailed rather than brief');
+    for (const request of rest) expect(systemText(request)).toContain('keep them compact');
+  });
+
+  it('falls back to a brief final summary when the detailed one does not fit', async () => {
+    const fake = await startFakeOpenAi((request, res) => {
+      if (
+        systemText(request).includes('Be detailed rather than brief') &&
+        userText(request).includes('<notes>')
+      ) {
+        return res.end(JSON.stringify(cutOff));
+      }
+      res.end(JSON.stringify(chatReply(JSON.stringify({ summary: 'Short', actionItems: [] }))));
+    });
+    closers.push(fake.close);
+    const text = Array.from({ length: 30 }, (_, i) => `Point ${i} was discussed.`).join(' ');
+    const result = await make(fake.baseUrl, { chunkChars: 500 }).summarize({
+      text,
+      language: 'en',
+    });
+    expect(result.summary).toBe('Short');
+    expect(systemText(fake.received.at(-1)!)).toContain('one short overview paragraph');
+  });
+
   it('maps HTTP errors, refused connections and timeouts', async () => {
     const failing = await startFakeOpenAi((_, res) => res.writeHead(404).end('model not found'));
     closers.push(failing.close);

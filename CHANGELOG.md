@@ -47,6 +47,11 @@ source of truth for the version.
 
 ### Fixed
 
+- Detailed summaries of recordings longer than one part no longer fail with
+  `LLM_CONTEXT_EXCEEDED` or take ages: notes on parts stay compact and only
+  the final summary is written in detail, so each request fits a 4096-token
+  window with reasoning; if the detailed final reply still does not fit, a
+  brief one is asked for instead of failing.
 - Summaries are detailed by default: a longer overview, key points with
   their specifics and a conclusion. "To do" (was "Action items") shows only
   when there is something to do, instead of "No action items" under every
