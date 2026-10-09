@@ -318,7 +318,20 @@ export class JobRunner {
       }
       const result = await this.withEstimate(job.id, transcriber.model, chunk, duration, () =>
         // Later chunks keep the language of the first, so one recording is not split across two.
-        transcribeChunk(transcriber, file, chunk, { language, signal }),
+        transcribeChunk(transcriber, file, chunk, {
+          language,
+          signal,
+          // A looped stretch is cut out and heard again with no language set.
+          relisten: async (range, use) => {
+            const part = path.join(workDir, `relisten-${index}.${format}`);
+            await media.cutAudio(audio, part, { ...range, format, signal });
+            try {
+              return await use(part);
+            } finally {
+              await rm(part, { force: true });
+            }
+          },
+        }),
       );
       if (signal.aborted) throw signal.reason;
       language ??= result.language;
