@@ -12,6 +12,7 @@ source of truth for the version.
 - Download a transcript as subtitles (SRT, WebVTT), plain text or Markdown
   with the summary and to-dos, from the recording page or
   `GET /api/v1/recordings/:id/export?format=srt|vtt|txt|md`.
+- The README compares Homescribe with Speakr, OpenTranscribe and Scriberr.
 - The project is licensed under MIT (`LICENSE`). The README starts with
   screenshots and what Homescribe does; issue templates for bugs and ideas.
 
