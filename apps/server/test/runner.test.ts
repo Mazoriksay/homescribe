@@ -309,6 +309,22 @@ describe('JobRunner', () => {
     ]);
   });
 
+  it('sends parts as long as the STT server asks for', async () => {
+    ai.state.chunking = { target: 600, slack: 60 };
+    media.duration = 1300;
+    media.silences = [{ start: 590, end: 592 }];
+    const { id } = await upload();
+    runner.start();
+    await runner.idle();
+
+    expect(media.cuts.map((c) => [c.start, c.end])).toEqual([
+      [0, 591],
+      [591, 1191],
+      [1191, 1300],
+    ]);
+    expect(repo.getTranscript(id)).not.toBeNull();
+  });
+
   it('asks again at a higher temperature when Whisper loops', async () => {
     const loop = Array.from({ length: 5 }, (_, i) => ({
       start: 10 + i,

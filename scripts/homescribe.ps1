@@ -85,11 +85,21 @@ function Wait-Ready {
   Write-Host ''
 }
 
-# compose.yaml's speaches image for an NVIDIA GPU needs a driver that runs
-# CUDA 12.9; with an older one .env gets the same release on an older CUDA,
-# as the installer does. A SPEACHES_CUDA_IMAGE already in .env is kept.
-function Select-SpeachesCuda {
+# UTF-8 without BOM, like the installer writes .env, on a line of its own.
+function Add-EnvLine($line) {
+  $envPath = Join-Path $PSScriptRoot '.env'
+  $text = [System.IO.File]::ReadAllText($envPath)
+  $start = if ($text.Length -gt 0 -and -not $text.EndsWith("`n")) { "`r`n" } else { '' }
+  [System.IO.File]::AppendAllText($envPath, "$start$line`r`n", (New-Object System.Text.UTF8Encoding $false))
+}
+
+# What the installer sets for a GPU install, for installs made before it did:
+# batched mode, and for a driver older than CUDA 12.9 the same speaches
+# release built on an older CUDA. Values already in .env are kept.
+function Set-GpuDefaults {
   if (-not (Select-String -Path '.env' -Pattern '^COMPOSE_PROFILES=(.*,)?gpu(,|$)' -Quiet -ErrorAction SilentlyContinue)) { return }
+  # Batched speaches on the GPU takes long parts, as the installer sets it.
+  if (-not (Select-String -Path '.env' -Pattern '^STT_BATCHED=' -Quiet)) { Add-EnvLine 'STT_BATCHED=true' }
   if (Select-String -Path '.env' -Pattern '^SPEACHES_CUDA_IMAGE=' -Quiet -ErrorAction SilentlyContinue) { return }
   if (-not (Get-Command nvidia-smi -ErrorAction SilentlyContinue)) { return }
   $smi = (& { $ErrorActionPreference = 'Continue'; nvidia-smi 2>$null }) -join "`n"
@@ -97,11 +107,7 @@ function Select-SpeachesCuda {
   $cuda = [int]$Matches[1] * 100 + [int]$Matches[2]
   $tag = if ($cuda -ge 1209) { $null } elseif ($cuda -ge 1206) { '0.8.3-cuda-12.6.3' } else { '0.8.3-cuda-12.4.1' }
   if (-not $tag) { return }
-  # UTF-8 without BOM, like the installer writes it, on a line of its own.
-  $envPath = Join-Path $PSScriptRoot '.env'
-  $text = [System.IO.File]::ReadAllText($envPath)
-  $start = if ($text.Length -gt 0 -and -not $text.EndsWith("`n")) { "`r`n" } else { '' }
-  [System.IO.File]::AppendAllText($envPath, "${start}SPEACHES_CUDA_IMAGE=ghcr.io/speaches-ai/speaches:$tag`r`n", (New-Object System.Text.UTF8Encoding $false))
+  Add-EnvLine "SPEACHES_CUDA_IMAGE=ghcr.io/speaches-ai/speaches:$tag"
   Write-Host "The NVIDIA driver runs CUDA $($Matches[1]).$($Matches[2]); speech recognition uses speaches $tag."
 }
 
@@ -127,7 +133,7 @@ function Update-Files {
     Remove-Item -Force -ErrorAction SilentlyContinue 'compose.yaml.new'
     Write-Host 'Could not get a newer compose.yaml; keeping this one.'
   }
-  Select-SpeachesCuda
+  Set-GpuDefaults
   # PowerShell has read this whole script already, so replacing it is safe.
   try {
     Invoke-WebRequest -UseBasicParsing "$base/scripts/homescribe.ps1" -OutFile 'homescribe.ps1.new' -TimeoutSec 30

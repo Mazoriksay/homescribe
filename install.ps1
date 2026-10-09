@@ -345,7 +345,7 @@ if ($UseLlm) { $profiles += $(if ($Stt -eq 'gpu') { 'llm-gpu' } else { 'llm-cpu'
 $kept = @()
 if (Test-Path $envFile) {
   $ours = 'AI_TAKE_TURNS|COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_FILES_URL|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL'
-  if ($Stt -ne 'none') { $ours += '|STT_MODEL' }
+  if ($Stt -ne 'none') { $ours += '|STT_MODEL|STT_BATCHED' }
   if ($Stt -eq 'gpu') { $ours += '|SPEACHES_CUDA_IMAGE' }
   $kept = Get-Content $envFile | Where-Object { $_ -notmatch "^($ours)=" }
 }
@@ -360,6 +360,8 @@ $lines = @($kept) + @(
   "AI_TAKE_TURNS=$(if ($TakeTurns) { 'true' } else { 'false' })"
 )
 if ($Stt -ne 'none') { $lines += "STT_MODEL=$($SttChoice.Id)" }
+# Batched speaches (GPU only) takes long parts (SPEC.md §7.5).
+if ($Stt -ne 'none') { $lines += "STT_BATCHED=$(if ($Stt -eq 'gpu') { 'true' } else { 'false' })" }
 if ($SpeachesCuda) { $lines += "SPEACHES_CUDA_IMAGE=ghcr.io/speaches-ai/speaches:$SpeachesCuda" }
 $lines += $(if ($UseLlm) { @('LLM_MODE=local', "LLM_MODEL=$LlmModel") } else { @('LLM_MODE=off') })
 # UTF-8 without BOM: Compose reads the file as is.

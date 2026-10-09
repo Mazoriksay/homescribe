@@ -483,7 +483,7 @@ profiles=""
 touch "$DIR/.env"
 tmp="$(mktemp)"
 ours='AI_TAKE_TURNS|COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_FILES_URL|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL'
-[ "$STT" != none ] && ours="$ours|STT_MODEL"
+[ "$STT" != none ] && ours="$ours|STT_MODEL|STT_BATCHED"
 [ "$STT" = gpu ] && ours="$ours|SPEACHES_CUDA_IMAGE"
 grep -vE "^($ours)=" "$DIR/.env" > "$tmp" || true
 {
@@ -497,6 +497,8 @@ grep -vE "^($ours)=" "$DIR/.env" > "$tmp" || true
   echo "EXTENSION_FOLDER=$DIR/browser-extension"
   echo "AI_TAKE_TURNS=$TAKE_TURNS"
   [ "$STT" != none ] && echo "STT_MODEL=$STT_ID"
+  # Batched speaches (GPU only) takes long parts (SPEC.md §7.5).
+  [ "$STT" != none ] && echo "STT_BATCHED=$([ "$STT" = gpu ] && echo true || echo false)"
   [ -n "$SPEACHES_CUDA" ] && echo "SPEACHES_CUDA_IMAGE=ghcr.io/speaches-ai/speaches:$SPEACHES_CUDA"
   if [ "$LLM" = yes ]; then echo "LLM_MODE=local"; echo "LLM_MODEL=$LLM_MODEL"; else echo "LLM_MODE=off"; fi
 } > "$DIR/.env"

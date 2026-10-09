@@ -29,7 +29,8 @@ const CHUNKING: ChunkPlan = { target: 60, slack: 15 };
 
 /** The AI backends to use, resolved per job so settings changes apply to the next job. */
 export interface AiBackends {
-  stt(): { transcriber: Transcriber; format: AudioFormat };
+  /** chunking: how long the parts sent to this server are; about a minute by default. */
+  stt(): { transcriber: Transcriber; format: AudioFormat; chunking?: ChunkPlan };
   /** null when summaries are turned off. */
   llm(): Summarizer | null;
 }
@@ -273,7 +274,7 @@ export class JobRunner {
     const { repo, store, media } = this.deps;
     const signal = this.signal;
     const recordingId = job.recordingId;
-    const { transcriber, format } = this.deps.ai.stt();
+    const { transcriber, format, chunking = CHUNKING } = this.deps.ai.stt();
     const input = store.originalPath(recordingId, storedName);
     const workDir = store.workDir(recordingId);
     // Always a WAV first: chunks are cut from it, then encoded as `format`.
@@ -296,8 +297,8 @@ export class JobRunner {
     const duration = probed ?? (await media.probeDuration(audio, signal));
 
     const chunks =
-      duration !== null && duration > CHUNKING.target + CHUNKING.slack
-        ? planChunks(duration, await media.findSilences(audio, signal), CHUNKING)
+      duration !== null && duration > chunking.target + chunking.slack
+        ? planChunks(duration, await media.findSilences(audio, signal), chunking)
         : [{ start: 0, end: duration ?? Infinity }];
 
     const segments: ChunkResult['segments'] = [];

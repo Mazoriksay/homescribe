@@ -72,12 +72,17 @@ update_extension() {
   rm -f "$zip"
 }
 
-# compose.yaml's speaches image for an NVIDIA GPU needs a driver that runs
-# CUDA 12.9; with an older one .env gets the same release on an older CUDA,
-# as the installer does. A SPEACHES_CUDA_IMAGE already in .env is kept.
-pick_speaches_cuda() {
+# What the installer sets for a GPU install, for installs made before it did:
+# batched mode, and for a driver older than CUDA 12.9 the same speaches
+# release built on an older CUDA. Values already in .env are kept.
+gpu_defaults() {
   local cuda tag
   grep -qE '^COMPOSE_PROFILES=(.*,)?gpu(,|$)' .env 2>/dev/null || return 0
+  # Batched speaches on the GPU takes long parts, as the installer sets it.
+  if ! grep -q '^STT_BATCHED=' .env; then
+    [ -z "$(tail -c 1 .env)" ] || echo >> .env
+    echo "STT_BATCHED=true" >> .env
+  fi
   grep -q '^SPEACHES_CUDA_IMAGE=' .env 2>/dev/null && return 0
   command -v nvidia-smi >/dev/null 2>&1 || return 0
   cuda="$(nvidia-smi 2>/dev/null | sed -n 's/.*CUDA Version: *\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -1)"
@@ -112,7 +117,7 @@ refresh_files() {
     rm -f compose.yaml.new
     echo "Could not get a newer compose.yaml; keeping this one."
   fi
-  pick_speaches_cuda
+  gpu_defaults
   # A rename leaves the running copy of this script intact.
   if curl -fsSL --max-time 30 "$base/scripts/homescribe" -o homescribe.new && bash -n homescribe.new; then
     chmod +x homescribe.new

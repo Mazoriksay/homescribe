@@ -54,6 +54,10 @@ services:
       # Seconds Whisper stays loaded after use (whisper.ttl); short, so the
       # summary model can have the GPU soon after (SPEC.md §7.5).
       WHISPER__TTL: ${STT_MODEL_TTL:-30}
+      # Batched mode: 30-second windows in parallel, several times faster on a
+      # GPU. Homescribe sends it long parts when STT_BATCHED=true in .env too
+      # (the installer sets it); without that it keeps minute parts.
+      WHISPER__USE_BATCHED_MODE: ${STT_BATCHED:-true}
     volumes:
       - hf-hub-cache:/home/ubuntu/.cache/huggingface/hub
     networks:

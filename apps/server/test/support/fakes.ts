@@ -1,3 +1,4 @@
+import type { ChunkPlan } from '../../src/stt/chunks';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -137,11 +138,14 @@ export class FakeSummarizer {
 export function fakeAi(
   transcriber: FakeTranscriber,
   summarizer: FakeSummarizer,
-  state: { llmOff: boolean; format: 'wav' | 'ogg' } = { llmOff: false, format: 'wav' },
+  state: { llmOff: boolean; format: 'wav' | 'ogg'; chunking?: ChunkPlan } = {
+    llmOff: false,
+    format: 'wav',
+  },
 ) {
   return {
     state,
-    stt: () => ({ transcriber, format: state.format }),
+    stt: () => ({ transcriber, format: state.format, chunking: state.chunking }),
     llm: () => (state.llmOff ? null : summarizer),
   };
 }
