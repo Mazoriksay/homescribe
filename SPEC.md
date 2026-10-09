@@ -437,6 +437,10 @@ interface UpdateAiSettings {
   or any OpenAI-compatible address. For cloud STT the audio is sent as Opus
   (32 kbit/s, Ogg) instead of WAV, because cloud uploads are capped at about
   25 MB (≈ 1.5 h of Opus versus 13 min of WAV).
+- **In Settings** each backend first shows its choice (model, where it runs,
+  default or chosen here); "Change" opens the form and "Cancel" drops the
+  edits. Summaries keep "Context window" and "Your instructions" as their
+  own parts below, each saving by itself.
 - **Keys:** a saved key is only ever sent to the address it was saved for:
   changing `baseUrl` without a new key drops it, and `POST /ai/models` with
   `useSavedKeyFor` uses it only when `baseUrl` matches.
@@ -523,7 +527,10 @@ With a size set, summaries go to Ollama's own `POST /api/chat` with
 `options.num_ctx` (and `done_reason: "length"` for a cut-off reply) instead
 of `/v1/chat/completions`. A larger window takes more video memory: when
 `/api/ps` reports `size_vram` below `size`, the "Video memory" section says
-that part of the model runs on the CPU, which is much slower.
+that part of the model runs on the CPU, and "Context window" warns that
+summaries are slow and a smaller window helps. The window is one list
+("As in Ollama", the presets, "Custom…"); "Custom…" shows the number field
+with the model's limits.
 
 ```ts
 // GET /api/v1/settings/llm-context, PUT { value: number | null }

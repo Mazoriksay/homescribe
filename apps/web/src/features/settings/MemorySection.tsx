@@ -1,6 +1,7 @@
 import type { BackendMemory } from '@homescribe/shared';
 import { Button, Switch } from 'antd';
 import { useGetAiMemoryQuery, useSetTakeTurnsMutation, useUnloadAiMutation } from '../../api/api';
+import type { ReactNode } from 'react';
 import { useT } from '../../i18n/useT';
 import styles from './Settings.module.css';
 
@@ -22,23 +23,28 @@ export function MemorySection() {
   // Only servers that unload on request count; speaches does it by itself.
   const unloadable = [data.stt, data.llm].filter((b) => b.state === 'ok');
   const loaded = unloadable.reduce((n, b) => n + b.loaded.length, 0);
-  const describe = (b: BackendMemory) => {
+  const describe = (b: BackendMemory): ReactNode => {
     if (b.state === 'unsupported') return t('settings.memory.unsupported');
     if (b.state === 'unreachable') return t('settings.memory.unreachable');
     if (b.loaded.length === 0) return t('settings.memory.unloaded');
-    const models = b.loaded
-      .map(({ model, vramBytes, sizeBytes }) => {
-        if (!vramBytes) return model;
-        const size = `${model} · ${t('settings.memory.size', { gb: (vramBytes / 1e9).toFixed(1) })}`;
+    return b.loaded.map(({ model, vramBytes, sizeBytes }) => {
+      const notes = [
+        vramBytes ? t('settings.memory.size', { gb: (vramBytes / 1e9).toFixed(1) }) : null,
         // Ollama reports less in video memory than the whole: the rest runs on the CPU.
-        return sizeBytes && sizeBytes > vramBytes * 1.02
-          ? `${size} · ${t('settings.memory.onCpu', { percent: Math.round((1 - vramBytes / sizeBytes) * 100) })}`
-          : size;
-      })
-      .join(', ');
-    return b.state === 'auto'
-      ? `${models} · ${t('settings.memory.auto', { seconds: data.sttIdleSeconds })}`
-      : models;
+        vramBytes && sizeBytes && sizeBytes > vramBytes * 1.02
+          ? t('settings.memory.onCpu', {
+              percent: Math.round((1 - vramBytes / sizeBytes) * 100),
+            })
+          : null,
+        b.state === 'auto' ? t('settings.memory.auto', { seconds: data.sttIdleSeconds }) : null,
+      ].filter(Boolean);
+      return (
+        <span key={model} className={styles.line}>
+          <span className={styles.value}>{model}</span>
+          {notes.length > 0 && ` · ${notes.join(' · ')}`}
+        </span>
+      );
+    });
   };
 
   return (
@@ -46,12 +52,12 @@ export function MemorySection() {
       <h2 id="settings-memory" className={styles.heading}>
         {t('settings.memory.title')}
       </h2>
-      <dl className={styles.current}>
+      <dl className={styles.summary}>
         {(['stt', 'llm'] as const)
           .filter((kind) => local(data[kind]))
           .map((kind) => (
             <div key={kind}>
-              <dt className={styles.source}>{t(`settings.${kind}.title`)}</dt>
+              <dt>{t(`settings.${kind}.title`)}</dt>
               <dd>{describe(data[kind])}</dd>
             </div>
           ))}
