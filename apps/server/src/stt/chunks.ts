@@ -87,19 +87,39 @@ export interface ChunkResult {
 
 const repeated = (runs: [number, number][]) => runs.reduce((n, [from, to]) => n + to - from, 0);
 
+/** Looped stretches shorter than this are not worth another request. */
+const RELISTEN_MIN_SECONDS = 3;
+/** At most this many stretches of one chunk are asked again. */
+const RELISTEN_LIMIT = 3;
+
+export interface ChunkOptions {
+  language: string | null;
+  signal?: AbortSignal;
+  /**
+   * Cuts a stretch of the recording (absolute seconds) into a file of its
+   * own for `use` and removes it afterwards. Without it a loop stays a gap.
+   */
+  relisten?: <T>(range: Chunk, use: (file: string) => Promise<T>) => Promise<T>;
+}
+
 /**
  * Transcribes one chunk. When Whisper loops, the chunk is asked again at a
  * higher temperature and the result with fewer repeats is kept; a loop that
  * remains is cut to its first segment and reported as a gap (the speech
  * there is lost), from the end of that segment to the next real one.
+ *
+ * A loop is often speech in another language: with the recording's language
+ * forced on it Whisper writes a few words over and over. So each looped
+ * stretch is cut out and asked once more with no language set; when Whisper
+ * then hears another language and does not loop, that text fills the gap.
  */
 export async function transcribeChunk(
   transcriber: Transcriber,
   file: string,
   chunk: Chunk,
-  options: { language: string | null; signal?: AbortSignal },
+  options: ChunkOptions,
 ): Promise<ChunkResult> {
-  const { language, signal } = options;
+  const { language, signal, relisten } = options;
   let result = await transcriber.transcribe(file, signal, { language });
   let runs = findRepeatRuns(result.segments);
   if (runs.length > 0) {
@@ -117,18 +137,47 @@ export async function transcribeChunk(
   const length = chunk.end - chunk.start;
   const { segments } = result;
   const limit = Number.isFinite(length) ? length : (segments.at(-1)?.end ?? 0);
-  const gaps = runs.map(([from, to]) => ({
+  let gaps = runs.map(([from, to]) => ({
     start: chunk.start + Math.min(segments[from]!.end, limit),
     end: chunk.start + (to < segments.length ? Math.min(segments[to]!.start, limit) : limit),
   }));
   // Whisper can place its last segments past the end of the audio.
-  const kept = collapseRepeatedSegments(segments)
+  let kept = collapseRepeatedSegments(segments)
     .filter((s) => s.start < limit && !isHallucination(s.text))
     .map((s) => ({
       start: chunk.start + s.start,
       end: chunk.start + Math.min(s.end, limit),
       text: s.text,
     }));
+
+  if (relisten) {
+    for (const [index, [from]] of runs.slice(0, RELISTEN_LIMIT).entries()) {
+      const gap = gaps[index]!;
+      // From the first looped segment: it belongs to the same stretch.
+      const range = { start: chunk.start + Math.min(segments[from]!.start, limit), end: gap.end };
+      if (range.end - range.start < RELISTEN_MIN_SECONDS) continue;
+      const again = await relisten(range, (part) => transcriber.transcribe(part, signal));
+      const heard = again.segments.filter((s) => !isHallucination(s.text));
+      const otherLanguage = again.language !== null && again.language !== result.language;
+      if (!otherLanguage || heard.length === 0 || findRepeatRuns(heard).length > 0) continue;
+      const length = range.end - range.start;
+      kept = kept
+        .filter((s) => s.start < range.start || s.start >= range.end)
+        .concat(
+          heard
+            .filter((s) => s.start < length)
+            .map((s) => ({
+              start: range.start + s.start,
+              end: range.start + Math.min(s.end, length),
+              text: s.text,
+            })),
+        )
+        .sort((a, b) => a.start - b.start);
+      gap.end = gap.start;
+    }
+  }
+  gaps = gaps.filter((gap) => gap.end > gap.start);
+
   return {
     language: result.language,
     text:
@@ -136,6 +185,6 @@ export async function transcribeChunk(
         ? kept.map((s) => s.text).join(' ')
         : result.text,
     segments: kept,
-    gaps: gaps.filter((gap) => gap.end > gap.start),
+    gaps,
   };
 }
