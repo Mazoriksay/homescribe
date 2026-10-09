@@ -7,6 +7,8 @@ source of truth for the version.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-10-09
+
 ### Changed
 
 - Speech recognition on an NVIDIA GPU runs speaches in batched mode and
@@ -291,7 +293,8 @@ source of truth for the version.
   Inside another app's frame the app hides its own chrome. Explanatory hints
   were removed from the pages.
 
-[Unreleased]: https://github.com/Mazoriksay/homescribe/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/Mazoriksay/homescribe/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/Mazoriksay/homescribe/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/Mazoriksay/homescribe/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Mazoriksay/homescribe/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Mazoriksay/homescribe/releases/tag/v0.3.0
