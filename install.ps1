@@ -344,7 +344,7 @@ if ($UseLlm) { $profiles += $(if ($Stt -eq 'gpu') { 'llm-gpu' } else { 'llm-cpu'
 # Our keys are rewritten; anything else in .env is kept.
 $kept = @()
 if (Test-Path $envFile) {
-  $ours = 'AI_TAKE_TURNS|COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL'
+  $ours = 'AI_TAKE_TURNS|COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_FILES_URL|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL'
   if ($Stt -ne 'none') { $ours += '|STT_MODEL' }
   if ($Stt -eq 'gpu') { $ours += '|SPEACHES_CUDA_IMAGE' }
   $kept = Get-Content $envFile | Where-Object { $_ -notmatch "^($ours)=" }
@@ -352,6 +352,8 @@ if (Test-Path $envFile) {
 $lines = @($kept) + @(
   "COMPOSE_PROFILES=$($profiles -join ',')",
   "HOMESCRIBE_IMAGE=$Image",
+  # Where "Update Homescribe" gets compose.yaml and homescribe.ps1; none for a local checkout.
+  "HOMESCRIBE_FILES_URL=$(if ($Source) { '' } else { "https://raw.githubusercontent.com/$Repo/$Ref" })",
   "HOMESCRIBE_PORT=$Port",
   "HOMESCRIBE_RESTART=$Restart",
   "EXTENSION_FOLDER=$extensionFolder",

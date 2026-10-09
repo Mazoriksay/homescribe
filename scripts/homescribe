@@ -5,7 +5,7 @@
 #   ./homescribe start    start everything, wait until it answers, open the browser
 #   ./homescribe stop     stop everything and free memory; data is kept
 #   ./homescribe status   what is running, the address and the self-check
-#   ./homescribe update   download newer images and restart
+#   ./homescribe update   download newer files and images and restart
 
 set -euo pipefail
 SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
@@ -72,6 +72,56 @@ update_extension() {
   rm -f "$zip"
 }
 
+# compose.yaml's speaches image for an NVIDIA GPU needs a driver that runs
+# CUDA 12.9; with an older one .env gets the same release on an older CUDA,
+# as the installer does. A SPEACHES_CUDA_IMAGE already in .env is kept.
+pick_speaches_cuda() {
+  local cuda tag
+  grep -qE '^COMPOSE_PROFILES=(.*,)?gpu(,|$)' .env 2>/dev/null || return 0
+  grep -q '^SPEACHES_CUDA_IMAGE=' .env 2>/dev/null && return 0
+  command -v nvidia-smi >/dev/null 2>&1 || return 0
+  cuda="$(nvidia-smi 2>/dev/null | sed -n 's/.*CUDA Version: *\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -1)"
+  [ -n "$cuda" ] || return 0
+  tag="$(awk -v v="$cuda" 'BEGIN {
+    split(v, p, "."); n = p[1] * 100 + p[2]
+    if (n >= 1209) print ""; else if (n >= 1206) print "0.8.3-cuda-12.6.3"; else print "0.8.3-cuda-12.4.1"
+  }')"
+  [ -n "$tag" ] || return 0
+  [ -z "$(tail -c 1 .env)" ] || echo >> .env
+  echo "SPEACHES_CUDA_IMAGE=ghcr.io/speaches-ai/speaches:$tag" >> .env
+  echo "The NVIDIA driver runs CUDA $cuda; speech recognition uses speaches $tag."
+}
+
+# compose.yaml and this script come from where the installer took them
+# (HOMESCRIBE_FILES_URL in .env, empty for an install from a local checkout),
+# so fixes in them reach existing installs too. A compose.yaml that Docker
+# cannot read is not used.
+refresh_files() {
+  local base
+  if grep -q '^HOMESCRIBE_FILES_URL=' .env 2>/dev/null; then
+    base="$(sed -n 's/^HOMESCRIBE_FILES_URL=//p' .env | tail -1)"
+  else
+    base="https://raw.githubusercontent.com/mazoriksay/homescribe/main"
+  fi
+  [ -n "$base" ] || return 0
+  if curl -fsSL --max-time 30 "$base/compose.yaml" -o compose.yaml.new \
+    && $DOCKER compose -f compose.yaml.new config -q >/dev/null 2>&1; then
+    mv compose.yaml.new compose.yaml
+    ok "compose.yaml is up to date"
+  else
+    rm -f compose.yaml.new
+    echo "Could not get a newer compose.yaml; keeping this one."
+  fi
+  pick_speaches_cuda
+  # A rename leaves the running copy of this script intact.
+  if curl -fsSL --max-time 30 "$base/scripts/homescribe" -o homescribe.new && bash -n homescribe.new; then
+    chmod +x homescribe.new
+    mv homescribe.new "$SELF"
+  else
+    rm -f homescribe.new
+  fi
+}
+
 wait_ready() {
   printf 'Waiting for Homescribe'
   local waited=0
@@ -114,6 +164,7 @@ case "${1:-}" in
     fi
     ;;
   update)
+    refresh_files
     $DOCKER compose pull
     $DOCKER compose up -d --remove-orphans
     wait_ready

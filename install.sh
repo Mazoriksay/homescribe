@@ -482,7 +482,7 @@ profiles=""
 # Our keys are rewritten; anything else you put into .env is kept.
 touch "$DIR/.env"
 tmp="$(mktemp)"
-ours='AI_TAKE_TURNS|COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL'
+ours='AI_TAKE_TURNS|COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_FILES_URL|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL'
 [ "$STT" != none ] && ours="$ours|STT_MODEL"
 [ "$STT" = gpu ] && ours="$ours|SPEACHES_CUDA_IMAGE"
 grep -vE "^($ours)=" "$DIR/.env" > "$tmp" || true
@@ -490,6 +490,8 @@ grep -vE "^($ours)=" "$DIR/.env" > "$tmp" || true
   cat "$tmp"
   echo "COMPOSE_PROFILES=$profiles"
   echo "HOMESCRIBE_IMAGE=$IMAGE"
+  # Where "homescribe update" gets compose.yaml and itself; none for a local checkout.
+  if [ -n "$SOURCE_DIR" ]; then echo "HOMESCRIBE_FILES_URL="; else echo "HOMESCRIBE_FILES_URL=https://raw.githubusercontent.com/$REPO/$REF"; fi
   echo "HOMESCRIBE_PORT=$PORT"
   echo "HOMESCRIBE_RESTART=$RESTART"
   echo "EXTENSION_FOLDER=$DIR/browser-extension"
