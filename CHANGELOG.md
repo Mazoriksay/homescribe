@@ -7,6 +7,8 @@ source of truth for the version.
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-10-09
+
 ### Added
 
 - Download a transcript as subtitles (SRT, WebVTT), plain text or Markdown
@@ -302,7 +304,8 @@ source of truth for the version.
   Inside another app's frame the app hides its own chrome. Explanatory hints
   were removed from the pages.
 
-[Unreleased]: https://github.com/Mazoriksay/homescribe/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/Mazoriksay/homescribe/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/Mazoriksay/homescribe/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/Mazoriksay/homescribe/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/Mazoriksay/homescribe/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Mazoriksay/homescribe/compare/v0.3.0...v0.3.1
