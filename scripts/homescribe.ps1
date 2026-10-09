@@ -94,12 +94,20 @@ function Add-EnvLine($line) {
 }
 
 # What the installer sets for a GPU install, for installs made before it did:
-# batched mode, and for a driver older than CUDA 12.9 the same speaches
-# release built on an older CUDA. Values already in .env are kept.
+# batched mode on a GPU with room for it, and for a driver older than CUDA
+# 12.9 the same speaches release built on an older CUDA. Values already in
+# .env are kept.
 function Set-GpuDefaults {
   if (-not (Select-String -Path '.env' -Pattern '^COMPOSE_PROFILES=(.*,)?gpu(,|$)' -Quiet -ErrorAction SilentlyContinue)) { return }
-  # Batched speaches on the GPU takes long parts, as the installer sets it.
-  if (-not (Select-String -Path '.env' -Pattern '^STT_BATCHED=' -Quiet)) { Add-EnvLine 'STT_BATCHED=true' }
+  # Batched speaches takes long parts and about 3 GB more video memory: on a
+  # GPU of 10 GB or more, as the installer decides for the default model.
+  if (-not (Select-String -Path '.env' -Pattern '^STT_BATCHED=' -Quiet)) {
+    $mib = if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
+      & { $ErrorActionPreference = 'Continue'; nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>$null } | Select-Object -First 1
+    }
+    $roomy = "$mib" -match '^\s*(\d+)' -and [int]$Matches[1] -ge 10000
+    Add-EnvLine "STT_BATCHED=$(if ($roomy) { 'true' } else { 'false' })"
+  }
   if (Select-String -Path '.env' -Pattern '^SPEACHES_CUDA_IMAGE=' -Quiet -ErrorAction SilentlyContinue) { return }
   if (-not (Get-Command nvidia-smi -ErrorAction SilentlyContinue)) { return }
   $smi = (& { $ErrorActionPreference = 'Continue'; nvidia-smi 2>$null }) -join "`n"
