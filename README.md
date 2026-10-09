@@ -1,14 +1,48 @@
 # Homescribe
 
-Self-hosted voice notes and media transcription for a home server. Upload
-audio or video and get a timestamped transcript, a short summary and action
-items, all searchable. Speech-to-text and summaries come from AI servers you
-choose: on this machine (found automatically) or a cloud API. See
-[`SPEC.md`](SPEC.md) for the full design.
+[![CI](https://github.com/Mazoriksay/homescribe/actions/workflows/ci.yml/badge.svg)](https://github.com/Mazoriksay/homescribe/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Mazoriksay/homescribe)](https://github.com/Mazoriksay/homescribe/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-**Status:** stages 1–3 of 5 (transcription, summaries and search, links,
-deployment with a one-command installer).
-In-browser recording and offline support come next.
+Turn voice notes, recordings, videos and links into a timestamped transcript,
+a short summary and a to-do list, on your own computer or home server.
+Speech recognition (Whisper) and summaries (a local LLM through Ollama) run
+locally; nothing leaves the machine unless you choose a cloud API.
+
+![A recording in Homescribe: the summary and to-do list above the player and the transcript](docs/screenshots/recording.png)
+
+- **Fast on a home GPU:** a 22-minute recording is transcribed in about 40 s
+  on an RTX 5070 Ti (batched faster-whisper); it also runs on a CPU.
+- **Transcripts you can use:** sentence-sized segments with clickable
+  timestamps, full-text search across everything, copy as text.
+- **Summaries and to-dos** from the model you pick, with your own instructions
+  (longer, shorter, quotes, a section on risks…). Long recordings are
+  summarised in parts.
+- **Links too:** paste a video or audio link (YouTube and anything else
+  yt-dlp supports); a small browser extension keeps YouTube signed in.
+- **Made for a home:** one-command install (Windows, Linux, macOS), English
+  and Russian UI, light and dark theme, works on a phone, fits into a home
+  dashboard. No accounts; only your local network gets in.
+
+| Transcript                                                     | Search                                                   | Phone                                                 |
+| -------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------- |
+| ![Transcript with timestamps](docs/screenshots/transcript.png) | ![Search across recordings](docs/screenshots/search.png) | ![On a phone, dark theme](docs/screenshots/phone.png) |
+
+**Install** (needs Docker; the installer offers to set it up):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mazoriksay/homescribe/main/install.sh | bash   # Linux, macOS
+```
+
+```powershell
+irm https://raw.githubusercontent.com/mazoriksay/homescribe/main/install.ps1 | iex           # Windows
+```
+
+More in [Install](#install). The design and API are in [`SPEC.md`](SPEC.md).
+
+**Status:** stages 1–3 of 5 are done (transcription, summaries and search,
+links, a one-command installer). Recording in the browser and offline use
+come next.
 
 ## Start and stop
 

@@ -1,0 +1,37 @@
+name: Bug report
+description: Something does not work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what you got instead. An error message or a screenshot helps.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Settings → Updates → "Check for updates" shows it (for example 0.3.3).
+  - type: dropdown
+    id: setup
+    attributes:
+      label: Where it runs
+      options:
+        - Installer, Windows (Docker Desktop)
+        - Installer, Linux
+        - Installer, macOS
+        - Docker Compose by hand
+        - Without Docker (npm)
+  - type: input
+    id: ai
+    attributes:
+      label: Speech recognition and summaries
+      description: 'GPU or CPU, the models, or a cloud API. For example: RTX 4070 12 GB, large-v3-turbo, qwen2.5:7b.'
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: 'From the install folder: docker compose logs homescribe --tail 100 (and stt-gpu or stt-cpu for speech recognition). Remove anything private.'
+      render: text
