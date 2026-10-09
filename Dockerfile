@@ -3,6 +3,9 @@
 # deno is the JavaScript runtime yt-dlp recommends for YouTube (it sandboxes the code).
 ARG DENO_VERSION=2.9.7
 ARG TARGETARCH
+# Docker Hub's official node image through Google's mirror: Docker Hub limits
+# anonymous pulls, and CI runners share addresses, so builds failed with 429.
+ARG NODE_IMAGE=mirror.gcr.io/library/node:24-bookworm-slim
 FROM ghcr.io/denoland/deno:bin-${DENO_VERSION} AS deno
 
 # yt-dlp's standalone build (bundles Python), one stage per architecture.
@@ -13,7 +16,7 @@ ADD --chmod=755 https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp
 FROM ytdlp-${TARGETARCH} AS ytdlp
 
 # ---- build the web UI ------------------------------------------------------
-FROM node:24-bookworm-slim AS build
+FROM ${NODE_IMAGE} AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
@@ -26,7 +29,7 @@ COPY apps/web apps/web
 RUN npm run build
 
 # ---- runtime: Node 24 + ffmpeg + yt-dlp + deno, server dependencies only ----
-FROM node:24-bookworm-slim
+FROM ${NODE_IMAGE}
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
   && rm -rf /var/lib/apt/lists/*
