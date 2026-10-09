@@ -79,6 +79,8 @@ const envSchema = z.object({
   ),
   WEB_DIST_DIR: optional(z.string().optional()),
   HOMESCRIBE_VERSION: optional(z.string().default('0.0.0')),
+  HOMESCRIBE_COMMIT: optional(z.string().optional()),
+  UPDATE_REPO: optional(z.string().default('Mazoriksay/homescribe')),
   EXTENSION_FOLDER: optional(z.string().optional()),
   STT_MODEL_TTL: optional(z.coerce.number().int().min(0).default(30)),
   AI_TAKE_TURNS: optional(z.stringbool().default(false)),
@@ -149,6 +151,8 @@ export interface Config {
   extensionDir: string;
   /** The host's unpacked copy, only shown to the user. */
   extensionFolder: string | null;
+  /** "Check for updates" (SPEC.md §7.9); repo null turns it off. */
+  updates: { repo: string | null; commit: string | null };
   /** Whisper and the summary model on one GPU (SPEC.md §7.5). */
   gpu: { takeTurns: boolean; sttIdleSeconds: number };
   /** Set from the release tag when the image is built. */
@@ -211,6 +215,7 @@ export function loadConfig(env: Record<string, string | undefined>, rootDir: str
     webDistDir: path.resolve(rootDir, e.WEB_DIST_DIR ?? 'apps/web/dist'),
     extensionDir: path.resolve(rootDir, 'apps/extension'),
     extensionFolder: e.EXTENSION_FOLDER || null,
+    updates: { repo: e.UPDATE_REPO.trim() || null, commit: e.HOMESCRIBE_COMMIT || null },
     gpu: { takeTurns: e.AI_TAKE_TURNS, sttIdleSeconds: e.STT_MODEL_TTL },
     version: e.HOMESCRIBE_VERSION,
     basePath: e.BASE_PATH,

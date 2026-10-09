@@ -19,6 +19,7 @@ import { errorBody, errorHandler } from './errors';
 import { registerEventRoutes } from './events';
 import { registerRecordingRoutes } from './recordings';
 import { registerCookieRoutes } from './cookies';
+import { registerUpdateRoutes } from './updates';
 import { registerSearchRoutes } from './search';
 
 export interface AppDeps extends AiRouteDeps {
@@ -31,6 +32,8 @@ export interface AppDeps extends AiRouteDeps {
   cookies: CookieService;
   /** DNS lookup for the link guard; tests pass a fake. */
   lookup?: Lookup;
+  /** GitHub's API for "Check for updates"; tests pass a fake. */
+  githubApi?: string;
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
@@ -98,6 +101,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       });
       registerEventRoutes(scope, deps.events);
       registerCookieRoutes(scope, deps);
+      registerUpdateRoutes(scope, deps);
     },
     { prefix: base },
   );

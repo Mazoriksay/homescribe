@@ -47,5 +47,6 @@ jobs:
           # "0.3.1" for a release tag, "latest" on main (the extension then says 0.0.0).
           build-args: |
             HOMESCRIBE_VERSION=${{ steps.meta.outputs.version }}
+            HOMESCRIBE_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

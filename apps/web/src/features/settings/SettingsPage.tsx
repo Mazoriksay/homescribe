@@ -9,6 +9,7 @@ import type { ThemePreference } from '../../theme/theme';
 import { AiBackendForm } from './AiBackendForm';
 import { MemorySection } from './MemorySection';
 import { SummaryInstructions } from './SummaryInstructions';
+import { UpdatesSection } from './UpdatesSection';
 import { YouTubeSection } from './YouTubeSection';
 import styles from './Settings.module.css';
 
@@ -36,6 +37,8 @@ export function SettingsPage() {
       <MemorySection />
 
       <YouTubeSection />
+
+      <UpdatesSection />
 
       <section className={styles.section} aria-labelledby="settings-appearance">
         <h2 id="settings-appearance" className={styles.heading}>

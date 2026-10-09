@@ -193,6 +193,18 @@ export const ru: Record<MessageKey, string> = {
   'settings.summaryInstructionsExample':
     'Например: пиши подробнее, приводи цитаты, добавь раздел про риски.',
   'settings.summaryInstructionsSaved': 'Сохранено. Следующие итоги учтут это.',
+  'settings.updates.title': 'Обновления',
+  'settings.updates.check': 'Проверить обновления',
+  'settings.updates.current': 'Установлено: {current}',
+  'settings.updates.behind': 'Есть обновление: изменений с этой версии — {count}.',
+  'settings.updates.release': 'Доступна версия {version}.',
+  'settings.updates.how':
+    'Запустите «Update Homescribe» в папке установки (Linux, macOS: homescribe update), затем обновите эту страницу.',
+  'settings.updates.upToDate': 'Установлена последняя версия.',
+  'settings.updates.error.off': 'Проверка обновлений выключена (UPDATE_REPO).',
+  'settings.updates.error.unknown_build': 'Эта копия собрана из исходников, её версия неизвестна.',
+  'settings.updates.error.unreachable':
+    'Не удалось связаться с GitHub. Проверьте интернет и попробуйте ещё раз.',
   'settings.reset': 'Вернуть по умолчанию',
   'settings.cloudNote': 'Звук и расшифровки отправляются этому провайдеру.',
   'error.DOWNLOAD_FAILED': 'Не удалось скачать по ссылке.',
