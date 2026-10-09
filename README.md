@@ -28,6 +28,25 @@ locally; nothing leaves the machine unless you choose a cloud API.
 | -------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------- |
 | ![Transcript with timestamps](docs/screenshots/transcript.png) | ![Search across recordings](docs/screenshots/search.png) | ![On a phone, dark theme](docs/screenshots/phone.png) |
 
+**How it compares.** Good self-hosted tools already do this; pick by what
+you need. As of October 2026 (from their READMEs):
+
+|                       | Homescribe                                       | [Speakr](https://github.com/murtaza-nasir/speakr) | [OpenTranscribe](https://github.com/attevon-llc/OpenTranscribe) | [Scriberr](https://github.com/rishikanthc/Scriberr) |
+| --------------------- | ------------------------------------------------ | ------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------- |
+| Speaker labels        | no                                               | yes                                               | yes                                                             | yes                                                 |
+| Summaries, local LLM  | yes                                              | yes                                               | yes                                                             | yes                                                 |
+| Links (yt-dlp)        | yes, with YouTube sign-in by a browser extension | no                                                | yes                                                             | yes                                                 |
+| Export                | SRT, VTT, text, Markdown                         | SRT, DOCX, Markdown and templates                 | SRT, VTT, TXT                                                   | SRT, TXT, JSON                                      |
+| Search in transcripts | yes                                              | yes, plus chat                                    | yes, plus chat                                                  | titles only                                         |
+| Users                 | none, local network only                         | many, SSO                                         | many, SSO                                                       | one admin                                           |
+| Install               | one command; sizes models to your GPU            | Docker Compose by hand                            | one command; Windows installer                                  | Docker Compose, Homebrew                            |
+| What runs             | the app, Whisper, Ollama                         | the app plus a WhisperX service                   | the app, workers, OpenSearch and more                           | the app (Go + Python)                               |
+| License               | MIT                                              | AGPL-3.0                                          | AGPL-3.0                                                        | MIT                                                 |
+
+Homescribe is for one household: the least to set up and run, links
+included, nothing to sign in to. If you need to know who said what, or
+accounts for several people, Speakr or OpenTranscribe fit better today.
+
 **Install** (needs Docker; the installer offers to set it up):
 
 ```sh
