@@ -251,10 +251,13 @@ if ($UseLlm) {
   $size = if ($HaveLlm -contains $LlmModel) { ' (already downloaded)' } elseif ($known) { " (download about $($known.Size) GB)" } else { '' }
   Write-Host "  Summaries: Ollama with $LlmModel$size"
 } else { Write-Host '  Summaries: no local AI' }
+# Batched speaches takes long parts and about 3 GB more video memory than the
+# model alone (SPEC.md §7.5): only on a GPU with room for that and the desktop.
+$Batched = $Stt -eq 'gpu' -and $GpuMemGb -and $GpuMemGb -ge $(if ($SttChoice.Vram) { $SttChoice.Vram + 5 } else { 10 })
 $memSum = 0
 $TakeTurns = $false
 $LlmMissing = $false
-if ($Stt -ne 'none' -and $SttChoice.Vram) { $memSum += $SttChoice.Vram }
+if ($Stt -ne 'none' -and $SttChoice.Vram) { $memSum += $SttChoice.Vram + $(if ($Batched) { 3 } else { 0 }) }
 $llmKnown = if ($UseLlm) { $LlmModels | Where-Object { $_.Id -eq $LlmModel } | Select-Object -First 1 } else { $null }
 if ($llmKnown) { $memSum += $llmKnown.Vram }
 if ($memSum -gt 0) {
@@ -262,7 +265,7 @@ if ($memSum -gt 0) {
   Write-Host "  Memory: up to ~$memSum GB of $mem while both are loaded$(if ($Stt -eq 'gpu' -and $GpuMemGb) { " (this GPU has $GpuMemGb GB)" })"
   if ($Stt -eq 'gpu' -and $GpuMemGb -and $memSum -gt $GpuMemGb) {
     $TakeTurns = $true
-    Warn 'More than this GPU has, so the two models will take turns: each recording takes about 30 s longer. Pick smaller models to avoid that.'
+    Warn 'More than this GPU has, so the two models will take turns: each recording takes about 10 s longer. Pick smaller models to avoid that.'
   }
 }
 if (-not (Ask 'Download and start?' $true)) { Write-Host 'Nothing was downloaded.'; exit 0 }
@@ -360,8 +363,7 @@ $lines = @($kept) + @(
   "AI_TAKE_TURNS=$(if ($TakeTurns) { 'true' } else { 'false' })"
 )
 if ($Stt -ne 'none') { $lines += "STT_MODEL=$($SttChoice.Id)" }
-# Batched speaches (GPU only) takes long parts (SPEC.md §7.5).
-if ($Stt -ne 'none') { $lines += "STT_BATCHED=$(if ($Stt -eq 'gpu') { 'true' } else { 'false' })" }
+if ($Stt -ne 'none') { $lines += "STT_BATCHED=$(if ($Batched) { 'true' } else { 'false' })" }
 if ($SpeachesCuda) { $lines += "SPEACHES_CUDA_IMAGE=ghcr.io/speaches-ai/speaches:$SpeachesCuda" }
 $lines += $(if ($UseLlm) { @('LLM_MODE=local', "LLM_MODEL=$LlmModel") } else { @('LLM_MODE=off') })
 # UTF-8 without BOM: Compose reads the file as is.
