@@ -19,6 +19,10 @@ source of truth for the version.
   asks for word timestamps and cuts them at sentence ends, pauses and 15 s,
   instead of showing one 30-second block per recognition window. Timestamps
   and search hits land on the phrase as before.
+- A stretch in another language inside a recording (an English interview in
+  a Russian video) is transcribed in its own language instead of becoming a
+  "speech was not recognised" gap: a looped stretch is heard once more with
+  no language set.
 - Whisper leaves video memory 10 s after use instead of 30 s
   (`STT_MODEL_TTL`), so "Take turns on the GPU" adds about 10 s to a
   recording, not 30 s.

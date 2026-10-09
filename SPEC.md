@@ -813,7 +813,13 @@ summarizing → done`; `downloading` only for a recording made from a link
   3+ identical phrases is asked again with `temperature=0.4`, and the answer
   with fewer repeats is kept. A loop that remains is cut to its first segment
   and stored as a gap (from the end of that segment to the next real one);
-  the recording page names the gaps, so lost speech is never silent. Later
+  the recording page names the gaps, so lost speech is never silent. Before
+  that, each looped stretch (3 s or longer, at most 3 per chunk) is cut out,
+  from its first looped segment to the next real one, and asked once more
+  with no language set: such a loop is often speech in another language, on
+  which the recording's language makes Whisper repeat a few words. When
+  Whisper then detects another language and does not loop, that text
+  replaces the stretch and the gap is gone; otherwise the gap stays. Later
   chunks get the language detected in the first one; segment times are made
   absolute and kept within their chunk. A segment that is nothing but a
   subtitle credit Whisper makes up over silence ("Продолжение следует",
