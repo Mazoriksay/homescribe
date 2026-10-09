@@ -323,6 +323,20 @@ foreach ($name in $launchers.Keys) {
   [IO.File]::WriteAllText((Join-Path $Dir $name), $body, (New-Object Text.ASCIIEncoding))
 }
 
+# speaches' default CUDA image needs a driver that runs CUDA 12.9; an older
+# driver gets the same release built on an older CUDA (SPEC.md §7.5).
+$SpeachesCuda = $null
+if ($Stt -eq 'gpu' -and (Test-Command nvidia-smi)) {
+  $smi = (& { $ErrorActionPreference = 'Continue'; nvidia-smi 2>$null }) -join "`n"
+  if ($smi -match 'CUDA Version:\s*(\d+)\.(\d+)') {
+    $cuda = [int]$Matches[1] * 100 + [int]$Matches[2]
+    $SpeachesCuda = if ($cuda -ge 1209) { $null } elseif ($cuda -ge 1206) { '0.8.3-cuda-12.6.3' } else { '0.8.3-cuda-12.4.1' }
+    if ($SpeachesCuda) {
+      Warn "The NVIDIA driver runs CUDA $($Matches[1]).$($Matches[2]); speech recognition uses speaches $SpeachesCuda. A driver for CUDA 12.9 or newer makes it faster on new cards."
+    }
+  }
+}
+
 $profiles = @()
 if ($Stt -ne 'none') { $profiles += $Stt }
 if ($UseLlm) { $profiles += $(if ($Stt -eq 'gpu') { 'llm-gpu' } else { 'llm-cpu' }) }
@@ -330,7 +344,10 @@ if ($UseLlm) { $profiles += $(if ($Stt -eq 'gpu') { 'llm-gpu' } else { 'llm-cpu'
 # Our keys are rewritten; anything else in .env is kept.
 $kept = @()
 if (Test-Path $envFile) {
-  $kept = Get-Content $envFile | Where-Object { $_ -notmatch $(if ($Stt -ne 'none') { '^(AI_TAKE_TURNS|COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL|STT_MODEL)=' } else { '^(AI_TAKE_TURNS|COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL)=' }) }
+  $ours = 'AI_TAKE_TURNS|COMPOSE_PROFILES|EXTENSION_FOLDER|HOMESCRIBE_IMAGE|HOMESCRIBE_PORT|HOMESCRIBE_RESTART|LLM_MODE|LLM_MODEL'
+  if ($Stt -ne 'none') { $ours += '|STT_MODEL' }
+  if ($Stt -eq 'gpu') { $ours += '|SPEACHES_CUDA_IMAGE' }
+  $kept = Get-Content $envFile | Where-Object { $_ -notmatch "^($ours)=" }
 }
 $lines = @($kept) + @(
   "COMPOSE_PROFILES=$($profiles -join ',')",
@@ -341,6 +358,7 @@ $lines = @($kept) + @(
   "AI_TAKE_TURNS=$(if ($TakeTurns) { 'true' } else { 'false' })"
 )
 if ($Stt -ne 'none') { $lines += "STT_MODEL=$($SttChoice.Id)" }
+if ($SpeachesCuda) { $lines += "SPEACHES_CUDA_IMAGE=ghcr.io/speaches-ai/speaches:$SpeachesCuda" }
 $lines += $(if ($UseLlm) { @('LLM_MODE=local', "LLM_MODEL=$LlmModel") } else { @('LLM_MODE=off') })
 # UTF-8 without BOM: Compose reads the file as is.
 [IO.File]::WriteAllLines($envFile, [string[]]$lines, (New-Object Text.UTF8Encoding $false))
