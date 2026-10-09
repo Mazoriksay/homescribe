@@ -217,6 +217,64 @@ describe('HTTP API', () => {
       ]);
     });
 
+    it('exports the transcript as subtitles, text and Markdown', async () => {
+      const { id } = (await upload()).json<Recording>();
+      await t.runner.idle();
+      expect((await t.app.inject(`/api/v1/recordings/${id}/export?format=srt`)).statusCode).toBe(
+        200,
+      );
+      t.repo.renameRecording(id, 'Встреча: план/бюджет');
+      t.repo.saveTranscript(id, {
+        language: 'ru',
+        model: 'm',
+        text: 'Привет. Начнём.',
+        segments: [
+          { start: 0, end: 1.5, text: 'Привет.' },
+          { start: 62.25, end: 64, text: 'Начнём.' },
+        ],
+      });
+      t.repo.saveSummary(id, { summary: 'Коротко.', actionItems: ['Позвонить'], model: 'm' });
+
+      const srt = await t.app.inject(`/api/v1/recordings/${id}/export?format=srt`);
+      expect(srt.statusCode).toBe(200);
+      expect(srt.headers['content-type']).toBe('application/x-subrip; charset=utf-8');
+      expect(srt.headers['content-disposition']).toBe(
+        `attachment; filename="_______ ____ ______.srt"; filename*=UTF-8''${encodeURIComponent('Встреча план бюджет.srt')}`,
+      );
+      expect(srt.body).toBe(
+        '1\n00:00:00,000 --> 00:00:01,500\nПривет.\n\n2\n00:01:02,250 --> 00:01:04,000\nНачнём.\n',
+      );
+
+      const vtt = await t.app.inject(`/api/v1/recordings/${id}/export?format=vtt`);
+      expect(vtt.headers['content-type']).toBe('text/vtt; charset=utf-8');
+      expect(vtt.body.startsWith('WEBVTT\n\n00:00:00.000 --> 00:00:01.500\nПривет.\n')).toBe(true);
+
+      const md = await t.app.inject(`/api/v1/recordings/${id}/export?format=md&lang=ru`);
+      expect(md.headers['content-type']).toBe('text/markdown; charset=utf-8');
+      expect(md.body).toContain('# Встреча: план/бюджет');
+      expect(md.body).toContain('## Итоги\n\nКоротко.');
+      expect(md.body).toContain('## Задачи\n\n- [ ] Позвонить');
+      expect(md.body).toContain('**1:02** Начнём.');
+
+      const txt = await t.app.inject(`/api/v1/recordings/${id}/export?format=txt`);
+      expect(txt.body).toBe('Привет.\nНачнём.\n');
+
+      const bad = await t.app.inject(`/api/v1/recordings/${id}/export?format=docx`);
+      expect(bad.statusCode).toBe(400);
+      expect(bad.json().error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('refuses to export before there is a transcript', async () => {
+      t.transcriber.gate = deferred().promise;
+      const { id } = (await upload()).json<Recording>();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const res = await t.app.inject(`/api/v1/recordings/${id}/export?format=srt`);
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('TRANSCRIPT_NOT_READY');
+      t.transcriber.gate = null;
+      await t.runner.stop();
+    });
+
     it('deletes a recording and its files', async () => {
       const { id } = (await upload()).json<Recording>();
       await t.runner.idle();

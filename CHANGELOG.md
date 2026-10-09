@@ -9,6 +9,9 @@ source of truth for the version.
 
 ### Added
 
+- Download a transcript as subtitles (SRT, WebVTT), plain text or Markdown
+  with the summary and to-dos, from the recording page or
+  `GET /api/v1/recordings/:id/export?format=srt|vtt|txt|md`.
 - The project is licensed under MIT (`LICENSE`). The README starts with
   screenshots and what Homescribe does; issue templates for bugs and ideas.
 

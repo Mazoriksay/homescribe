@@ -2,6 +2,13 @@ import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { randomUUID } from 'node:crypto';
 import {
+  exportFileName,
+  exportMediaTypes,
+  exportQuerySchema,
+  toMarkdown,
+  toSrt,
+  toText,
+  toVtt,
   API_PREFIX,
   createFromUrlBodySchema,
   createJobBodySchema,
@@ -189,6 +196,37 @@ export function registerRecordingRoutes(app: FastifyInstance, deps: AppDeps): vo
       throw new AppError(409, 'TRANSCRIPT_NOT_READY', 'The transcript is not ready yet');
     }
     return transcript;
+  });
+
+  // Subtitles, plain text or Markdown with the summary, as a download (SPEC.md §7.3).
+  app.get(`${API_PREFIX}/recordings/:id/export`, async (request, reply) => {
+    const { id } = parseInput(idParamsSchema, request.params, 'recording id');
+    const { format, lang } = parseInput(exportQuerySchema, request.query, 'query');
+    const recording = repo.getRecording(id);
+    if (!recording) throw notFound('Recording');
+    const transcript = repo.getTranscript(id);
+    if (!transcript) {
+      throw new AppError(409, 'TRANSCRIPT_NOT_READY', 'The transcript is not ready yet');
+    }
+    const duration = recording.durationSeconds;
+    const body =
+      format === 'srt'
+        ? toSrt(transcript, duration)
+        : format === 'vtt'
+          ? toVtt(transcript, duration)
+          : format === 'txt'
+            ? toText(transcript)
+            : toMarkdown(recording, transcript, repo.getSummary(id), lang);
+    const name = exportFileName(recording.title, format);
+    // An ASCII name for old clients, the real one (RFC 6266/5987) for the rest.
+    const ascii = name.replace(/[^\x20-\x7e]|["%]/g, '_');
+    return reply
+      .header('content-type', exportMediaTypes[format])
+      .header(
+        'content-disposition',
+        `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`,
+      )
+      .send(body);
   });
 
   app.post(`${API_PREFIX}/recordings/:id/jobs`, async (request, reply) => {

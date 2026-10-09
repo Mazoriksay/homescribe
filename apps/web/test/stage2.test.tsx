@@ -623,6 +623,22 @@ describe('RecordingPage, stage 2', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
+  it('offers the transcript as subtitles, text and Markdown', async () => {
+    mockApi([
+      { path: recordingPath, body: recording() },
+      { path: `${recordingPath}/transcript`, body: transcript() },
+      { path: `${API_PREFIX}/settings/ai`, body: settings },
+    ]);
+    renderPage(<RecordingPage />, { ...page, prefs: { locale: 'ru', theme: 'auto' } });
+    const md = await screen.findByRole('link', { name: 'Markdown' });
+    expect(md.getAttribute('href')).toBe(`${recordingPath}/export?format=md&lang=ru`);
+    expect(md.hasAttribute('download')).toBe(true);
+    expect(screen.getByRole('link', { name: 'SRT' }).getAttribute('href')).toBe(
+      `${recordingPath}/export?format=srt&lang=ru`,
+    );
+    expect(screen.getByRole('link', { name: 'Текст' })).toBeTruthy();
+  });
+
   it('seeks the player when a timestamp is tapped', async () => {
     mockApi([
       { path: recordingPath, body: recording() },
