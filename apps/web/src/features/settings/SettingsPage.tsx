@@ -8,6 +8,7 @@ import { useT } from '../../i18n/useT';
 import type { ThemePreference } from '../../theme/theme';
 import { AiBackendForm } from './AiBackendForm';
 import { MemorySection } from './MemorySection';
+import { ContextWindow } from './ContextWindow';
 import { SummaryInstructions } from './SummaryInstructions';
 import { UpdatesSection } from './UpdatesSection';
 import { YouTubeSection } from './YouTubeSection';
@@ -29,7 +30,12 @@ export function SettingsPage() {
             {t(`settings.${kind}.title`)}
           </h2>
           {data && <AiBackendForm settings={data[kind]} />}
-          {kind === 'llm' && data && data.llm.mode !== 'off' && <SummaryInstructions />}
+          {kind === 'llm' && data && data.llm.mode !== 'off' && (
+            <>
+              <ContextWindow />
+              <SummaryInstructions />
+            </>
+          )}
           {isError && <Button onClick={() => void refetch()}>{t('library.retry')}</Button>}
         </section>
       ))}

@@ -93,7 +93,7 @@ describe('AiMemoryService', () => {
       llm: {
         state: 'ok',
         server: 'ollama',
-        loaded: [{ model: 'qwen2.5:7b', vramBytes: 5_000_000_000 }],
+        loaded: [{ model: 'qwen2.5:7b', vramBytes: 5_000_000_000, sizeBytes: null }],
       },
     });
 

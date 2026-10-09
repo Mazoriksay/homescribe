@@ -9,6 +9,13 @@ source of truth for the version.
 
 ### Added
 
+- Context window for summaries with Ollama (Settings → Summaries): "As in
+  Ollama" or 4k–256k presets and a typed size, limited to 2048 … the model's
+  own maximum. The size goes with each request through Ollama's own chat API
+  (`num_ctx`), and the part size follows the window (about 4000 characters
+  for 4096 tokens, 16 000 for 16k) unless `LLM_CHUNK_CHARS` is set. Without a
+  chosen size the window Ollama reports for the loaded model is used. The
+  video memory section says when part of the model runs on the CPU.
 - "Check for updates" in Settings: compares this version with GitHub (only
   when pressed) and, when there is a newer one, says how many changes and
   to run "Update Homescribe". The image records its commit for that

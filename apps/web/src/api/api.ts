@@ -20,6 +20,7 @@ import {
   type SearchPage,
   type Summary,
   type SummarySettings,
+  type LlmContext,
   type UpdateStatus,
   type Transcript,
   type UpdateAiSettingsBody,
@@ -40,6 +41,7 @@ export const api = createApi({
     'Cookies',
     'Health',
     'SummarySettings',
+    'LlmContext',
   ],
   endpoints: (build) => ({
     listRecordings: build.query<RecordingPage, { page: number; pageSize: number }>({
@@ -83,11 +85,11 @@ export const api = createApi({
     }),
     updateAiSettings: build.mutation<AiSettings, { kind: AiKind } & UpdateAiSettingsBody>({
       query: ({ kind, ...body }) => ({ url: `/settings/ai/${kind}`, method: 'PUT', body }),
-      invalidatesTags: ['AiSettings', 'AiMemory', 'Health'],
+      invalidatesTags: ['AiSettings', 'AiMemory', 'Health', 'LlmContext'],
     }),
     resetAiSettings: build.mutation<AiSettings, AiKind>({
       query: (kind) => ({ url: `/settings/ai/${kind}`, method: 'DELETE' }),
-      invalidatesTags: ['AiSettings', 'Health'],
+      invalidatesTags: ['AiSettings', 'Health', 'LlmContext'],
     }),
     getAiMemory: build.query<AiMemory, void>({
       query: () => '/ai/memory',
@@ -114,6 +116,17 @@ export const api = createApi({
     checkUpdates: build.query<UpdateStatus, void>({
       query: () => '/updates',
       keepUnusedDataFor: 0,
+    }),
+    getLlmContext: build.query<LlmContext, void>({
+      query: () => '/settings/llm-context',
+      providesTags: ['LlmContext'],
+    }),
+    setLlmContext: build.mutation<LlmContext, number | null>({
+      query: (value) => ({ url: '/settings/llm-context', method: 'PUT', body: { value } }),
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        const { data } = await queryFulfilled;
+        dispatch(api.util.upsertQueryData('getLlmContext', undefined, data));
+      },
     }),
     getSummarySettings: build.query<SummarySettings, void>({
       query: () => '/settings/summary',
@@ -206,6 +219,8 @@ export const {
   useUnloadAiMutation,
   useSetTakeTurnsMutation,
   useGetSummarySettingsQuery,
+  useGetLlmContextQuery,
+  useSetLlmContextMutation,
   useLazyCheckUpdatesQuery,
   useSaveSummarySettingsMutation,
   useUpdateAiSettingsMutation,

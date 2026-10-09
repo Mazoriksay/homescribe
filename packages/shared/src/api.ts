@@ -304,6 +304,13 @@ export const upstreamModelListSchema = z.object({
     .transform((data) => data ?? []),
 });
 
+/** Subset of Ollama's own POST /api/chat answer (stream: false). */
+export const ollamaChatSchema = z.object({
+  message: z.object({ content: z.string().nullish() }),
+  /** "length" when the context window cut the reply off. */
+  done_reason: z.string().nullish(),
+});
+
 /** Subset of an OpenAI-compatible chat completion response. */
 export const chatCompletionSchema = z.object({
   choices: z

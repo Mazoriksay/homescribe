@@ -205,6 +205,15 @@ export const ru: Record<MessageKey, string> = {
   'settings.updates.error.unknown_build': 'Эта копия собрана из исходников, её версия неизвестна.',
   'settings.updates.error.unreachable':
     'Не удалось связаться с GitHub. Проверьте интернет и попробуйте ещё раз.',
+  'settings.context.title': 'Окно контекста',
+  'settings.context.ollama': 'Как в Ollama',
+  'settings.context.ollamaNow': 'Как в Ollama ({size})',
+  'settings.context.custom': 'Токенов',
+  'settings.context.apply': 'Применить',
+  'settings.context.limits':
+    'От {min} до {max} токенов для этой модели. Итоги делаются частями примерно по {chunk} символов. Чем больше окно, тем больше нужно видеопамяти.',
+  'settings.context.invalid': 'Окно должно быть от {min} до {max} токенов.',
+  'settings.memory.onCpu': '{percent}% на процессоре, медленно: уменьшите окно контекста',
   'settings.reset': 'Вернуть по умолчанию',
   'settings.cloudNote': 'Звук и расшифровки отправляются этому провайдеру.',
   'error.DOWNLOAD_FAILED': 'Не удалось скачать по ссылке.',

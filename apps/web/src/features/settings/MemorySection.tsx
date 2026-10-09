@@ -27,11 +27,14 @@ export function MemorySection() {
     if (b.state === 'unreachable') return t('settings.memory.unreachable');
     if (b.loaded.length === 0) return t('settings.memory.unloaded');
     const models = b.loaded
-      .map(({ model, vramBytes }) =>
-        vramBytes
-          ? `${model} · ${t('settings.memory.size', { gb: (vramBytes / 1e9).toFixed(1) })}`
-          : model,
-      )
+      .map(({ model, vramBytes, sizeBytes }) => {
+        if (!vramBytes) return model;
+        const size = `${model} · ${t('settings.memory.size', { gb: (vramBytes / 1e9).toFixed(1) })}`;
+        // Ollama reports less in video memory than the whole: the rest runs on the CPU.
+        return sizeBytes && sizeBytes > vramBytes * 1.02
+          ? `${size} · ${t('settings.memory.onCpu', { percent: Math.round((1 - vramBytes / sizeBytes) * 100) })}`
+          : size;
+      })
       .join(', ');
     return b.state === 'auto'
       ? `${models} · ${t('settings.memory.auto', { seconds: data.sttIdleSeconds })}`

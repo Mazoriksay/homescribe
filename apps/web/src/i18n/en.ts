@@ -201,6 +201,15 @@ export const en = {
     'This copy was built from source, so its version is unknown.',
   'settings.updates.error.unreachable':
     'Could not reach GitHub. Check the internet connection and try again.',
+  'settings.context.title': 'Context window',
+  'settings.context.ollama': 'As in Ollama',
+  'settings.context.ollamaNow': 'As in Ollama ({size})',
+  'settings.context.custom': 'Tokens',
+  'settings.context.apply': 'Apply',
+  'settings.context.limits':
+    'From {min} to {max} tokens for this model. Summaries are made in parts of about {chunk} characters. A larger window needs more video memory.',
+  'settings.context.invalid': 'The window must be between {min} and {max} tokens.',
+  'settings.memory.onCpu': '{percent}% on the CPU, slow: choose a smaller context window',
   'settings.reset': 'Back to defaults',
   'settings.cloudNote': 'Audio and transcripts are sent to this provider.',
   'error.DOWNLOAD_FAILED': 'The link could not be downloaded.',

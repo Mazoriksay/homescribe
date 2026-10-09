@@ -11,6 +11,7 @@ import { FfmpegMediaTool } from './media/ffmpeg';
 import { YtDlpDownloader } from './media/ytdlp';
 import { MediaStore } from './storage';
 import { createAiBackends } from './ai/backends';
+import { LlmContextService } from './ai/context';
 import { AiMemoryService } from './ai/memory';
 import { CookieService, retryRecordings } from './cookies/service';
 import { discoverServers } from './ai/discovery';
@@ -31,6 +32,7 @@ async function main(): Promise<void> {
   const media = new FfmpegMediaTool(config.ffmpegPath, config.ffprobePath);
   const downloader = new YtDlpDownloader(config.ytdlp.path, config.ytdlp.cookiesFile);
   let app: FastifyInstance | undefined;
+  const context = new LlmContextService(aiSettings, repo, config.llm.chunkChars);
   const memory: AiMemoryService = new AiMemoryService(aiSettings, (): boolean => runner.busy, {
     repo,
     gpu: config.gpu,
@@ -42,7 +44,7 @@ async function main(): Promise<void> {
     media,
     downloader,
     download: { maxBytes: config.maxUploadBytes, timeoutMs: config.ytdlp.timeoutMs },
-    ai: createAiBackends(aiSettings, config),
+    ai: createAiBackends(aiSettings, config, context),
     logger: {
       info: (obj, msg) => app?.log.info(obj, msg),
       error: (obj, msg) => app?.log.error(obj, msg),
@@ -79,6 +81,7 @@ async function main(): Promise<void> {
     aiSettings,
     discover: () => discoverServers({ hosts: config.discoveryHosts, selfPort: config.port }),
     memory,
+    context,
     listModels: (baseUrl, apiKey) => listModels(baseUrl, apiKey),
   });
   app.log.info({ search: repo.search.mode }, 'search index ready');

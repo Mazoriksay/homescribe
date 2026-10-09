@@ -1,4 +1,9 @@
-import { chatCompletionSchema, summaryPayloadSchema } from '@homescribe/shared';
+import {
+  chatCompletionSchema,
+  chunkCharsForWindow,
+  ollamaChatSchema,
+  summaryPayloadSchema,
+} from '@homescribe/shared';
 import { authHeaders, httpRequest, withTimeout } from '../ai/http';
 import { LlmError, type SummarizeOptions, type Summarizer, type SummaryResult } from './summarizer';
 
@@ -7,8 +12,12 @@ export interface OpenAiSummarizerOptions {
   model: string;
   apiKey: string | null;
   timeoutMs: number;
-  /** Transcripts longer than this are summarized in parts first. */
-  chunkChars: number;
+  /** Transcripts longer than this are summarized in parts first; null = from the window. */
+  chunkChars: number | null;
+  /** A chosen Ollama window: requests then go to /api/chat with options.num_ctx. */
+  ollamaContext?: number | null;
+  /** The context window in tokens, for the part size when chunkChars is null. */
+  window?: () => Promise<number>;
   /** Waits before the 2nd and 3rd try on HTTP 429/503 without Retry-After. */
   busyRetryDelaysMs?: number[];
 }
@@ -178,6 +187,8 @@ export function parseSummaryReply(content: string): SummaryResult | null {
  */
 export class OpenAiSummarizer implements Summarizer {
   readonly model: string;
+  /** Part size of the summary in progress. */
+  private chunkChars = 4000;
 
   constructor(private readonly options: OpenAiSummarizerOptions) {
     this.model = options.model;
@@ -208,7 +219,10 @@ export class OpenAiSummarizer implements Summarizer {
     };
 
     // Requests done and expected; halving and merge rounds add to `expected`.
-    const parts = splitText(transcript.text, this.options.chunkChars);
+    const chunkChars =
+      this.options.chunkChars ?? chunkCharsForWindow((await this.options.window?.()) ?? 4096);
+    this.chunkChars = chunkChars;
+    const parts = splitText(transcript.text, chunkChars);
     const steps = { done: 0, expected: parts.length > 1 ? parts.length + 1 : 1, reported: 0 };
     const step = () => {
       steps.done += 1;
@@ -303,7 +317,7 @@ export class OpenAiSummarizer implements Summarizer {
     let current = partials;
     let firstRound = true;
     while (current.length > 1) {
-      const groups = groupNotes(current.map(notesOf), this.options.chunkChars);
+      const groups = groupNotes(current.map(notesOf), this.chunkChars);
       // The first round's request is already counted once in `expected`.
       steps.expected += groups.length - (firstRound ? 1 : 0);
       firstRound = false;
@@ -436,7 +450,8 @@ export class OpenAiSummarizer implements Summarizer {
     messages: ChatMessage[],
     signal?: AbortSignal,
   ): Promise<{ content: string; finishReason: string | null }> {
-    const url = new URL(`${this.options.baseUrl}/v1/chat/completions`);
+    const native = Boolean(this.options.ollamaContext);
+    const url = new URL(`${this.options.baseUrl}${native ? '/api/chat' : '/v1/chat/completions'}`);
     const timer = withTimeout(this.options.timeoutMs, signal);
     const { status, body, headers } = await httpRequest(url, {
       method: 'POST',
@@ -445,12 +460,16 @@ export class OpenAiSummarizer implements Summarizer {
         accept: 'application/json',
         ...authHeaders(this.options.apiKey),
       },
-      body: JSON.stringify({
-        model: this.options.model,
-        messages,
-        temperature: 0.2,
-        stream: false,
-      }),
+      body: JSON.stringify(
+        native
+          ? {
+              model: this.options.model,
+              messages,
+              stream: false,
+              options: { num_ctx: this.options.ollamaContext, temperature: 0.2 },
+            }
+          : { model: this.options.model, messages, temperature: 0.2, stream: false },
+      ),
       signal: timer.signal,
       limit: 8 * 1024 * 1024,
     }).catch((error: unknown) => {
@@ -481,6 +500,14 @@ export class OpenAiSummarizer implements Summarizer {
       json = JSON.parse(body);
     } catch {
       throw new LlmError('LLM_FAILED', 'Response is not JSON');
+    }
+    if (native) {
+      const reply = ollamaChatSchema.safeParse(json);
+      if (!reply.success) throw new LlmError('LLM_FAILED', 'Unexpected response shape');
+      return {
+        content: reply.data.message.content ?? '',
+        finishReason: reply.data.done_reason ?? null,
+      };
     }
     const parsed = chatCompletionSchema.safeParse(json);
     if (!parsed.success) throw new LlmError('LLM_FAILED', 'Unexpected response shape');
