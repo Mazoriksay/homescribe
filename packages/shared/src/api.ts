@@ -317,6 +317,13 @@ export const chatCompletionSchema = z.object({
     .min(1),
 });
 
+export const SUMMARY_INSTRUCTIONS_MAX_LENGTH = 2000;
+/** The user's own additions to the summary prompt (SPEC.md §8). */
+export const summarySettingsSchema = z.object({
+  instructions: z.string().trim().max(SUMMARY_INSTRUCTIONS_MAX_LENGTH),
+});
+export type SummarySettings = z.infer<typeof summarySettingsSchema>;
+
 /** What the summarizer must return; validated before anything is stored. */
 export const summaryPayloadSchema = z.object({
   summary: z.string().trim().min(1).max(SUMMARY_MAX_LENGTH),

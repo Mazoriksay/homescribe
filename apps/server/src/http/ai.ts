@@ -3,12 +3,15 @@ import {
   API_PREFIX,
   listModelsBodySchema,
   takeTurnsBodySchema,
+  summarySettingsSchema,
   updateAiSettingsBodySchema,
   type AiModel,
   type Discovery,
 } from '@homescribe/shared';
 import type { FastifyInstance } from 'fastify';
 import type { AiMemoryService } from '../ai/memory';
+import type { Repository } from '../db/repository';
+import { SUMMARY_INSTRUCTIONS } from '../jobs/runner';
 import { AiUnreachableError } from '../ai/models';
 import { AiSettingsError, type AiSettingsService } from '../ai/settings';
 import { AppError, parseInput } from './errors';
@@ -19,6 +22,7 @@ export interface AiRouteDeps {
   listModels: (baseUrl: string, apiKey: string | null) => Promise<AiModel[]>;
   onSettingsChanged?: () => void;
   memory: AiMemoryService;
+  repo: Pick<Repository, 'getAppSetting' | 'setAppSetting'>;
 }
 
 /** Choosing speech-to-text and LLM backends (SPEC.md §7.5). */
@@ -64,6 +68,16 @@ export function registerAiRoutes(app: FastifyInstance, deps: AiRouteDeps): void 
     }
     const { memory, failed } = await deps.memory.unload();
     return { ...memory, failed };
+  });
+
+  app.get(`${API_PREFIX}/settings/summary`, async () => ({
+    instructions: deps.repo.getAppSetting<string>(SUMMARY_INSTRUCTIONS) ?? '',
+  }));
+
+  app.put(`${API_PREFIX}/settings/summary`, async (request) => {
+    const body = parseInput(summarySettingsSchema, request.body ?? {}, 'body');
+    deps.repo.setAppSetting(SUMMARY_INSTRUCTIONS, body.instructions);
+    return body;
   });
 
   app.put(`${API_PREFIX}/ai/take-turns`, async (request) => {

@@ -116,12 +116,14 @@ export class FakeSummarizer {
   /** Fail only this many calls, then succeed (null: every call). */
   failTimes: number | null = null;
   calls: { text: string; language: string | null }[] = [];
+  instructions: string[] = [];
 
   async summarize(
     transcript: { text: string; language: string | null },
-    options: { onProgress?: (ratio: number) => void } = {},
+    options: { onProgress?: (ratio: number) => void; instructions?: string } = {},
   ) {
     this.calls.push(transcript);
+    this.instructions.push(options.instructions ?? '');
     if (this.failWith && (this.failTimes === null || this.failTimes-- > 0)) {
       throw new LlmError(this.failWith, 'fake failure');
     }

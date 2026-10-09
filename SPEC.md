@@ -181,7 +181,7 @@ ALTER TABLE recordings ADD COLUMN source_url TEXT;           -- link the media c
 ALTER TABLE recordings ADD COLUMN title_from_source INTEGER NOT NULL DEFAULT 0;
                                                              -- 1: replace title with the page's title
 CREATE TABLE app_settings (                  -- small switches set in the UI
-  key   TEXT PRIMARY KEY,                     -- 'take_turns'
+  key   TEXT PRIMARY KEY,                     -- 'take_turns', 'summary_instructions'
   value TEXT NOT NULL                         -- JSON
 );
 CREATE TABLE ai_settings (                   -- one row per kind once chosen in the UI
@@ -357,6 +357,8 @@ interface Page<T> {
 | `GET /api/v1/ai/memory`                 | 3     | —                                                                                                                      | `200 AiMemory`                                                          |                                                                     |
 | `POST /api/v1/ai/unload`                | 3     | —                                                                                                                      | `200 AiMemory & { failed: string[] }`                                   | 409 `JOB_ACTIVE`                                                    |
 | `PUT /api/v1/ai/take-turns`             | 3     | `{ enabled: boolean }`                                                                                                 | `200 AiMemory`                                                          | 400 `VALIDATION_ERROR`                                              |
+| `GET /api/v1/settings/summary`          | 3     | —                                                                                                                      | `200 { instructions: string }`                                          | —                                                                   |
+| `PUT /api/v1/settings/summary`          | 3     | `{ instructions: string }` (≤ 2000)                                                                                    | `200 { instructions: string }`                                          | 400 `VALIDATION_ERROR`                                              |
 
 `SearchHit` is `{ recording, snippet: { text, match }[], segment: { index, start } | null }`:
 a fragment around the first match split into highlighted parts, and the first
@@ -707,7 +709,16 @@ summarizing → done`; `downloading` only for a recording made from a link
   with a small context window that the OpenAI API cannot raise: Ollama
   defaults to 4096 tokens). The model gets the transcript as tagged data
   with a fixed JSON reply format `{ summary, actionItems }` in the
-  transcript's language. Reasoning stays on (it makes summaries more
+  transcript's language. The summary is detailed by default: an overview of
+  2–4 paragraphs, the key points with their specifics (names, numbers,
+  arguments, examples) and a short conclusion; action items are only real
+  tasks, and a lecture or video without any gets none (the recording page
+  then shows no "To do" block at all). The user may add their own
+  instructions in Settings → Summaries (`PUT /settings/summary
+{ instructions }`, up to 2000 characters, stored in `app_settings`); they
+  go into the system prompt after the fixed rules and can change length,
+  focus and style, not the reply format or the rule that the transcript is
+  data. Reasoning stays on (it makes summaries more
   accurate), so a part must leave room for it: the default of 4000
   characters is about 1100 tokens of Russian and fits a 4096-token window
   with the system prompt, reasoning and the reply (measured with
@@ -727,7 +738,7 @@ summarizing → done`; `downloading` only for a recording made from a link
     `LLM_OUT_OF_MEMORY` instead (§7.5).
   - Merging: the part summaries are grouped so each group's notes stay
     within `LLM_CHUNK_CHARS`, each group is merged, and that repeats until
-    one summary is left (at least two notes per group, so it always ends).
+    one summary is left (at least two notes per group, so it always ends); a merge cut off by the window splits a group of three or more notes in halves, and only a cut-off pair fails with `LLM_CONTEXT_EXCEEDED`.
   - Progress = requests done / requests expected; halving and further
     merge rounds add to the expected count, and progress never goes back.
 - Exactly one job runs at a time across the whole server (FIFO by
