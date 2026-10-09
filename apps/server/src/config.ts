@@ -57,6 +57,7 @@ const envSchema = z.object({
   STT_API_KEY: optional(z.string().optional()),
   STT_TIMEOUT_MS: optional(z.coerce.number().int().positive().default(3_600_000)),
   STT_VAD_FILTER: optional(z.stringbool().default(true)),
+  STT_BATCHED: optional(z.stringbool().default(false)),
   LLM_MODE: optional(z.enum(['local', 'api', 'off']).default('local')),
   LLM_BASE_URL: optional(url.default('http://localhost:11434')),
   LLM_MODEL: optional(z.string().default('llama3.1:8b')),
@@ -134,6 +135,8 @@ export interface Config {
     timeoutMs: number;
     /** Ask a local speaches server to skip silence (stops Whisper repeating itself). */
     vadFilter: boolean;
+    /** The speaches at baseUrl runs in batched mode: it gets long parts (SPEC.md §7.5). */
+    batched: boolean;
   };
   llm: {
     mode: 'local' | 'api' | 'off';
@@ -203,6 +206,7 @@ export function loadConfig(env: Record<string, string | undefined>, rootDir: str
       apiKey: e.STT_API_KEY ?? null,
       timeoutMs: e.STT_TIMEOUT_MS,
       vadFilter: e.STT_VAD_FILTER,
+      batched: e.STT_BATCHED,
     },
     llm: {
       mode: e.LLM_MODE,

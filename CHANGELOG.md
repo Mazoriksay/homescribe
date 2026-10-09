@@ -9,6 +9,11 @@ source of truth for the version.
 
 ### Changed
 
+- Speech recognition on an NVIDIA GPU runs speaches in batched mode and
+  sends it 10-minute parts instead of 1-minute ones: 10 minutes of audio in
+  about 11 s on an RTX 5070 Ti. The installer and "Update Homescribe" turn it
+  on for GPU installs (`STT_BATCHED=true`); other speech servers keep
+  1-minute parts.
 - "Update Homescribe" (`homescribe update`) also downloads the current
   `compose.yaml` and control script, so fixes in them (such as the faster
   speech recognition image) reach existing installs without running the

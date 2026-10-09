@@ -453,9 +453,22 @@ for an older driver writes the same release built on CUDA 12.6.3 or 12.4.1
 (`0.8.3-cuda-12.6.3`, `0.8.3-cuda-12.4.1`) into `.env`.
 On an RTX 5070 Ti, `large-v3` took 18 s per minute of audio on `0.8.1-cuda`
 (CUDA 12.6, older than RTX 50 cards) and 6 s on `0.8.3-cuda`, with the same
-text; `float16` (the default) beat `int8_float16` there. Batched mode
-(`WHISPER__USE_BATCHED_MODE`) stays off: it is faster still, but only pays
-off on parts much longer than the 60 s ones sent today.
+text; `float16` (the default) beat `int8_float16` there.
+
+**Batched mode.** `compose.yaml` runs the GPU speaches with
+`WHISPER__USE_BATCHED_MODE` (`STT_BATCHED`, default `true`): faster-whisper's
+`BatchedInferencePipeline` cuts the audio by voice activity into windows of up
+to 30 s and transcribes 8 at a time, each without the previous text
+(`condition_on_previous_text=False`), so a loop cannot run past its window.
+It needs the VAD filter (otherwise it refuses audio longer than 30 s), so
+Homescribe always sends `vad_filter=true` then. With `STT_BATCHED=true` in
+Homescribe's environment (the installer writes it for a GPU install, `false`
+for the CPU; `update` adds it to older GPU installs) the bundled server
+(`STT_BASE_URL`, mode local) gets 10-minute parts (±60 s, cut in a pause);
+any other server keeps minute parts, since a sequential server loses text
+and loops on long ones. Measured on the same RTX 5070 Ti: 10 minutes in 11 s
+(`float16`); `int8_float16` fails there in batched mode
+(`CUBLAS_STATUS_NOT_SUPPORTED`).
 
 **Freeing video memory.** speaches keeps Whisper loaded for `STT_MODEL_TTL`
 seconds after use (`compose.yaml` passes it as `WHISPER__TTL`, the
@@ -768,7 +781,7 @@ summarizing → done`; `downloading` only for a recording made from a link
   `work/audio.wav` (16 kHz, mono, PCM s16le). Progress = converted time /
   duration from `ffmpeg -progress`.
 - `transcribing`: recordings longer than 75 s are sent in chunks of about
-  60 s, cut in the middle of the pause (ffmpeg `silencedetect`, −35 dB,
+  60 s (10 minutes ±60 s to a batched speaches, §7.5), cut in the middle of the pause (ffmpeg `silencedetect`, −35 dB,
   0.5 s) nearest to each 60 s mark within ±15 s, else at the mark; each chunk
   is cut from the WAV and encoded in the backend's format (WAV, or Ogg Opus
   for cloud APIs). Whisper conditions on its own previous text, and speaches

@@ -20,6 +20,7 @@ describe('loadConfig', () => {
       apiKey: null,
       timeoutMs: 3_600_000,
       vadFilter: true,
+      batched: false,
     });
     expect(config.webDistDir).toBe(path.join(root, 'apps/web/dist'));
     expect(config.extensionDir).toBe(path.join(root, 'apps/extension'));

@@ -1,9 +1,17 @@
 import type { Config } from '../config';
 import type { AiBackends } from '../jobs/runner';
+import type { ChunkPlan } from '../stt/chunks';
 import { OpenAiSummarizer } from '../llm/openai-summarizer';
 import { OpenAiTranscriber } from '../stt/openai-transcriber';
 import type { LlmContextService } from './context';
 import type { AiSettingsService } from './settings';
+
+/**
+ * Parts for a speaches in batched mode: it transcribes 30-second windows in
+ * parallel and independently, so long parts are fast and cannot carry a
+ * loop from one window into the next (SPEC.md §7.5).
+ */
+export const BATCHED_CHUNKING: ChunkPlan = { target: 600, slack: 60 };
 
 /** Builds clients from the current settings, so a change applies from the next job on. */
 export function createAiBackends(
@@ -14,6 +22,8 @@ export function createAiBackends(
   return {
     stt() {
       const s = settings.effective('stt');
+      // Only the bundled server is known to run batched; others keep minute parts.
+      const batched = s.mode === 'local' && config.stt.batched && s.baseUrl === config.stt.baseUrl;
       return {
         transcriber: new OpenAiTranscriber({
           baseUrl: s.baseUrl,
@@ -22,10 +32,12 @@ export function createAiBackends(
           language: config.stt.language,
           timeoutMs: config.stt.timeoutMs,
           // A speaches extension; cloud APIs get only the standard OpenAI fields.
-          vadFilter: s.mode === 'local' && config.stt.vadFilter,
+          // Batched mode cuts the audio by voice activity, so it needs the filter.
+          vadFilter: s.mode === 'local' && (config.stt.vadFilter || batched),
         }),
         // Cloud APIs cap uploads (~25 MB); compressed audio fits far longer recordings.
         format: s.mode === 'api' ? 'ogg' : 'wav',
+        ...(batched && { chunking: BATCHED_CHUNKING }),
       };
     },
     llm() {
