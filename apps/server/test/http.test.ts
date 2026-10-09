@@ -355,7 +355,7 @@ describe('HTTP API', () => {
         payload: { enabled: true },
       });
       expect(res.statusCode).toBe(200);
-      expect(res.json()).toMatchObject({ takeTurns: true, sttIdleSeconds: 30 });
+      expect(res.json()).toMatchObject({ takeTurns: true, sttIdleSeconds: 10 });
       expect(t.repo.getAppSetting('take_turns')).toBe(true);
     });
 

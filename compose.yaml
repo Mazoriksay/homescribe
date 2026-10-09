@@ -53,11 +53,12 @@ services:
       ENABLE_UI: 'false'
       # Seconds Whisper stays loaded after use (whisper.ttl); short, so the
       # summary model can have the GPU soon after (SPEC.md §7.5).
-      WHISPER__TTL: ${STT_MODEL_TTL:-30}
+      WHISPER__TTL: ${STT_MODEL_TTL:-10}
       # Batched mode: 30-second windows in parallel, several times faster on a
-      # GPU. Homescribe sends it long parts when STT_BATCHED=true in .env too
-      # (the installer sets it); without that it keeps minute parts.
-      WHISPER__USE_BATCHED_MODE: ${STT_BATCHED:-true}
+      # GPU, for about 3 GB more video memory. STT_BATCHED=true in .env turns
+      # it on here and makes Homescribe send long parts; the installer sets it
+      # when the GPU has room (SPEC.md §7.5).
+      WHISPER__USE_BATCHED_MODE: ${STT_BATCHED:-false}
     volumes:
       - hf-hub-cache:/home/ubuntu/.cache/huggingface/hub
     networks:
@@ -80,7 +81,7 @@ services:
       PRELOAD_MODELS: '["${STT_MODEL:-Systran/faster-whisper-large-v3}"]'
       LOG_LEVEL: info
       ENABLE_UI: 'false'
-      WHISPER__TTL: ${STT_MODEL_TTL:-30}
+      WHISPER__TTL: ${STT_MODEL_TTL:-10}
     volumes:
       - hf-hub-cache:/home/ubuntu/.cache/huggingface/hub
     networks:

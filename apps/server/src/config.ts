@@ -83,7 +83,7 @@ const envSchema = z.object({
   HOMESCRIBE_COMMIT: optional(z.string().optional()),
   UPDATE_REPO: optional(z.string().default('Mazoriksay/homescribe')),
   EXTENSION_FOLDER: optional(z.string().optional()),
-  STT_MODEL_TTL: optional(z.coerce.number().int().min(0).default(30)),
+  STT_MODEL_TTL: optional(z.coerce.number().int().min(0).default(10)),
   AI_TAKE_TURNS: optional(z.stringbool().default(false)),
   BASE_PATH: optional(
     z
