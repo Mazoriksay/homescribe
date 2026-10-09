@@ -19,6 +19,7 @@ import {
   type RecordingPage,
   type SearchPage,
   type Summary,
+  type SummarySettings,
   type Transcript,
   type UpdateAiSettingsBody,
 } from '@homescribe/shared';
@@ -37,6 +38,7 @@ export const api = createApi({
     'AiMemory',
     'Cookies',
     'Health',
+    'SummarySettings',
   ],
   endpoints: (build) => ({
     listRecordings: build.query<RecordingPage, { page: number; pageSize: number }>({
@@ -106,6 +108,14 @@ export const api = createApi({
           }),
         );
       },
+    }),
+    getSummarySettings: build.query<SummarySettings, void>({
+      query: () => '/settings/summary',
+      providesTags: ['SummarySettings'],
+    }),
+    saveSummarySettings: build.mutation<SummarySettings, SummarySettings>({
+      query: (body) => ({ url: '/settings/summary', method: 'PUT', body }),
+      invalidatesTags: ['SummarySettings'],
     }),
     setTakeTurns: build.mutation<AiMemory, boolean>({
       query: (enabled) => ({ url: '/ai/take-turns', method: 'PUT', body: { enabled } }),
@@ -189,6 +199,8 @@ export const {
   useCreatePairingMutation,
   useUnloadAiMutation,
   useSetTakeTurnsMutation,
+  useGetSummarySettingsQuery,
+  useSaveSummarySettingsMutation,
   useUpdateAiSettingsMutation,
   useResetAiSettingsMutation,
   useLazyDiscoverAiQuery,

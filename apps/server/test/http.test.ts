@@ -323,6 +323,25 @@ describe('HTTP API', () => {
       t.transcriber.gate = null;
     });
 
+    it('keeps the own summary instructions of the user', async () => {
+      expect((await t.app.inject('/api/v1/settings/summary')).json()).toEqual({ instructions: '' });
+      const tooLong = await t.app.inject({
+        method: 'PUT',
+        url: '/api/v1/settings/summary',
+        payload: { instructions: 'x'.repeat(2001) },
+      });
+      expect(tooLong.statusCode).toBe(400);
+      const res = await t.app.inject({
+        method: 'PUT',
+        url: '/api/v1/settings/summary',
+        payload: { instructions: '  More detail, please.  ' },
+      });
+      expect(res.json()).toEqual({ instructions: 'More detail, please.' });
+      expect((await t.app.inject('/api/v1/settings/summary')).json()).toEqual({
+        instructions: 'More detail, please.',
+      });
+    });
+
     it('stores the take-turns switch over the environment default', async () => {
       const bad = await t.app.inject({
         method: 'PUT',

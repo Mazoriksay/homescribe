@@ -50,15 +50,16 @@ export function SummaryView({ recording }: { recording: Recording }) {
           <div className={styles.markdown}>
             <Markdown skipHtml>{summary.summary}</Markdown>
           </div>
-          <h3 className={styles.subheading}>{t('recording.actionItems')}</h3>
-          {summary.actionItems.length === 0 ? (
-            <p className={styles.placeholder}>{t('recording.noActionItems')}</p>
-          ) : (
-            <ul className={styles.items}>
-              {summary.actionItems.map((item, index) => (
-                <li key={index}>{item}</li>
-              ))}
-            </ul>
+          {/* Lectures and videos rarely have tasks: no block rather than "none". */}
+          {summary.actionItems.length > 0 && (
+            <>
+              <h3 className={styles.subheading}>{t('recording.actionItems')}</h3>
+              <ul className={styles.items}>
+                {summary.actionItems.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+            </>
           )}
           <p className={styles.model}>{t('recording.summaryModel', { model: summary.model })}</p>
         </>

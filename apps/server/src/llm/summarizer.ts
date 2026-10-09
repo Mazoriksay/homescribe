@@ -25,6 +25,8 @@ export interface SummaryResult {
 
 export interface SummarizeOptions {
   signal?: AbortSignal;
+  /** The user's own additions to the prompt (Settings → Summaries). */
+  instructions?: string;
   onProgress?: (ratio: number) => void;
 }
 

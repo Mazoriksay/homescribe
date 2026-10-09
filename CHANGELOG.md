@@ -9,6 +9,8 @@ source of truth for the version.
 
 ### Added
 
+- Your own instructions for summaries (Settings → Summaries, up to 2000
+  characters), added to every summary request: length, focus, style.
 - YouTube sign-in without hand-made files: when a link fails with "Sign in to
   confirm you're not a bot", the recording page offers "Connect YouTube".
   Settings → YouTube pairs a browser extension (Chrome, Edge, Yandex Browser,
@@ -41,6 +43,12 @@ source of truth for the version.
 
 ### Fixed
 
+- Summaries are detailed by default: a longer overview, key points with
+  their specifics and a conclusion. "To do" (was "Action items") shows only
+  when there is something to do, instead of "No action items" under every
+  lecture or video.
+- Long recordings no longer fail with "cut off even for 4037 characters"
+  while merging part summaries: a merge the window cuts off is split.
 - An Ollama with no models yet (it answers `data: null`) is no longer hidden
   from "Find AI on this computer" and no longer reported as unreachable; it
   is listed with how to download a model.

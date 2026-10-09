@@ -238,6 +238,15 @@ describe('JobRunner', () => {
     expect(repo.getTranscript(id)).not.toBeNull();
   });
 
+  it('passes the own summary instructions to the model', async () => {
+    repo.setAppSetting('summary_instructions', 'Quote key phrases.');
+    const { job } = await upload();
+    runner.start();
+    await runner.idle();
+    expect(repo.getJob(job.id)?.status).toBe('done');
+    expect(summarizer.instructions).toEqual(['Quote key phrases.']);
+  });
+
   it('regenerates only the summary for a summarize job', async () => {
     const { id } = await upload();
     runner.start();

@@ -21,6 +21,9 @@ import {
 } from '../stt/chunks';
 import { SttError, type Transcriber } from '../stt/transcriber';
 
+/** app_settings key of the user's additions to the summary prompt. */
+export const SUMMARY_INSTRUCTIONS = 'summary_instructions';
+
 /** About a minute per STT request, cut in a pause (SPEC.md §8). */
 const CHUNKING: ChunkPlan = { target: 60, slack: 15 };
 
@@ -405,7 +408,11 @@ export class JobRunner {
       const run = () =>
         summarizer.summarize(
           { text: transcript.text, language: transcript.language },
-          { signal, onProgress: this.progressReporter(job.id) },
+          {
+            signal,
+            onProgress: this.progressReporter(job.id),
+            instructions: repo.getAppSetting<string>(SUMMARY_INSTRUCTIONS) ?? '',
+          },
         );
       let result;
       try {

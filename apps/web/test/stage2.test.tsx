@@ -156,6 +156,38 @@ describe('SettingsPage', () => {
     ).toBeTruthy();
   });
 
+  it('saves the own instructions for summaries', async () => {
+    const fetchMock = mockApi([
+      { path: `${API_PREFIX}/settings/ai`, body: settings },
+      { path: `${API_PREFIX}/settings/summary`, body: { instructions: '' } },
+      {
+        method: 'PUT',
+        path: `${API_PREFIX}/settings/summary`,
+        body: { instructions: 'Quote key phrases.' },
+      },
+    ]);
+    renderPage(<SettingsPage />);
+    const field = await screen.findByLabelText('Your instructions for summaries');
+    const save = within(field.closest('label')!.parentElement!).getByRole('button', {
+      name: 'Save',
+    });
+    expect((save as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(field, { target: { value: '  Quote key phrases. ' } });
+    fireEvent.click(save);
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([r]) =>
+            (r as Request).method === 'PUT' && (r as Request).url.endsWith('/settings/summary'),
+        ),
+      ).toBe(true),
+    );
+    const put = fetchMock.mock.calls
+      .map(([r]) => r as Request)
+      .find((r) => r.method === 'PUT' && r.url.endsWith('/settings/summary'))!;
+    expect(await put.json()).toEqual({ instructions: 'Quote key phrases.' });
+  });
+
   it('lets the models take turns on the GPU', async () => {
     const memory = {
       busy: false,
@@ -414,7 +446,29 @@ describe('RecordingPage, stage 2', () => {
     expect(screen.getByText('agreed').tagName).toBe('STRONG');
     expect(container.querySelector('img')).toBeNull();
     expect(screen.getByText('Ann: send the notes')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'To do' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Summarize again' })).toBeTruthy();
+  });
+
+  it('shows no to-do block when there is nothing to do', async () => {
+    mockApi([
+      { path: recordingPath, body: recording() },
+      { path: `${recordingPath}/transcript`, body: transcript() },
+      {
+        path: `${recordingPath}/summary`,
+        body: {
+          recordingId: RECORDING_ID,
+          summary: 'A lecture about bees.',
+          actionItems: [],
+          model: 'm',
+          createdAt: '2026-01-01T10:05:00.000Z',
+        },
+      },
+      { path: `${API_PREFIX}/settings/ai`, body: settings },
+    ]);
+    renderPage(<RecordingPage />, page);
+    expect(await screen.findByText('A lecture about bees.')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'To do' })).toBeNull();
   });
 
   it('offers to connect YouTube when a link needs signing in', async () => {
