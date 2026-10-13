@@ -162,6 +162,7 @@ export const ru: Record<MessageKey, string> = {
   'settings.memory.takeTurns': 'Модели по очереди',
   'settings.memory.takeTurnsCost':
     'Каждая запись обрабатывается примерно на {seconds} с дольше, зато обе модели не нужны в видеопамяти одновременно.',
+  'settings.memory.load': 'Загрузить',
   'settings.memory.free': 'Освободить видеопамять',
   'settings.memory.busy': 'Идёт обработка записи. Дождитесь её конца или отмените.',
   'settings.memory.empty': 'Модели выгружены.',
@@ -239,6 +240,8 @@ export const ru: Record<MessageKey, string> = {
   'error.URL_NOT_ALLOWED':
     'Эту ссылку нельзя использовать: она ведёт на этот сервер или в локальную сеть.',
   'error.AI_UNREACHABLE': 'Не удалось связаться с ИИ-сервером.',
+  'error.AI_LOAD_FAILED': 'Сервер не загрузил модель.',
+  'error.JOB_ACTIVE': 'Идёт обработка записи. Дождитесь её конца или отмените.',
   'error.LLM_UNAVAILABLE': 'Сервер языковой модели недоступен.',
   'error.LLM_TIMEOUT': 'Языковая модель слишком долго не отвечала.',
   'error.LLM_FAILED': 'Языковая модель не выдала пригодных итогов.',

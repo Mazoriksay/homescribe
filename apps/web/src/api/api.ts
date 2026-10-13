@@ -112,6 +112,13 @@ export const api = createApi({
         );
       },
     }),
+    loadAi: build.mutation<AiMemory, AiKind>({
+      query: (kind) => ({ url: '/ai/load', method: 'POST', body: { kind } }),
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        const { data } = await queryFulfilled;
+        dispatch(api.util.upsertQueryData('getAiMemory', undefined, data));
+      },
+    }),
     // Asks GitHub, so only when the button is pressed (lazy) and never cached long.
     checkUpdates: build.query<UpdateStatus, void>({
       query: () => '/updates',
@@ -217,6 +224,7 @@ export const {
   useDeleteCookiesMutation,
   useCreatePairingMutation,
   useUnloadAiMutation,
+  useLoadAiMutation,
   useSetTakeTurnsMutation,
   useGetSummarySettingsQuery,
   useGetLlmContextQuery,

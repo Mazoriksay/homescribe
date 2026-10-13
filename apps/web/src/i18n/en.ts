@@ -158,6 +158,7 @@ export const en = {
   'settings.memory.takeTurns': 'Take turns on the GPU',
   'settings.memory.takeTurnsCost':
     'Each recording takes about {seconds} s longer, but the two models never need video memory at the same time.',
+  'settings.memory.load': 'Load',
   'settings.memory.free': 'Free video memory',
   'settings.memory.busy': 'A recording is being processed. Wait for it or cancel it first.',
   'settings.memory.empty': 'Models are unloaded.',
@@ -235,6 +236,8 @@ export const en = {
   'error.URL_NOT_ALLOWED':
     'This link cannot be used: it points to this server or the local network.',
   'error.AI_UNREACHABLE': 'The AI server could not be reached.',
+  'error.AI_LOAD_FAILED': 'The server did not load the model.',
+  'error.JOB_ACTIVE': 'A recording is being processed. Wait for it or cancel it first.',
   'error.LLM_UNAVAILABLE': 'The language model server is unreachable.',
   'error.LLM_TIMEOUT': 'The language model took too long to answer.',
   'error.LLM_FAILED': 'The language model did not produce a usable summary.',
