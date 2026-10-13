@@ -381,6 +381,27 @@ describe('HTTP API', () => {
       t.transcriber.gate = null;
     });
 
+    it('does not load a model while a job is running, and validates the kind', async () => {
+      const invalid = await t.app.inject({
+        method: 'POST',
+        url: '/api/v1/ai/load',
+        payload: { kind: 'tts' },
+      });
+      expect(invalid.statusCode).toBe(400);
+
+      t.transcriber.gate = deferred().promise;
+      await upload();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const res = await t.app.inject({
+        method: 'POST',
+        url: '/api/v1/ai/load',
+        payload: { kind: 'stt' },
+      });
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('JOB_ACTIVE');
+      t.transcriber.gate = null;
+    });
+
     it('keeps the own summary instructions of the user', async () => {
       expect((await t.app.inject('/api/v1/settings/summary')).json()).toEqual({ instructions: '' });
       const tooLong = await t.app.inject({

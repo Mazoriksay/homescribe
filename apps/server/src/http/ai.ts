@@ -1,5 +1,6 @@
 import {
   aiKindParamsSchema,
+  aiLoadBodySchema,
   API_PREFIX,
   listModelsBodySchema,
   takeTurnsBodySchema,
@@ -11,7 +12,7 @@ import {
 } from '@homescribe/shared';
 import type { FastifyInstance } from 'fastify';
 import { ContextError, type LlmContextService } from '../ai/context';
-import type { AiMemoryService } from '../ai/memory';
+import { AiLoadError, type AiMemoryService } from '../ai/memory';
 import type { Repository } from '../db/repository';
 import { SUMMARY_INSTRUCTIONS } from '../jobs/runner';
 import { AiUnreachableError } from '../ai/models';
@@ -71,6 +72,20 @@ export function registerAiRoutes(app: FastifyInstance, deps: AiRouteDeps): void 
     }
     const { memory, failed } = await deps.memory.unload();
     return { ...memory, failed };
+  });
+
+  app.post(`${API_PREFIX}/ai/load`, async (request) => {
+    const { kind } = parseInput(aiLoadBodySchema, request.body ?? {}, 'body');
+    if (deps.memory.busy()) {
+      // The job loads what it needs itself; a second model could push it out of memory.
+      throw new AppError(409, 'JOB_ACTIVE', 'Wait for the current job or cancel it first');
+    }
+    try {
+      return await deps.memory.load(kind);
+    } catch (error) {
+      if (error instanceof AiLoadError) throw new AppError(502, 'AI_LOAD_FAILED', error.message);
+      throw error;
+    }
   });
 
   app.get(`${API_PREFIX}/settings/summary`, async () => ({

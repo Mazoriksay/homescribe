@@ -124,6 +124,8 @@ export const backendMemorySchema = z.object({
   state: z.enum(backendMemoryStates),
   server: z.enum(['speaches', 'ollama']).nullable(),
   loaded: z.array(loadedModelSchema),
+  /** The server loads the chosen model on request (`POST /ai/load`). */
+  canLoad: z.boolean(),
 });
 export type BackendMemory = z.infer<typeof backendMemorySchema>;
 
@@ -144,6 +146,9 @@ export const aiUnloadResultSchema = aiMemorySchema.extend({
   failed: z.array(z.string()),
 });
 export type AiUnloadResult = z.infer<typeof aiUnloadResultSchema>;
+
+export const aiLoadBodySchema = z.object({ kind: aiKindSchema });
+export type AiLoadBody = z.infer<typeof aiLoadBodySchema>;
 
 export const takeTurnsBodySchema = z.object({ enabled: z.boolean() });
 export type TakeTurnsBody = z.infer<typeof takeTurnsBodySchema>;

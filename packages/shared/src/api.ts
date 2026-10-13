@@ -19,6 +19,7 @@ export const apiErrorCodes = [
   'SUMMARIES_OFF',
   'URL_NOT_ALLOWED',
   'AI_UNREACHABLE',
+  'AI_LOAD_FAILED',
   'PAIRING_INVALID',
   'TOKEN_INVALID',
   'FILE_TOO_LARGE',
