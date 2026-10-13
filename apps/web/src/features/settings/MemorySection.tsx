@@ -1,19 +1,29 @@
 import type { BackendMemory } from '@homescribe/shared';
 import { Button, Switch } from 'antd';
-import { useGetAiMemoryQuery, useSetTakeTurnsMutation, useUnloadAiMutation } from '../../api/api';
+import {
+  errorCode,
+  errorText,
+  useGetAiMemoryQuery,
+  useLoadAiMutation,
+  useSetTakeTurnsMutation,
+  useUnloadAiMutation,
+} from '../../api/api';
 import type { ReactNode } from 'react';
-import { useT } from '../../i18n/useT';
+import { errorMessageKey, useT } from '../../i18n/useT';
 import styles from './Settings.module.css';
 
 /**
- * "Free video memory": unloads the local models now instead of after a while,
- * and "take turns" for a GPU that cannot hold both models (SPEC.md §7.5).
+ * What the local models hold in video memory: "Load" brings one in before a
+ * recording needs it, "Free video memory" unloads them now instead of after
+ * a while, and "take turns" is for a GPU that cannot hold both (SPEC.md §7.5).
  */
 export function MemorySection() {
   const t = useT();
   // Models unload by themselves after a while; keep the list current while the page is open.
   const { data } = useGetAiMemoryQuery(undefined, { pollingInterval: 10_000 });
   const [unload, { data: result, isLoading }] = useUnloadAiMutation();
+  const [load, { isLoading: loading, originalArgs: loadingKind, error: loadError }] =
+    useLoadAiMutation();
   const [setTakeTurns, { isLoading: switching }] = useSetTakeTurnsMutation();
 
   const local = (b: BackendMemory) => b.state !== 'remote' && b.state !== 'off';
@@ -23,6 +33,7 @@ export function MemorySection() {
   // Only servers that unload on request count; speaches does it by itself.
   const unloadable = [data.stt, data.llm].filter((b) => b.state === 'ok');
   const loaded = unloadable.reduce((n, b) => n + b.loaded.length, 0);
+  const loadable = data.stt.canLoad || data.llm.canLoad;
   const describe = (b: BackendMemory): ReactNode => {
     if (b.state === 'unsupported') return t('settings.memory.unsupported');
     if (b.state === 'unreachable') return t('settings.memory.unreachable');
@@ -58,10 +69,30 @@ export function MemorySection() {
           .map((kind) => (
             <div key={kind}>
               <dt>{t(`settings.${kind}.title`)}</dt>
-              <dd>{describe(data[kind])}</dd>
+              <dd>
+                {describe(data[kind])}
+                {data[kind].canLoad && data[kind].loaded.length === 0 && (
+                  <Button
+                    className={styles.load}
+                    loading={loading && loadingKind === kind}
+                    disabled={data.busy || loading}
+                    onClick={() => void load(kind)}
+                  >
+                    {t('settings.memory.load')}
+                  </Button>
+                )}
+              </dd>
             </div>
           ))}
       </dl>
+      {loadError !== undefined && (
+        <p className={styles.muted} role="alert">
+          {t(errorMessageKey(errorCode(loadError)))}
+          {errorCode(loadError) === 'AI_LOAD_FAILED' && errorText(loadError)
+            ? ` ${errorText(loadError)}`
+            : ''}
+        </p>
+      )}
       {unloadable.length > 0 && (
         <div>
           <Button
@@ -73,7 +104,7 @@ export function MemorySection() {
           </Button>
         </div>
       )}
-      {unloadable.length > 0 && data.busy && (
+      {(unloadable.length > 0 || loadable) && data.busy && (
         <p className={styles.muted}>{t('settings.memory.busy')}</p>
       )}
       {unloadable.length > 0 && !data.busy && loaded === 0 && (

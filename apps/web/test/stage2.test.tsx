@@ -157,6 +157,38 @@ describe('SettingsPage', () => {
     ).toBeTruthy();
   });
 
+  it('loads a model on request where the server can', async () => {
+    const idle = {
+      busy: false,
+      takeTurns: false,
+      sttIdleSeconds: 10,
+      stt: { state: 'auto', server: 'speaches', loaded: [], canLoad: true },
+      llm: { state: 'unsupported', server: null, loaded: [], canLoad: false },
+    };
+    const whisper = { model: 'Systran/faster-whisper-large-v3', vramBytes: null };
+    const fetchMock = mockApi([
+      { path: `${API_PREFIX}/settings/ai`, body: settings },
+      { path: `${API_PREFIX}/ai/memory`, body: idle },
+      {
+        method: 'POST',
+        path: `${API_PREFIX}/ai/load`,
+        body: { ...idle, stt: { ...idle.stt, loaded: [whisper] } },
+      },
+    ]);
+    renderPage(<SettingsPage />);
+    const section = (await screen.findByRole('heading', { name: 'Video memory' })).closest(
+      'section',
+    )!;
+    // One button: only speaches can load here.
+    fireEvent.click(await within(section).findByRole('button', { name: 'Load' }));
+    expect(await within(section).findByText('Systran/faster-whisper-large-v3')).toBeTruthy();
+    expect(within(section).queryByRole('button', { name: 'Load' })).toBeNull();
+    const sent = fetchMock.mock.calls
+      .map(([r]) => r as Request)
+      .find((r) => r.url.endsWith('/api/v1/ai/load'));
+    expect(await sent?.clone().json()).toEqual({ kind: 'stt' });
+  });
+
   it('saves the own instructions for summaries', async () => {
     const fetchMock = mockApi([
       { path: `${API_PREFIX}/settings/ai`, body: settings },

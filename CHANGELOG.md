@@ -7,6 +7,14 @@ source of truth for the version.
 
 ## [Unreleased]
 
+### Added
+
+- "Load" in Settings → Video memory brings the speech recognition or summary
+  model into memory before a recording needs it (`POST /api/v1/ai/load`).
+  Works with speaches and Ollama; with "take turns" on, the other model
+  leaves first. speaches still lets Whisper go after `STT_MODEL_TTL`, Ollama
+  keeps the model for ten minutes.
+
 ## [0.3.5] - 2026-10-09
 
 ### Fixed

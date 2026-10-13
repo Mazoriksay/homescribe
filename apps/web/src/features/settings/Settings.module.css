@@ -53,6 +53,11 @@
   display: block;
 }
 
+/* "Load" next to "not loaded". */
+.load {
+  margin-left: var(--space-3);
+}
+
 /* Mono only for the identifier itself, never for the sentence around it. */
 .value {
   font-family: var(--font-mono);
