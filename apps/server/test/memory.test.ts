@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { AiMemoryService } from '../src/ai/memory';
+import { AiLoadError, AiMemoryService } from '../src/ai/memory';
 import type { AiSettingsService, EffectiveAiSettings } from '../src/ai/settings';
 import { startFakeOpenAi } from './support/fake-openai';
 
@@ -8,11 +8,17 @@ afterEach(async () => {
   for (const close of closers.splice(0)) await close();
 });
 
-/** A speaches stand-in following routers/misc.py: GET/DELETE /api/ps. */
+/** A speaches stand-in following routers/misc.py: GET/POST/DELETE /api/ps. */
 async function fakeSpeaches(loaded: string[]) {
   const fake = await startFakeOpenAi((req, res) => {
     if (req.method === 'GET' && req.url === '/api/ps') {
       return res.end(JSON.stringify({ models: loaded }));
+    }
+    if (req.method === 'POST' && req.url.startsWith('/api/ps/')) {
+      const id = decodeURIComponent(req.url.slice('/api/ps/'.length));
+      if (loaded.includes(id)) return res.writeHead(409).end('Model already loaded');
+      loaded.push(id);
+      return res.writeHead(201).end();
     }
     if (req.method === 'DELETE' && req.url.startsWith('/api/ps/')) {
       const id = decodeURIComponent(req.url.slice('/api/ps/'.length));
@@ -27,7 +33,7 @@ async function fakeSpeaches(loaded: string[]) {
   return fake;
 }
 
-/** An Ollama stand-in following docs/api.md: GET /api/ps, generate with keep_alive 0. */
+/** An Ollama stand-in following docs/api.md: GET /api/ps, generate without a prompt. */
 async function fakeOllama(loaded: { name: string; size_vram: number }[]) {
   const fake = await startFakeOpenAi((req, res) => {
     if (req.method === 'GET' && req.url === '/api/ps') {
@@ -36,13 +42,17 @@ async function fakeOllama(loaded: { name: string; size_vram: number }[]) {
     if (req.method === 'GET' && req.url === '/api/version') {
       return res.end(JSON.stringify({ version: '0.12.0' }));
     }
-    const body = req.json as { model?: string; keep_alive?: number } | null;
+    const body = req.json as { model?: string; keep_alive?: number | string } | null;
     if (req.method === 'POST' && req.url === '/api/generate' && body?.keep_alive === 0) {
       loaded.splice(
         loaded.findIndex((m) => m.name === body.model),
         1,
       );
       return res.end(JSON.stringify({ model: body.model, done: true, done_reason: 'unload' }));
+    }
+    if (req.method === 'POST' && req.url === '/api/generate' && body?.model) {
+      loaded.push({ name: body.model, size_vram: 5_000_000_000 });
+      return res.end(JSON.stringify({ model: body.model, done: true, done_reason: 'load' }));
     }
     res.writeHead(404).end();
   });
@@ -89,18 +99,20 @@ describe('AiMemoryService', () => {
         state: 'auto',
         server: 'speaches',
         loaded: [{ model: 'Systran/faster-whisper-large-v3', vramBytes: null }],
+        canLoad: true,
       },
       llm: {
         state: 'ok',
         server: 'ollama',
         loaded: [{ model: 'qwen2.5:7b', vramBytes: 5_000_000_000, sizeBytes: null }],
+        canLoad: true,
       },
     });
 
     const { memory: after, failed } = await memory.unload();
     expect(failed).toEqual([]);
     // Nothing loaded is still Ollama, not speaches (both answer { models: [] }).
-    expect(after.llm).toEqual({ state: 'ok', server: 'ollama', loaded: [] });
+    expect(after.llm).toEqual({ state: 'ok', server: 'ollama', loaded: [], canLoad: true });
     // speaches 0.8.1 stops working after DELETE /api/ps; it unloads by itself.
     expect(after.stt.loaded).toHaveLength(1);
     expect(speaches.received.some((r) => r.method === 'DELETE')).toBe(false);
@@ -184,6 +196,78 @@ describe('AiMemoryService', () => {
     // The switch in the settings overrides the installer's default.
     expect((await memory.setTakeTurns(false)).takeTurns).toBe(false);
     expect(memory.takeTurns()).toBe(false);
+  });
+
+  it('loads the chosen model on request', async () => {
+    const whisper: string[] = [];
+    const speaches = await fakeSpeaches(whisper);
+    const ollama = await fakeOllama([]);
+    const memory = new AiMemoryService(
+      settings(
+        { baseUrl: speaches.baseUrl, model: 'Systran/faster-whisper-large-v3' },
+        { baseUrl: ollama.baseUrl, model: 'qwen2.5:7b' },
+      ),
+      () => false,
+      options(),
+    );
+
+    expect((await memory.load('stt')).stt.loaded).toEqual([
+      { model: 'Systran/faster-whisper-large-v3', vramBytes: null },
+    ]);
+    // The id keeps its slash: speaches routes it as a path.
+    expect(speaches.received.some((r) => r.url === '/api/ps/Systran/faster-whisper-large-v3')).toBe(
+      true,
+    );
+    // Already loaded (409) is what was asked for.
+    await expect(memory.load('stt')).resolves.toBeTruthy();
+    expect(whisper).toHaveLength(1);
+
+    expect((await memory.load('llm')).llm.loaded.map((m) => m.model)).toEqual(['qwen2.5:7b']);
+    const generate = ollama.received.find((r) => r.url === '/api/generate');
+    // No prompt: Ollama only loads; it lets the model go by itself later.
+    expect(generate?.json).toEqual({ model: 'qwen2.5:7b', keep_alive: '10m' });
+  });
+
+  it('takes turns when loading: the other model leaves first', async () => {
+    const whisper = ['Systran/faster-whisper-large-v3'];
+    const running = [{ name: 'gemma4:26b', size_vram: 14_000_000_000 }];
+    const speaches = await fakeSpeaches(whisper);
+    const ollama = await fakeOllama(running);
+    const memory = new AiMemoryService(
+      settings({ baseUrl: speaches.baseUrl }, { baseUrl: ollama.baseUrl, model: 'gemma4:26b' }),
+      () => false,
+      options(true),
+    );
+
+    // Whisper is asked for: the summary model is unloaded before it.
+    whisper.splice(0);
+    await memory.load('stt');
+    expect(running).toEqual([]);
+    expect(whisper).toEqual(['m']);
+
+    // The summary model is asked for: it waits until speaches lets Whisper go.
+    setTimeout(() => whisper.splice(0), 50);
+    await memory.load('llm');
+    expect(whisper).toEqual([]);
+    expect(running.map((m) => m.name)).toEqual(['gemma4:26b']);
+  });
+
+  it('says when a server cannot load on request or refuses', async () => {
+    const lmStudio = await startFakeOpenAi((_, res) => res.writeHead(404).end());
+    const failing = await startFakeOpenAi((req, res) => {
+      if (req.method === 'GET') return res.end(JSON.stringify({ models: [] }));
+      res.writeHead(500).end('out of memory');
+    });
+    closers.push(lmStudio.close, failing.close);
+    const memory = new AiMemoryService(
+      settings({ baseUrl: failing.baseUrl }, { baseUrl: lmStudio.baseUrl }),
+      () => false,
+      options(),
+    );
+    expect((await memory.status()).llm.canLoad).toBe(false);
+    await expect(memory.load('llm')).rejects.toBeInstanceOf(AiLoadError);
+    await expect(memory.load('stt')).rejects.toThrow('HTTP 500: out of memory');
+    expect(lmStudio.received.some((r) => r.method === 'POST')).toBe(false);
   });
 
   it('leaves cloud APIs alone and has nothing to wait for without a local speaches', async () => {

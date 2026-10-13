@@ -251,6 +251,7 @@ on `code` only.
 | 409  | `SUMMARY_NOT_READY`      | No summary stored yet                                                         |
 | 409  | `SUMMARIES_OFF`          | A `summarize` job was requested while the LLM is set to `off`                 |
 | 502  | `AI_UNREACHABLE`         | Listing models: the given AI server did not answer as expected                |
+| 502  | `AI_LOAD_FAILED`         | Loading a model on request: the server cannot, refused or did not answer      |
 | 413  | `FILE_TOO_LARGE`         | Upload larger than `MAX_UPLOAD_MB`                                            |
 | 415  | `UNSUPPORTED_MEDIA_TYPE` | Upload MIME type is not `audio/*`, `video/*` or `application/octet-stream`    |
 | 500  | `INTERNAL_ERROR`         | Anything unexpected; never includes stack traces                              |
@@ -357,6 +358,7 @@ interface Page<T> {
 | `POST /api/v1/ai/models`                | 2     | `{ baseUrl, apiKey?, useSavedKeyFor?: 'stt' \| 'llm' }`                                                                | `200 { models: { id, kind: 'stt' \| 'llm' \| null }[] }`                | 400, 502 `AI_UNREACHABLE`                                           |
 | `GET /api/v1/ai/memory`                 | 3     | —                                                                                                                      | `200 AiMemory`                                                          |                                                                     |
 | `POST /api/v1/ai/unload`                | 3     | —                                                                                                                      | `200 AiMemory & { failed: string[] }`                                   | 409 `JOB_ACTIVE`                                                    |
+| `POST /api/v1/ai/load`                  | 3     | `{ kind: 'stt' \| 'llm' }`                                                                                             | `200 AiMemory`                                                          | 400 `VALIDATION_ERROR`, 409 `JOB_ACTIVE`, 502 `AI_LOAD_FAILED`      |
 | `PUT /api/v1/ai/take-turns`             | 3     | `{ enabled: boolean }`                                                                                                 | `200 AiMemory`                                                          | 400 `VALIDATION_ERROR`                                              |
 | `GET /api/v1/settings/summary`          | 3     | —                                                                                                                      | `200 { instructions: string }`                                          | —                                                                   |
 | `GET /api/v1/updates`                   | 3     | —                                                                                                                      | `200 UpdateStatus` (§7.9)                                               | —                                                                   |
@@ -529,6 +531,7 @@ interface BackendMemory {
   state: 'ok' | 'auto' | 'unsupported' | 'unreachable' | 'remote' | 'off';
   server: 'speaches' | 'ollama' | null;
   loaded: { model: string; vramBytes: number | null }[];
+  canLoad: boolean; // see "Loading on request" below
 }
 ```
 
@@ -540,6 +543,23 @@ the server refused are listed in `failed`. The next job loads the model
 again by itself. The settings page shows the section only when a backend is
 local, the button only when a backend is `ok`, and for speaches "unloads by
 itself after N idle seconds".
+
+**Loading on request.** A model loads by itself when the first job needs
+it; `POST /ai/load { kind }` loads the chosen model before that, so the job
+does not wait. `canLoad` says whether the backend can: a local speaches or
+Ollama with a model chosen. speaches: `POST {baseUrl}/api/ps/{model}`
+(`routers/misc.py`; `201`, or `409` when it is already loaded, which counts
+as done; unlike `DELETE` it does not hang, live test with 0.8.3). It then
+lets the model go after `STT_MODEL_TTL` as after any use: speaches has no
+way to keep one model longer, so with the default of 10 s this only helps
+right before an upload. Ollama: `POST /api/generate { model, keep_alive:
+"10m" }` without a prompt (`docs/api.md`, "Load a model"), kept for ten
+minutes. With `takeTurns` on, the other model leaves first: before the
+summary model the server waits for speaches to be empty, before Whisper it
+unloads Ollama. While a job runs the answer is `409 JOB_ACTIVE` (the job
+loads what it needs itself), and a server that refuses or does not answer
+within three minutes is `502 AI_LOAD_FAILED` with its text. The "Video
+memory" section shows "Load" next to a backend that can and holds nothing.
 
 **Taking turns.** A summary model that only just fits the GPU cannot load
 while Whisper is still there (Ollama then crashes with a CUDA error), and

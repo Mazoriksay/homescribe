@@ -105,6 +105,45 @@ async function unloadOllama(baseUrl: string, apiKey: string | null, model: strin
   throw new Error(`HTTP ${status}: ${body.slice(0, 200)}`);
 }
 
+/** A large model read from a slow disk takes a while. */
+const LOAD_TIMEOUT_MS = 180_000;
+/** How long Ollama keeps a model that was loaded on request. */
+const LLM_KEEP_ALIVE = '10m';
+
+/** The server refused, cannot or did not answer in time (`AI_LOAD_FAILED`). */
+export class AiLoadError extends Error {}
+
+async function loadOllama(baseUrl: string, apiKey: string | null, model: string): Promise<void> {
+  const timer = withTimeout(LOAD_TIMEOUT_MS);
+  // Ollama (docs/api.md, "Load a model"): a generate request without a prompt.
+  const { status, body } = await httpRequest(new URL(`${baseUrl}/api/generate`), {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      ...authHeaders(apiKey),
+    },
+    body: JSON.stringify({ model, keep_alive: LLM_KEEP_ALIVE }),
+    signal: timer.signal,
+  });
+  if (status >= 200 && status < 300) return;
+  throw new Error(`HTTP ${status}: ${body.slice(0, 200)}`);
+}
+
+async function loadSpeaches(baseUrl: string, apiKey: string | null, model: string): Promise<void> {
+  const timer = withTimeout(LOAD_TIMEOUT_MS);
+  // speaches (routers/misc.py): POST /api/ps/{model_id:path}, the id keeps its slash.
+  const path = model.split('/').map(encodeURIComponent).join('/');
+  const { status, body } = await httpRequest(new URL(`${baseUrl}/api/ps/${path}`), {
+    method: 'POST',
+    headers: authHeaders(apiKey),
+    signal: timer.signal,
+  });
+  // 409: already loaded, which is what was asked for.
+  if (status === 409 || (status >= 200 && status < 300)) return;
+  throw new Error(`HTTP ${status}: ${body.slice(0, 200)}`);
+}
+
 /** What the local AI servers hold in GPU memory, and freeing it (SPEC.md §7.5). */
 export class AiMemoryService {
   constructor(
@@ -157,19 +196,50 @@ export class AiMemoryService {
   }
 
   private async backend(kind: AiKind): Promise<BackendMemory> {
-    const { mode, baseUrl, apiKey } = this.settings.effective(kind);
-    if (mode === 'off') return { state: 'off', server: null, loaded: [] };
-    if (mode === 'api') return { state: 'remote', server: null, loaded: [] };
+    const { mode, baseUrl, apiKey, model } = this.settings.effective(kind);
+    const none = { server: null, loaded: [], canLoad: false };
+    if (mode === 'off') return { state: 'off', ...none };
+    if (mode === 'api') return { state: 'remote', ...none };
     try {
       const result = await probe(baseUrl, apiKey);
-      if (result === 'unsupported') return { state: 'unsupported', server: null, loaded: [] };
+      if (result === 'unsupported') return { state: 'unsupported', ...none };
       // speaches 0.8.1: DELETE /api/ps/{id} holds the manager's lock while the
       // unload callback waits for it, so it never answers and takes no more
       // transcriptions (live test 2026-10-08). Its TTL timer unloads safely.
-      return { state: result.server === 'speaches' ? 'auto' : 'ok', ...result };
+      return {
+        state: result.server === 'speaches' ? 'auto' : 'ok',
+        ...result,
+        canLoad: model !== '',
+      };
     } catch {
-      return { state: 'unreachable', server: null, loaded: [] };
+      return { state: 'unreachable', ...none };
     }
+  }
+
+  busy(): boolean {
+    return this.isBusy();
+  }
+
+  /**
+   * Loads the chosen model now, so the next recording does not wait for it.
+   * speaches lets it go after its TTL as after any use; Ollama keeps it for
+   * LLM_KEEP_ALIVE. With "take turns" the other model leaves first.
+   */
+  async load(kind: AiKind): Promise<AiMemory> {
+    const { baseUrl, apiKey, model } = this.settings.effective(kind);
+    const backend = await this.backend(kind);
+    if (!backend.canLoad) throw new AiLoadError('This server cannot load a model on request');
+    if (this.takeTurns()) {
+      if (kind === 'llm') await this.waitForSttIdle();
+      else await this.unloadLlm();
+    }
+    try {
+      if (backend.server === 'ollama') await loadOllama(baseUrl, apiKey, model);
+      else await loadSpeaches(baseUrl, apiKey, model);
+    } catch (error) {
+      throw new AiLoadError(error instanceof Error ? error.message : String(error));
+    }
+    return this.status();
   }
 
   async status(): Promise<AiMemory> {
